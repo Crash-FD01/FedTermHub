@@ -182,16 +182,53 @@ Se il motore nativo non è disponibile, FedTermHub ripiega su `xfreerdp`.
 
 ## Password Manager
 
-`Ctrl+Shift+V` quando il fuoco non è nel terminale, oppure dalla barra comandi.
+Pulsante **Password** nella barra, oppure `Ctrl+Shift+V` quando il fuoco non è
+nel terminale. La prima volta scegli la master password: cifra tutte le
+credenziali e non viene salvata da nessuna parte.
 
-- Le credenziali sono cifrate con AES-256-GCM; la chiave deriva dalla master
-  password con PBKDF2-HMAC-SHA256 a 600.000 iterazioni.
-- Una sessione può usare una credenziale salvata invece di una password scritta
-  nella sessione: nel file delle sessioni non finisce mai una password.
-- Blocco automatico dopo un periodo di inattività, configurabile nelle
-  impostazioni, oppure sblocco per l'intera sessione di lavoro.
-- **La master password non si recupera.** Se la perdi, le credenziali salvate
-  sono perse: fai un'esportazione cifrata del vault ogni tanto.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/password-scuro.png">
+  <img alt="Password Manager: credenziali raggruppate per cliente e dettaglio della credenziale" src="screenshots/password-chiaro.png">
+</picture>
+
+**Come è organizzato.** A sinistra l'elenco, raggruppato e in ordine
+alfabetico; a destra la credenziale scelta, con un pulsante Copia accanto a
+utente, dominio e password e l'elenco delle sessioni che la usano. Il numero
+accanto a ogni voce dice quante sessioni la usano.
+
+**Gruppi.** Il gruppo è un nome libero, di solito il cliente. Se hai
+credenziali senza gruppo usate da sessioni che stanno in una cartella, la
+finestra propone di raggrupparle con il nome di quella cartella. Una password
+RDP salvata dalla finestra di connessione prende da sola il gruppo della
+cartella della sessione.
+
+**Collegare una credenziale a una sessione.** Nella finestra della sessione
+scegli la credenziale nel campo *Credenziale*: FedTermHub si collega senza
+chiedere la password, e nel file delle sessioni non finisce mai una password.
+
+| Tasto | Nella finestra Password |
+|---|---|
+| `Ctrl+F` | Cerca (nome, utente, dominio, gruppo, note; anche più parole) |
+| `Ctrl+N` | Nuova credenziale |
+| `Ctrl+C` | Copia la password della credenziale selezionata |
+| `Ctrl+B` | Copia l'utente (`DOMINIO\utente` per gli account di dominio) |
+| `Invio` / doppio clic | Modifica |
+| `Canc` | Elimina (chiede conferma e dice quali sessioni la usano) |
+
+Le password copiate si cancellano dagli appunti dopo 30 secondi (si cambia
+nelle Impostazioni). Nella modifica, **Genera** crea una password di 20
+caratteri senza caratteri che si confondono (0/O, 1/l).
+
+**Sicurezza.** Le credenziali sono cifrate con AES-256-GCM; la chiave deriva
+dalla master password con PBKDF2-HMAC-SHA256 a 600.000 iterazioni. Il Password
+Manager si blocca dopo un periodo di inattività (configurabile nelle
+impostazioni) oppure resta sbloccato finché il programma è aperto, se lo
+scegli quando inserisci la master password. Dal menu ☰ della finestra cambi
+la master password ed esporti o importi un backup cifrato.
+
+**La master password non si recupera.** Se la perdi, le credenziali salvate
+sono perse: esporta un backup cifrato ogni tanto e conservalo con la sua
+password.
 
 ## Strumenti di rete
 

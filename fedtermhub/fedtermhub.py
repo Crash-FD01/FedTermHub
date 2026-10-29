@@ -90,7 +90,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 # controlla che coincidano. Sta in cima perche' il doctor la stampa anche quando GTK non si carica.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.9.07"
+APP_VERSION = "0.9.08"
 
 RAW_ARGV = sys.argv[:]
 DOCTOR_MODE = "--doctor" in RAW_ARGV or "--doctor-strict" in RAW_ARGV
@@ -1303,6 +1303,9 @@ class Credential:
     domain: str = ""
     password: str = ""
     notes: str = ""
+    # Raggruppamento libero scelto dall'utente, di solito il cliente. Vuoto = "Senza gruppo".
+    # Le versioni precedenti non lo conoscono: lo ignorano in lettura.
+    group: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, object]) -> "Credential":
@@ -1313,6 +1316,7 @@ class Credential:
             domain=str(data.get("domain", "")),
             password=str(data.get("password", "")),
             notes=str(data.get("notes", "")),
+            group=str(data.get("group", "")).strip(),
         )
 
     def to_dict(self) -> Dict[str, str]:
@@ -1323,7 +1327,69 @@ class Credential:
             "domain": self.domain,
             "password": self.password,
             "notes": self.notes,
+            "group": self.group,
         }
+
+    def account_text(self) -> str:
+        """Utente come lo scrive Windows (DOMINIO\\utente) o semplice, per elenchi e riepiloghi."""
+        if self.domain and self.username:
+            return f"{self.domain}\\{self.username}"
+        return self.username or self.domain
+
+    def sort_key(self) -> Tuple[int, str, str]:
+        # I gruppi in ordine alfabetico, "Senza gruppo" per ultimo; dentro il gruppo per nome.
+        return (0 if self.group else 1, self.group.casefold(), self.name.casefold())
+
+
+PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+PASSWORD_SYMBOLS = "!#$%&*+-=?@_"
+
+
+def generate_password(length: int = 20, symbols: bool = True) -> str:
+    """Password casuale senza caratteri che si confondono (0/O, 1/l/I).
+
+    Contiene sempre almeno una maiuscola, una minuscola, una cifra e, se richiesto, un simbolo:
+    molti sistemi (Active Directory compreso) rifiutano password che non li hanno.
+    """
+    length = max(8, min(int(length), 128))
+    pools = [
+        "ABCDEFGHJKLMNPQRSTUVWXYZ",
+        "abcdefghijkmnopqrstuvwxyz",
+        "23456789",
+    ] + ([PASSWORD_SYMBOLS] if symbols else [])
+    alphabet = PASSWORD_ALPHABET + (PASSWORD_SYMBOLS if symbols else "")
+    while True:
+        candidate = "".join(secrets.choice(alphabet) for _ in range(length))
+        if all(any(ch in pool for ch in candidate) for pool in pools):
+            return candidate
+
+
+def password_strength(password: str) -> Tuple[int, str]:
+    """Stima semplice della robustezza: (0-4, descrizione).
+
+    Non sostituisce zxcvbn, ma riconosce i casi che contano per l'utente medio: password corte,
+    di un solo tipo di carattere o fatte di un carattere ripetuto.
+    """
+    if not password:
+        return 0, ""
+    kinds = sum(
+        1
+        for test in (str.islower, str.isupper, str.isdigit)
+        if any(test(ch) for ch in password)
+    ) + (1 if any(not ch.isalnum() for ch in password) else 0)
+    length = len(password)
+    unique = len(set(password))
+    if length < 8 or unique <= 2:
+        score = 0
+    elif length < 10 or kinds <= 1:
+        score = 1
+    elif length < 12 or kinds == 2:
+        score = 2
+    elif length < 16 or kinds == 3:
+        score = 3
+    else:
+        score = 4
+    return score, ("Molto debole", "Debole", "Discreta", "Buona", "Ottima")[score]
 
 
 class PasswordVault:
@@ -1425,8 +1491,46 @@ class PasswordVault:
                 return cred
         return None
 
+    def sorted_credentials(self) -> List[Credential]:
+        return sorted(self.credentials, key=Credential.sort_key)
+
+    def groups(self) -> List[str]:
+        return sorted({cred.group for cred in self.credentials if cred.group}, key=str.casefold)
+
     def labels(self) -> List[Tuple[str, str]]:
-        return [(cred.id, cred.name) for cred in self.credentials]
+        # Nelle tendine delle sessioni: stesso ordine della finestra Password, con il gruppo
+        # accanto al nome perche' credenziali di clienti diversi hanno spesso lo stesso nome.
+        return [
+            (cred.id, f"{cred.name}  ·  {cred.group}" if cred.group else cred.name)
+            for cred in self.sorted_credentials()
+        ]
+
+    def verify_master_password(self, master_password: str) -> bool:
+        """Controlla la master password sul file su disco, senza toccare lo stato in memoria."""
+        probe = PasswordVault(self.path)
+        try:
+            probe.unlock(master_password)
+            return True
+        except InvalidTag:
+            return False
+        finally:
+            probe.lock()
+
+    def change_master_password(self, new_password: str) -> None:
+        """Ricifra l'archivio con una nuova master password (salt nuovo, chiave nuova)."""
+        if not self.unlocked:
+            raise RuntimeError("Vault bloccato.")
+        if not new_password:
+            raise ValueError("Master password vuota non consentita.")
+        salt = secrets.token_bytes(16)
+        key = self.derive_key(new_password, salt, KDF_ITERATIONS)
+        previous = (self._salt, self._iterations, self._key)
+        self._salt, self._iterations, self._key = salt, KDF_ITERATIONS, key
+        try:
+            self.save()
+        except Exception:
+            self._salt, self._iterations, self._key = previous
+            raise
 
     @staticmethod
     def encrypt_credentials_payload(credentials: List[Credential], master_password: str) -> Dict[str, object]:
@@ -2468,113 +2572,418 @@ class TunnelStore:
         self.save()
 
 
+def _vault_app(parent: Gtk.Window):
+    """L'AppWindow da cui prendere icone, impostazioni e appunti, anche da un dialogo figlio."""
+    return getattr(parent, "parent_app", parent)
+
+
+def _vault_image(parent: Gtk.Window, names: List[str], size: int) -> Gtk.Image:
+    app = _vault_app(parent)
+    if hasattr(app, "make_icon_image"):
+        return app.make_icon_image(names, size)
+    return Gtk.Image.new_from_icon_name(names[0], Gtk.IconSize.DIALOG if size >= 32 else Gtk.IconSize.BUTTON)
+
+
+def _vault_button(parent: Gtk.Window, label: Gtk.Label, icons: List[str], callback, css: str = "secondary-action") -> Gtk.Button:
+    """Pulsante con icona ed etichetta con mnemonico, raggiungibile da tastiera."""
+    button = Gtk.Button()
+    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+    box.set_halign(Gtk.Align.CENTER)
+    if icons:
+        box.pack_start(_vault_image(parent, icons, 16), False, False, 0)
+    box.pack_start(label, False, False, 0)
+    label.set_mnemonic_widget(button)
+    button.add(box)
+    button.get_style_context().add_class(css)
+    if callback is not None:
+        button.connect("clicked", callback)
+    return button
+
+
+def _vault_icon_button(parent: Gtk.Window, icons: List[str], tooltip: str, callback) -> Gtk.Button:
+    button = Gtk.Button()
+    button.add(_vault_image(parent, icons, 16))
+    button.set_tooltip_text(tooltip)
+    button.set_relief(Gtk.ReliefStyle.NONE)
+    button.get_style_context().add_class("vault-icon-button")
+    if callback is not None:
+        button.connect("clicked", callback)
+    return button
+
+
+def _password_entry(activates_default: bool = True) -> Gtk.Entry:
+    """Campo password con l'occhio per mostrarla, come nei dialoghi di sistema di GNOME."""
+    entry = Gtk.Entry()
+    entry.set_visibility(False)
+    entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
+    entry.set_activates_default(activates_default)
+    entry.set_hexpand(True)
+    entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "view-reveal-symbolic")
+    entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Mostra la password")
+
+    def toggle(e: Gtk.Entry, _pos, _event) -> None:
+        visible = not e.get_visibility()
+        e.set_visibility(visible)
+        e.set_icon_from_icon_name(
+            Gtk.EntryIconPosition.SECONDARY, "view-conceal-symbolic" if visible else "view-reveal-symbolic"
+        )
+        e.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Nascondi la password" if visible else "Mostra la password")
+
+    entry.connect("icon-press", toggle)
+    return entry
+
+
+class _StrengthMeter(Gtk.Box):
+    """Barra di robustezza sotto il campo password, aggiornata mentre si scrive."""
+
+    def __init__(self, entry: Gtk.Entry) -> None:
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        # Cinque tacche: una per ogni livello di password_strength (0-4), vuota senza password.
+        self.bar = Gtk.LevelBar(min_value=0, max_value=5)
+        self.bar.set_mode(Gtk.LevelBarMode.DISCRETE)
+        self.bar.set_hexpand(True)
+        self.bar.set_valign(Gtk.Align.CENTER)
+        self.bar.get_style_context().add_class("vault-strength")
+        for name, value in (("low", 2.0), ("high", 4.0), ("full", 5.0)):
+            self.bar.add_offset_value(name, value)
+        self.text = Gtk.Label(xalign=0)
+        self.text.set_width_chars(12)
+        self.text.get_style_context().add_class("muted")
+        self.pack_start(self.bar, True, True, 0)
+        self.pack_start(self.text, False, False, 0)
+        entry.connect("changed", lambda e: self.update(e.get_text()))
+        self.update(entry.get_text())
+
+    def update(self, password: str) -> None:
+        score, text = password_strength(password)
+        self.bar.set_value(score + 1 if password else 0)
+        self.text.set_text(text)
+
+
 class MasterPasswordDialog(Gtk.Dialog):
+    """Richiesta della master password (o della password di un backup).
+
+    Modalita': unlock, create, change (cambio master password), export, import (password del file
+    di backup). Con run_validated() un errore resta nella finestra e si riprova subito, invece di
+    chiuderla e lasciare un messaggio nella barra di stato.
+    """
+
+    TEXTS = {
+        "unlock": ("Sblocca le password", "Inserisci la master password per usare le credenziali salvate.", "_Sblocca"),
+        "create": (
+            "Proteggi le tue password",
+            "Scegli una master password: cifra tutte le credenziali salvate in FedTermHub. Non viene "
+            "salvata da nessuna parte e non si può recuperare: se la dimentichi, le credenziali sono perse.",
+            "_Crea archivio",
+        ),
+        "change": (
+            "Cambia master password",
+            "Le credenziali vengono cifrate di nuovo con la nuova password. I backup esportati prima "
+            "restano protetti dalla password che avevano.",
+            "_Cambia password",
+        ),
+        "export": (
+            "Password del backup",
+            "Il file di backup viene cifrato con questa password: serve per importarlo di nuovo, "
+            "conservala insieme al file. Può essere diversa dalla master password.",
+            "_Esporta",
+        ),
+        "import": ("Password del backup", "Inserisci la password scelta quando il backup è stato esportato.", "_Importa"),
+    }
+
     def __init__(self, parent: Gtk.Window, mode: str = "unlock") -> None:
-        title = "Sblocca Password Manager" if mode == "unlock" else "Crea Password Manager"
-        super().__init__(title=title, transient_for=parent, flags=0)
+        heading_text, info_text, ok_label = self.TEXTS.get(mode, self.TEXTS["unlock"])
+        super().__init__(title=heading_text, transient_for=parent, flags=0)
         self.set_modal(True)
+        self.set_resizable(False)
         self.mode = mode
-        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "OK", Gtk.ResponseType.OK)
-        self.set_default_size(460, 190 if mode == "create" else 140)
+        self.get_style_context().add_class("modern-dialog")
+        self.add_button("_Annulla", Gtk.ResponseType.CANCEL)
+        ok = self.add_button(ok_label, Gtk.ResponseType.OK)
+        ok.get_style_context().add_class("suggested-action")
+        self.set_default_response(Gtk.ResponseType.OK)
+        self.set_default_size(480, -1)
 
-        box = self.get_content_area()
-        grid = Gtk.Grid(column_spacing=10, row_spacing=10, margin=14)
-        box.add(grid)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, margin=18)
+        self.get_content_area().pack_start(outer, True, True, 0)
 
-        info = "Inserisci la master password." if mode == "unlock" else "Crea una master password forte. Non viene salvata: se la perdi, il vault non si recupera."
-        info_label = Gtk.Label(label=info, xalign=0)
-        info_label.set_line_wrap(True)
-        grid.attach(info_label, 0, 0, 2, 1)
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
+        icon = "document-save-symbolic" if mode in {"export", "import"} else "dialog-password-symbolic"
+        header.pack_start(_vault_image(parent, [icon, "dialog-password"], 40), False, False, 0)
+        texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        heading = Gtk.Label(label=heading_text, xalign=0)
+        heading.get_style_context().add_class("dialog-heading")
+        info = Gtk.Label(label=info_text, xalign=0)
+        info.set_line_wrap(True)
+        info.set_max_width_chars(52)
+        info.get_style_context().add_class("muted")
+        texts.pack_start(heading, False, False, 0)
+        texts.pack_start(info, False, False, 0)
+        header.pack_start(texts, True, True, 0)
+        outer.pack_start(header, False, False, 0)
 
-        grid.attach(Gtk.Label(label="Master password", xalign=0), 0, 1, 1, 1)
-        self.password = Gtk.Entry()
-        self.password.set_visibility(False)
-        self.password.set_input_purpose(Gtk.InputPurpose.PASSWORD)
-        self.password.set_activates_default(True)
-        grid.attach(self.password, 1, 1, 1, 1)
+        grid = Gtk.Grid(column_spacing=12, row_spacing=8)
+        outer.pack_start(grid, False, False, 0)
+        row = 0
+        self.current: Optional[Gtk.Entry] = None
+        if mode == "change":
+            self.current = _password_entry()
+            caption = Gtk.Label.new_with_mnemonic("Password a_ttuale")
+            caption.set_xalign(0)
+            caption.set_mnemonic_widget(self.current)
+            grid.attach(caption, 0, row, 1, 1)
+            grid.attach(self.current, 1, row, 1, 1)
+            row += 1
+
+        self.password = _password_entry()
+        if mode == "change":
+            caption = Gtk.Label.new_with_mnemonic("_Nuova password")
+        elif mode in {"export", "import"}:
+            caption = Gtk.Label.new_with_mnemonic("Pass_word")
+        else:
+            caption = Gtk.Label.new_with_mnemonic("_Master password")
+        caption.set_xalign(0)
+        caption.set_mnemonic_widget(self.password)
+        grid.attach(caption, 0, row, 1, 1)
+        grid.attach(self.password, 1, row, 1, 1)
+        row += 1
 
         self.confirm: Optional[Gtk.Entry] = None
-        if mode == "create":
-            grid.attach(Gtk.Label(label="Conferma", xalign=0), 0, 2, 1, 1)
-            self.confirm = Gtk.Entry()
-            self.confirm.set_visibility(False)
-            self.confirm.set_input_purpose(Gtk.InputPurpose.PASSWORD)
-            self.confirm.set_activates_default(True)
-            grid.attach(self.confirm, 1, 2, 1, 1)
+        self.meter: Optional[_StrengthMeter] = None
+        if mode in {"create", "change", "export"}:
+            self.meter = _StrengthMeter(self.password)
+            grid.attach(self.meter, 1, row, 1, 1)
+            row += 1
+            self.confirm = _password_entry()
+            caption = Gtk.Label.new_with_mnemonic("C_onferma")
+            caption.set_xalign(0)
+            caption.set_mnemonic_widget(self.confirm)
+            grid.attach(caption, 0, row, 1, 1)
+            grid.attach(self.confirm, 1, row, 1, 1)
+            row += 1
 
-        # Spunta per lo sblocco persistente, direttamente nel prompt: evita di
-        # dover andare a cercare l'opzione nelle impostazioni.
-        self.keep_unlocked = Gtk.CheckButton(
-            label="Non richiedere più finché l'app resta aperta"
-        )
+        self.error = Gtk.Label(xalign=0)
+        self.error.set_line_wrap(True)
+        self.error.set_no_show_all(True)
+        self.error.get_style_context().add_class("vault-error")
+        outer.pack_start(self.error, False, False, 0)
+
+        # Spunta per lo sblocco persistente direttamente nel prompt: evita di dover cercare
+        # l'opzione nelle impostazioni.
+        self.keep_unlocked = Gtk.CheckButton(label="Non chiedere più la password finché FedTermHub resta aperto")
         self.keep_unlocked.set_tooltip_text(
-            "Il vault resta sbloccato per tutta la sessione di lavoro: la password "
-            "verrà richiesta di nuovo solo alla prossima apertura del programma."
+            "Disattiva il blocco automatico per inattività (si cambia anche dalle Impostazioni). "
+            "La password verrà richiesta alla prossima apertura del programma."
         )
-        grid.attach(self.keep_unlocked, 0, 3 if mode == "create" else 2, 2, 1)
+        if mode in {"unlock", "create"}:
+            outer.pack_start(self.keep_unlocked, False, False, 0)
 
-        self.set_default_response(Gtk.ResponseType.OK)
+        for entry in (self.current, self.password, self.confirm):
+            if entry is not None:
+                entry.connect("changed", lambda *_a: self.error.hide())
         self.show_all()
+        (self.current or self.password).grab_focus()
 
     def wants_keep_unlocked(self) -> bool:
         try:
-            return bool(self.keep_unlocked.get_active())
+            return bool(self.keep_unlocked.get_active()) and self.mode in {"unlock", "create"}
         except Exception:
             return False
 
     def get_password(self) -> str:
         return self.password.get_text()
 
+    def get_current_password(self) -> str:
+        return self.current.get_text() if self.current is not None else ""
+
     def password_matches(self) -> bool:
         if self.confirm is None:
             return True
         return self.password.get_text() == self.confirm.get_text()
 
+    def local_error(self) -> Optional[str]:
+        """Errori che si vedono senza toccare il disco."""
+        if self.current is not None and not self.get_current_password():
+            return "Inserisci la master password attuale."
+        if not self.get_password():
+            return "Inserisci la password."
+        if self.mode in {"create", "change", "export"}:
+            if len(self.get_password()) < 8:
+                return "Usa almeno 8 caratteri: è l'unica protezione delle credenziali salvate."
+            if not self.password_matches():
+                return "Le due password non coincidono."
+        return None
+
+    def show_error(self, message: str) -> None:
+        self.error.set_text(message)
+        self.error.show()
+        target = self.current if (self.current is not None and "attuale" in message) else self.password
+        target.grab_focus()
+        target.select_region(0, -1)
+
+    def run_validated(self, check: Optional[Callable[[], Optional[str]]] = None) -> bool:
+        """Esegue il dialogo finche' la password e' accettata (True) o l'utente annulla (False).
+
+        `check` fa la verifica vera (sblocco, decifratura del backup) e restituisce un messaggio
+        di errore oppure None.
+        """
+        while True:
+            if self.run() != Gtk.ResponseType.OK:
+                return False
+            message = self.local_error()
+            if message is None and check is not None:
+                self.set_sensitive(False)
+                watch = self.get_window()
+                if watch is not None:
+                    watch.set_cursor(Gdk.Cursor.new_from_name(watch.get_display(), "wait"))
+                while Gtk.events_pending():
+                    Gtk.main_iteration_do(False)
+                try:
+                    message = check()
+                finally:
+                    self.set_sensitive(True)
+                    if watch is not None:
+                        watch.set_cursor(None)
+            if message is None:
+                return True
+            self.show_error(message)
+
 
 class CredentialDialog(Gtk.Dialog):
-    def __init__(self, parent: Gtk.Window, credential: Optional[Credential] = None) -> None:
-        super().__init__(title="Credenziale", transient_for=parent, flags=0)
-        self.set_modal(True)
-        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
-        self.set_default_size(520, 300)
+    """Nuova credenziale o modifica di una esistente."""
 
-        self.credential = credential or Credential()
-        box = self.get_content_area()
-        grid = Gtk.Grid(column_spacing=10, row_spacing=10, margin=14)
-        box.add(grid)
+    def __init__(
+        self,
+        parent: Gtk.Window,
+        credential: Optional[Credential] = None,
+        groups: Optional[List[str]] = None,
+    ) -> None:
+        is_new = credential is None
+        super().__init__(title="Nuova credenziale" if is_new else "Modifica credenziale", transient_for=parent, flags=0)
+        self.set_modal(True)
+        self.get_style_context().add_class("modern-dialog")
+        self.add_button("_Annulla", Gtk.ResponseType.CANCEL)
+        self.save_button = self.add_button("_Salva", Gtk.ResponseType.OK)
+        self.save_button.get_style_context().add_class("suggested-action")
+        self.set_default_response(Gtk.ResponseType.OK)
+        self.set_default_size(560, -1)
+
+        self.credential = credential or Credential(name="")
+        self.original_password = self.credential.password
+        self.is_new = is_new
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, margin=18)
+        self.get_content_area().pack_start(outer, True, True, 0)
+        heading = Gtk.Label(label="Nuova credenziale" if is_new else "Modifica credenziale", xalign=0)
+        heading.get_style_context().add_class("dialog-heading")
+        outer.pack_start(heading, False, False, 0)
+
+        grid = Gtk.Grid(column_spacing=12, row_spacing=8)
+        outer.pack_start(grid, True, True, 0)
+
+        def caption(widget: Gtk.Widget, label: Gtk.Label, row: int) -> None:
+            label.set_xalign(0)
+            label.set_mnemonic_widget(widget)
+            label.get_style_context().add_class("field-label")
+            grid.attach(label, 0, row, 1, 1)
 
         self.name = Gtk.Entry(text=self.credential.name)
+        self.name.set_hexpand(True)
+        self.name.set_activates_default(True)
+        self.name.set_placeholder_text("Es. Administrator dominio Rossi")
+        caption(self.name, Gtk.Label.new_with_mnemonic("_Nome"), 0)
+        grid.attach(self.name, 1, 0, 1, 1)
+
+        self.group = Gtk.ComboBoxText.new_with_entry()
+        for name in groups or []:
+            self.group.append_text(name)
+        group_entry = self.group.get_child()
+        group_entry.set_text(self.credential.group)
+        group_entry.set_placeholder_text("Es. il nome del cliente (facoltativo)")
+        group_entry.set_activates_default(True)
+        self.group.set_tooltip_text("Le credenziali dello stesso gruppo compaiono insieme nell'elenco.")
+        caption(group_entry, Gtk.Label.new_with_mnemonic("_Gruppo"), 1)
+        grid.attach(self.group, 1, 1, 1, 1)
+
         self.username = Gtk.Entry(text=self.credential.username)
+        self.username.set_activates_default(True)
+        caption(self.username, Gtk.Label.new_with_mnemonic("_Utente"), 2)
+        grid.attach(self.username, 1, 2, 1, 1)
+
         self.domain = Gtk.Entry(text=self.credential.domain)
-        self.password = Gtk.Entry(text=self.credential.password)
-        self.password.set_visibility(False)
-        self.password.set_input_purpose(Gtk.InputPurpose.PASSWORD)
-        self.notes = Gtk.Entry(text=self.credential.notes)
+        self.domain.set_activates_default(True)
+        self.domain.set_placeholder_text("Solo per account Windows / Active Directory")
+        caption(self.domain, Gtk.Label.new_with_mnemonic("_Dominio"), 3)
+        grid.attach(self.domain, 1, 3, 1, 1)
 
-        show = Gtk.CheckButton(label="Mostra password")
-        show.connect("toggled", lambda b: self.password.set_visibility(b.get_active()))
+        self.password = _password_entry()
+        self.password.set_text(self.credential.password)
+        password_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        password_row.pack_start(self.password, True, True, 0)
+        generate = _vault_button(
+            parent, Gtk.Label.new_with_mnemonic("Gene_ra"), ["view-refresh-symbolic", "system-run-symbolic"],
+            self.on_generate,
+        )
+        generate.set_tooltip_text("Crea una password casuale di 20 caratteri")
+        password_row.pack_start(generate, False, False, 0)
+        caption(self.password, Gtk.Label.new_with_mnemonic("_Password"), 4)
+        grid.attach(password_row, 1, 4, 1, 1)
+        grid.attach(_StrengthMeter(self.password), 1, 5, 1, 1)
 
-        fields = [
-            ("Nome", self.name),
-            ("Username", self.username),
-            ("Dominio", self.domain),
-            ("Password", self.password),
-            ("Note", self.notes),
-        ]
-        for row, (label, widget) in enumerate(fields):
-            grid.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
-            grid.attach(widget, 1, row, 1, 1)
-        grid.attach(show, 1, len(fields), 1, 1)
+        self.server_hint = Gtk.Label(
+            label="Hai cambiato la password salvata: ricordati di cambiarla anche sul server.", xalign=0
+        )
+        self.server_hint.set_line_wrap(True)
+        self.server_hint.set_no_show_all(True)
+        self.server_hint.get_style_context().add_class("muted")
+        grid.attach(self.server_hint, 1, 6, 1, 1)
+
+        self.notes = Gtk.TextView()
+        self.notes.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.notes.set_left_margin(8)
+        self.notes.set_right_margin(8)
+        self.notes.set_top_margin(6)
+        self.notes.set_bottom_margin(6)
+        self.notes.get_buffer().set_text(self.credential.notes)
+        notes_scroll = Gtk.ScrolledWindow()
+        notes_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        notes_scroll.set_min_content_height(76)
+        notes_scroll.set_shadow_type(Gtk.ShadowType.IN)
+        notes_scroll.get_style_context().add_class("vault-notes")
+        notes_scroll.add(self.notes)
+        notes_caption = Gtk.Label.new_with_mnemonic("No_te")
+        caption(self.notes, notes_caption, 7)
+        notes_caption.set_valign(Gtk.Align.START)
+        grid.attach(notes_scroll, 1, 7, 1, 1)
+
+        self.name.connect("changed", self._update_state)
+        self.password.connect("changed", self._update_state)
+        self._update_state()
         self.show_all()
+        self.name.grab_focus()
+
+    def _update_state(self, *_args) -> None:
+        self.set_response_sensitive(Gtk.ResponseType.OK, bool(self.name.get_text().strip()))
+        changed = not self.is_new and self.original_password and self.password.get_text() != self.original_password
+        self.server_hint.set_visible(bool(changed))
+
+    def on_generate(self, _button: Gtk.Button) -> None:
+        self.password.set_text(generate_password())
+        self.password.set_visibility(True)
+        self.password.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "view-conceal-symbolic")
+        self.password.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Nascondi la password")
 
     def get_credential(self) -> Credential:
+        buffer = self.notes.get_buffer()
+        notes = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
         return Credential(
             id=self.credential.id,
             name=self.name.get_text().strip() or "Senza nome",
             username=self.username.get_text().strip(),
             domain=self.domain.get_text().strip(),
             password=self.password.get_text(),
-            notes=self.notes.get_text().strip(),
+            notes=notes.strip(),
+            group=self.group.get_child().get_text().strip(),
         )
 
 
@@ -2628,273 +3037,693 @@ class RdpPasswordDialog(Gtk.Dialog):
 
 
 class VaultManagerDialog(Gtk.Dialog):
-    COL_ID = 0
-    COL_NAME = 1
-    COL_USER = 2
-    COL_DOMAIN = 3
-    COL_NOTES = 4
+    """Finestra Password: elenco raggruppato a sinistra, dettaglio della credenziale a destra.
+
+    Le azioni di tutti i giorni (copiare utente e password, vedere dove si usa una credenziale)
+    stanno accanto ai dati; quelle rare (backup, cambio master password) nel menu in alto.
+    """
 
     def __init__(self, parent: Gtk.Window, vault: PasswordVault) -> None:
-        super().__init__(title="Password Manager", transient_for=parent, flags=0)
+        super().__init__(title="Password", transient_for=parent, flags=0)
         self.set_modal(True)
         self.set_resizable(True)
         self.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
-        self.set_default_size(920, 570)
-        self.set_size_request(700, 420)
+        self.set_default_size(960, 640)
+        self.set_size_request(720, 480)
         self.get_style_context().add_class("modern-dialog")
         self.get_style_context().add_class("vault-dialog")
         self.parent_app = parent
         self.vault = vault
         self.filter_text = ""
+        self.selected_id = ""
+        self._rows: Dict[str, Gtk.ListBoxRow] = {}
 
-        close_button = self.add_button("Chiudi", Gtk.ResponseType.CLOSE)
-        close_button.get_style_context().add_class("secondary-action")
+        close = self.add_button("_Chiudi", Gtk.ResponseType.CLOSE)
+        close.get_parent().set_margin_end(14)
+        close.get_parent().set_margin_bottom(12)
         self.connect("delete-event", lambda d, _e: (d.response(Gtk.ResponseType.CLOSE), True)[1])
+        self.connect("key-press-event", self.on_key_press)
+        self.connect("button-press-event", lambda *_a: self._activity())
 
-        content = self.get_content_area()
-        content.set_spacing(0)
-        content.set_hexpand(True)
-        content.set_vexpand(True)
-
-        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=14)
-        outer.set_hexpand(True)
-        outer.set_vexpand(True)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin=14)
         outer.get_style_context().add_class("vault-shell")
-        content.pack_start(outer, True, True, 0)
+        self.get_content_area().pack_start(outer, True, True, 0)
 
+        # ---------------------------------------------------------------- intestazione
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         header.get_style_context().add_class("vault-header")
-        if hasattr(parent, "make_icon_image"):
-            icon = parent.make_icon_image(
-                ["dialog-password-symbolic", "changes-prevent-symbolic", "dialog-password"], 30
-            )
-        else:
-            icon = Gtk.Image.new_from_icon_name("dialog-password-symbolic", Gtk.IconSize.DIALOG)
-        header.pack_start(icon, False, False, 0)
-        header_text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        heading = Gtk.Label(label="Archivio credenziali", xalign=0)
+        header.pack_start(_vault_image(parent, ["dialog-password-symbolic", "dialog-password"], 30), False, False, 0)
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        heading = Gtk.Label(label="Password", xalign=0)
         heading.get_style_context().add_class("dialog-heading")
-        info = Gtk.Label(
-            label=(
-                "Il vault è sbloccato solo in memoria. Le password restano cifrate su disco "
-                "e possono essere copiate con cancellazione automatica dagli appunti."
-            ),
-            xalign=0,
+        self.lock_state = Gtk.Label(xalign=0)
+        self.lock_state.set_line_wrap(True)
+        self.lock_state.get_style_context().add_class("muted")
+        titles.pack_start(heading, False, False, 0)
+        titles.pack_start(self.lock_state, False, False, 0)
+        header.pack_start(titles, True, True, 0)
+
+        self.btn_lock = _vault_button(
+            parent, Gtk.Label.new_with_mnemonic("_Blocca"),
+            ["changes-prevent-symbolic", "system-lock-screen-symbolic"], self.on_lock,
         )
-        info.set_line_wrap(True)
-        info.get_style_context().add_class("muted")
-        header_text.pack_start(heading, False, False, 0)
-        header_text.pack_start(info, False, False, 0)
-        header.pack_start(header_text, True, True, 0)
+        self.btn_lock.set_tooltip_text("Chiude la finestra e richiede la master password al prossimo uso")
+        self.btn_lock.set_valign(Gtk.Align.CENTER)
+        header.pack_start(self.btn_lock, False, False, 0)
+
+        self.menu_button = Gtk.MenuButton()
+        self.menu_button.add(_vault_image(parent, ["open-menu-symbolic", "view-more-symbolic"], 16))
+        self.menu_button.set_tooltip_text("Backup e master password")
+        self.menu_button.set_valign(Gtk.Align.CENTER)
+        self.menu_button.get_style_context().add_class("secondary-action")
+        menu = Gtk.Menu()
+        for text, callback in (
+            ("Cambia master password…", self.on_change_master),
+            (None, None),
+            ("Esporta backup cifrato…", self.on_export_encrypted),
+            ("Importa backup cifrato…", self.on_import_encrypted),
+        ):
+            item = Gtk.SeparatorMenuItem() if text is None else Gtk.MenuItem(label=text)
+            if callback is not None:
+                item.connect("activate", lambda _i, cb=callback: cb(None))
+            menu.append(item)
+        menu.show_all()
+        self.menu_button.set_popup(menu)
+        header.pack_start(self.menu_button, False, False, 0)
         outer.pack_start(header, False, False, 0)
 
-        command_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        command_row.get_style_context().add_class("vault-toolbar")
+        # ---------------------------------------------------------------- suggerimento gruppi
+        self.hint = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.hint.get_style_context().add_class("vault-hint")
+        self.hint_text = Gtk.Label(xalign=0)
+        self.hint_text.set_line_wrap(True)
+        self.hint.pack_start(self.hint_text, True, True, 0)
+        self.btn_apply_groups = _vault_button(
+            parent, Gtk.Label.new_with_mnemonic("_Raggruppa"), ["view-list-symbolic", "folder-symbolic"],
+            self.on_apply_groups,
+        )
+        self.btn_apply_groups.set_valign(Gtk.Align.CENTER)
+        self.hint.pack_start(self.btn_apply_groups, False, False, 0)
+        hint_close = _vault_icon_button(
+            parent, ["window-close-symbolic"], "Non ora",
+            lambda _b: (self.hint.set_no_show_all(True), self.hint.hide()),
+        )
+        hint_close.set_valign(Gtk.Align.CENTER)
+        self.hint.pack_start(hint_close, False, False, 0)
+        outer.pack_start(self.hint, False, False, 0)
+
+        # ---------------------------------------------------------------- corpo a due pannelli
+        paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        paned.set_wide_handle(True)
+        paned.set_position(330)
+        outer.pack_start(paned, True, True, 0)
+
+        side = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        side.get_style_context().add_class("vault-sidebar")
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Cerca per nome, utente, dominio o note…")
-        self.search.set_hexpand(True)
+        self.search.set_placeholder_text("Cerca nome, utente, gruppo… (Ctrl+F)")
         self.search.get_style_context().add_class("vault-search")
         self.search.connect("search-changed", self.on_search_changed)
-        command_row.pack_start(self.search, True, True, 0)
+        self.search.connect("activate", self.on_search_activate)
+        self.search.connect("key-press-event", self.on_search_key)
+        side.pack_start(self.search, False, False, 0)
+        self.btn_add = _vault_button(
+            parent, Gtk.Label.new_with_mnemonic("_Nuova credenziale"), ["list-add-symbolic", "document-new-symbolic"],
+            self.on_add, "suggested-action",
+        )
+        self.btn_add.set_tooltip_text("Ctrl+N")
+        side.pack_start(self.btn_add, False, False, 0)
 
-        self.btn_add = self._action_button(
-            "Nuova", ["list-add-symbolic", "document-new-symbolic"], self.on_add
-        )
-        self.btn_edit = self._action_button(
-            "Modifica", ["document-edit-symbolic", "accessories-text-editor-symbolic"], self.on_edit
-        )
-        self.btn_del = self._action_button(
-            "Elimina", ["edit-delete-symbolic", "user-trash-symbolic"], self.on_delete
-        )
-        for button in (self.btn_add, self.btn_edit, self.btn_del):
-            command_row.pack_start(button, False, False, 0)
-        outer.pack_start(command_row, False, False, 0)
+        self.listbox = Gtk.ListBox()
+        self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.listbox.get_style_context().add_class("vault-list")
+        self.listbox.set_header_func(self._row_header, None)
+        self.listbox.connect("row-selected", self.on_row_selected)
+        self.listbox.connect("row-activated", lambda *_a: self.on_edit(None))
+        self.no_match = Gtk.Label(label="", xalign=0.5)
+        self.no_match.set_line_wrap(True)
+        self.no_match.set_margin_top(24)
+        self.no_match.set_margin_start(12)
+        self.no_match.set_margin_end(12)
+        self.no_match.get_style_context().add_class("muted")
+        self.no_match.show()
+        self.listbox.set_placeholder(self.no_match)
+        list_scroll = Gtk.ScrolledWindow()
+        list_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        list_scroll.get_style_context().add_class("vault-list-scroll")
+        list_scroll.add(self.listbox)
+        side.pack_start(list_scroll, True, True, 0)
+        self.count_label = Gtk.Label(xalign=0)
+        self.count_label.get_style_context().add_class("muted")
+        side.pack_start(self.count_label, False, False, 0)
+        paned.pack1(side, False, False)
 
-        self.list_store = Gtk.ListStore(str, str, str, str, str)
-        self.tree = Gtk.TreeView(model=self.list_store)
-        self.tree.set_headers_visible(True)
-        self.tree.set_hexpand(True)
-        self.tree.set_vexpand(True)
-        self.tree.set_enable_search(False)
-        self.tree.set_grid_lines(Gtk.TreeViewGridLines.HORIZONTAL)
-        self.tree.get_style_context().add_class("vault-list")
-        self.tree.connect("row-activated", lambda *_args: self.on_edit(None))
-        self.tree.get_selection().connect("changed", self.on_selection_changed)
+        self.stack = Gtk.Stack()
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.stack.get_style_context().add_class("vault-detail")
+        self.stack.add_named(self._build_empty_page(), "empty")
+        self.stack.add_named(self._build_nothing_page(), "nothing")
+        self.stack.add_named(self._build_detail_page(), "detail")
+        paned.pack2(self.stack, True, False)
 
-        columns = [
-            ("Nome", self.COL_NAME, 220, True),
-            ("Username", self.COL_USER, 180, False),
-            ("Dominio", self.COL_DOMAIN, 150, False),
-            ("Note", self.COL_NOTES, 220, True),
-        ]
-        for title, col, min_width, expand in columns:
-            renderer = Gtk.CellRendererText()
-            renderer.set_property("ellipsize", Pango.EllipsizeMode.END)
-            renderer.set_property("xpad", 8)
-            renderer.set_property("ypad", 6)
-            column = Gtk.TreeViewColumn(title, renderer, text=col)
-            column.set_expand(expand)
-            column.set_resizable(True)
-            column.set_min_width(min_width)
-            column.set_sizing(Gtk.TreeViewColumnSizing.AUTOSIZE)
-            self.tree.append_column(column)
-
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_shadow_type(Gtk.ShadowType.NONE)
-        scroll.set_hexpand(True)
-        scroll.set_vexpand(True)
-        scroll.set_min_content_height(250)
-        scroll.get_style_context().add_class("vault-list-card")
-        scroll.add(self.tree)
-        outer.pack_start(scroll, True, True, 0)
-
-        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        footer.get_style_context().add_class("vault-footer")
-        self.status = Gtk.Label(xalign=0)
-        self.status.set_hexpand(True)
-        self.status.get_style_context().add_class("vault-status")
-        footer.pack_start(self.status, True, True, 0)
-        self.btn_copy_user = self._action_button(
-            "Copia utente", ["edit-copy-symbolic", "user-info-symbolic"], self.on_copy_username
-        )
-        self.btn_copy_password = self._action_button(
-            "Copia password", ["edit-copy-symbolic", "dialog-password-symbolic"], self.on_copy_password
-        )
-        self.btn_export = self._action_button(
-            "Esporta cifrato", ["document-save-symbolic", "document-save"], self.on_export_encrypted
-        )
-        self.btn_import = self._action_button(
-            "Importa cifrato", ["document-open-symbolic", "document-open"], self.on_import_encrypted
-        )
-        self.btn_lock = self._action_button(
-            "Blocca vault", ["changes-prevent-symbolic", "system-lock-screen-symbolic"], self.on_lock
-        )
-        for button in (self.btn_copy_user, self.btn_copy_password, self.btn_export, self.btn_import, self.btn_lock):
-            footer.pack_start(button, False, False, 0)
-        outer.pack_start(footer, False, False, 0)
-
-        self.refresh()
-        self.on_selection_changed(self.tree.get_selection())
+        # Prima show_all, poi i contenuti: Gtk.Stack ignora il cambio verso una pagina non ancora
+        # visibile e il suggerimento dei gruppi va nascosto dopo, non prima.
         self.show_all()
-        self.search.grab_focus()
-
-    def _action_button(self, label: str, icons: List[str], callback) -> Gtk.Button:
-        if hasattr(self.parent_app, "make_button"):
-            button = self.parent_app.make_button(label, icons, "secondary-action")
-        else:
-            button = Gtk.Button(label=label)
-            button.get_style_context().add_class("secondary-action")
-        button.set_tooltip_text(label)
-        button.connect("clicked", callback)
-        return button
-
-    def on_search_changed(self, entry: Gtk.SearchEntry) -> None:
-        self.filter_text = entry.get_text().strip().lower()
         self.refresh()
+        self._update_lock_state()
+        self._update_hint()
+        self.search.grab_focus()
+        # Se il vault viene bloccato mentre la finestra e' aperta (inattivita', minimizzazione),
+        # la finestra si chiude invece di mostrare dati che non potrebbe piu' salvare.
+        self._watch = GLib.timeout_add_seconds(2, self._check_still_unlocked)
+        self.connect("destroy", self._stop_watch)
 
-    def refresh(self, select_id: str = "") -> None:
-        if not select_id:
-            selected = self.selected_credential()
-            select_id = selected.id if selected is not None else ""
-        self.list_store.clear()
-        query = self.filter_text
+    # ------------------------------------------------------------------ pagine del dettaglio
+    def _centered_page(self, icons: List[str], title: str, text: str, button: Optional[Gtk.Button] = None) -> Gtk.Box:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=24)
+        page.set_valign(Gtk.Align.CENTER)
+        page.set_halign(Gtk.Align.CENTER)
+        page.get_style_context().add_class("vault-empty")
+        image = _vault_image(self.parent_app, icons, 64)
+        image.get_style_context().add_class("vault-empty-icon")
+        page.pack_start(image, False, False, 0)
+        heading = Gtk.Label(label=title)
+        heading.get_style_context().add_class("vault-empty-title")
+        page.pack_start(heading, False, False, 0)
+        body = Gtk.Label(label=text)
+        body.set_line_wrap(True)
+        body.set_max_width_chars(48)
+        body.set_justify(Gtk.Justification.CENTER)
+        body.get_style_context().add_class("muted")
+        page.pack_start(body, False, False, 0)
+        if button is not None:
+            button.set_halign(Gtk.Align.CENTER)
+            page.pack_start(button, False, False, 6)
+        return page
+
+    def _build_empty_page(self) -> Gtk.Box:
+        first = _vault_button(
+            self.parent_app, Gtk.Label.new_with_mnemonic("_Aggiungi la prima credenziale"),
+            ["list-add-symbolic"], self.on_add, "suggested-action",
+        )
+        return self._centered_page(
+            ["dialog-password-symbolic", "dialog-password"],
+            "Nessuna password salvata",
+            "Salva qui utenti e password dei server: restano cifrate con la master password. "
+            "Nella finestra di una sessione scegli poi la credenziale da usare, così FedTermHub "
+            "si collega senza chiederla ogni volta.",
+            first,
+        )
+
+    def _build_nothing_page(self) -> Gtk.Box:
+        return self._centered_page(
+            ["dialog-password-symbolic", "dialog-password"],
+            "Scegli una credenziale",
+            "Selezionala nell'elenco per vederne i dati, copiarli o modificarli.",
+        )
+
+    def _build_detail_page(self) -> Gtk.Box:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, margin=20)
+        page.get_style_context().add_class("vault-detail-page")
+
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.d_title = Gtk.Label(xalign=0)
+        self.d_title.set_line_wrap(True)
+        self.d_title.set_selectable(True)
+        self.d_title.get_style_context().add_class("vault-detail-title")
+        self.d_group = Gtk.Label(xalign=0)
+        self.d_group.get_style_context().add_class("muted")
+        title_box.pack_start(self.d_title, False, False, 0)
+        title_box.pack_start(self.d_group, False, False, 0)
+        page.pack_start(title_box, False, False, 0)
+
+        grid = Gtk.Grid(column_spacing=10, row_spacing=4)
+        grid.get_style_context().add_class("vault-fields")
+        page.pack_start(grid, False, False, 0)
+        self.d_rows: Dict[str, List[Gtk.Widget]] = {}
+
+        def field(key: str, row: int, caption_text: str, extra: List[Gtk.Widget]) -> Gtk.Label:
+            caption_label = Gtk.Label(label=caption_text, xalign=0)
+            caption_label.set_valign(Gtk.Align.START)
+            caption_label.get_style_context().add_class("vault-field-caption")
+            value = Gtk.Label(xalign=0)
+            value.set_hexpand(True)
+            value.set_line_wrap(True)
+            value.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            value.set_selectable(True)
+            value.get_style_context().add_class("vault-field-value")
+            grid.attach(caption_label, 0, row, 1, 1)
+            grid.attach(value, 1, row, 1, 1)
+            for col, widget in enumerate(extra, start=2):
+                widget.set_valign(Gtk.Align.CENTER)
+                grid.attach(widget, col, row, 1, 1)
+            self.d_rows[key] = [caption_label, value] + extra
+            return value
+
+        copy_icons = ["edit-copy-symbolic", "edit-copy"]
+        self.d_user = field("user", 0, "Utente", [
+            _vault_icon_button(self.parent_app, copy_icons, "Copia utente (Ctrl+B)", self.on_copy_username),
+        ])
+        self.d_domain = field("domain", 1, "Dominio", [
+            _vault_icon_button(self.parent_app, copy_icons, "Copia dominio", self.on_copy_domain),
+        ])
+        self.reveal = Gtk.ToggleButton()
+        self.reveal.add(_vault_image(self.parent_app, ["view-reveal-symbolic", "view-visible-symbolic"], 16))
+        self.reveal.set_tooltip_text("Mostra la password")
+        self.reveal.set_relief(Gtk.ReliefStyle.NONE)
+        self.reveal.get_style_context().add_class("vault-icon-button")
+        self.reveal.connect("toggled", lambda *_a: self._show_password())
+        self.btn_copy_password = _vault_icon_button(
+            self.parent_app, copy_icons, "Copia password (Ctrl+C)", self.on_copy_password
+        )
+        self.d_password = field("password", 2, "Password", [self.reveal, self.btn_copy_password])
+        self.d_password.get_style_context().add_class("vault-secret")
+        self.d_notes = field("notes", 3, "Note", [])
+
+        usage_caption = Gtk.Label(label="Usata da", xalign=0)
+        usage_caption.get_style_context().add_class("vault-field-caption")
+        page.pack_start(usage_caption, False, False, 0)
+        self.d_usage = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.d_usage.get_style_context().add_class("vault-usage")
+        usage_scroll = Gtk.ScrolledWindow()
+        usage_scroll.get_style_context().add_class("vault-usage-scroll")
+        usage_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        usage_scroll.set_propagate_natural_height(True)
+        usage_scroll.set_max_content_height(150)
+        usage_scroll.add(self.d_usage)
+        page.pack_start(usage_scroll, False, False, 0)
+
+        page.pack_start(Gtk.Box(), True, True, 0)
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.btn_edit = _vault_button(
+            self.parent_app, Gtk.Label.new_with_mnemonic("_Modifica"),
+            ["document-edit-symbolic", "accessories-text-editor-symbolic"], self.on_edit,
+        )
+        self.btn_edit.set_tooltip_text("Invio o doppio clic sull'elenco")
+        self.btn_del = _vault_button(
+            self.parent_app, Gtk.Label.new_with_mnemonic("_Elimina"),
+            ["user-trash-symbolic", "edit-delete-symbolic"], self.on_delete, "vault-delete",
+        )
+        self.btn_del.set_tooltip_text("Canc")
+        actions.pack_start(self.btn_edit, False, False, 0)
+        actions.pack_end(self.btn_del, False, False, 0)
+        page.pack_start(actions, False, False, 0)
+        return page
+
+    # ------------------------------------------------------------------ elenco
+    @staticmethod
+    def _row_header(row: Gtk.ListBoxRow, before: Optional[Gtk.ListBoxRow], _data=None) -> None:
+        if not getattr(row, "show_groups", False):
+            row.set_header(None)
+            return
+        if before is not None and getattr(before, "group", None) == row.group:
+            row.set_header(None)
+            return
+        label = Gtk.Label(label=(row.group or "Senza gruppo").upper(), xalign=0)
+        label.get_style_context().add_class("vault-group-header")
+        row.set_header(label)
+
+    def _make_row(self, cred: Credential, uses: int, show_groups: bool) -> Gtk.ListBoxRow:
+        row = Gtk.ListBoxRow()
+        row.cred_id = cred.id
+        row.group = cred.group
+        row.show_groups = show_groups
+        row.get_style_context().add_class("vault-row")
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        avatar = Gtk.Label(label=(cred.name.strip()[:1] or "?").upper())
+        avatar.set_valign(Gtk.Align.CENTER)
+        avatar.get_style_context().add_class("vault-avatar")
+        box.pack_start(avatar, False, False, 0)
+        texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        name = Gtk.Label(label=cred.name, xalign=0)
+        name.set_ellipsize(Pango.EllipsizeMode.END)
+        name.get_style_context().add_class("vault-row-title")
+        texts.pack_start(name, False, False, 0)
+        account = cred.account_text()
+        subtitle = Gtk.Label(label=account or "nessun utente", xalign=0)
+        subtitle.set_ellipsize(Pango.EllipsizeMode.END)
+        subtitle.get_style_context().add_class("vault-row-subtitle")
+        texts.pack_start(subtitle, False, False, 0)
+        box.pack_start(texts, True, True, 0)
+        if uses:
+            badge = Gtk.Label(label=str(uses))
+            badge.set_valign(Gtk.Align.CENTER)
+            badge.set_tooltip_text("Usata da 1 sessione" if uses == 1 else f"Usata da {uses} sessioni")
+            badge.get_style_context().add_class("vault-badge")
+            box.pack_start(badge, False, False, 0)
+        row.add(box)
+        return row
+
+    def _usage(self, cred_id: str) -> List[Tuple[str, str, str]]:
+        try:
+            return self.parent_app.credential_usage(cred_id)
+        except Exception:
+            return []
+
+    def _matches(self, cred: Credential) -> bool:
+        if not self.filter_text:
+            return True
+        haystack = " ".join((cred.name, cred.username, cred.domain, cred.group, cred.notes)).casefold()
+        return all(word in haystack for word in self.filter_text.split())
+
+    def refresh(self, select_id: Optional[str] = None) -> None:
+        if select_id is not None:
+            self.selected_id = select_id
+        for child in self.listbox.get_children():
+            self.listbox.remove(child)
+        self._rows = {}
+        show_groups = bool(self.vault.groups())
         visible = 0
-        for cred in self.vault.credentials:
-            haystack = " ".join((cred.name, cred.username, cred.domain, cred.notes)).lower()
-            if query and query not in haystack:
+        for cred in self.vault.sorted_credentials():
+            if not self._matches(cred):
                 continue
-            tree_iter = self.list_store.append([cred.id, cred.name, cred.username, cred.domain, cred.notes])
+            row = self._make_row(cred, len(self._usage(cred.id)), show_groups)
+            self.listbox.add(row)
+            self._rows[cred.id] = row
             visible += 1
-            if select_id and cred.id == select_id:
-                self.tree.get_selection().select_iter(tree_iter)
+        self.listbox.show_all()
         total = len(self.vault.credentials)
-        if query:
-            self.status.set_text(f"{visible} credenziali visualizzate su {total}")
+        if self.filter_text:
+            self.no_match.set_text(f"Nessuna credenziale corrisponde a «{self.search.get_text().strip()}».")
+            self.count_label.set_text(f"{visible} di {total} credenziali")
         else:
-            self.status.set_text(f"{total} credenziali nel vault")
-        self.on_selection_changed(self.tree.get_selection())
+            self.no_match.set_text("Ancora nessuna credenziale.")
+            self.count_label.set_text("1 credenziale" if total == 1 else f"{total} credenziali")
+        row = self._rows.get(self.selected_id)
+        if row is not None:
+            self.listbox.select_row(row)
+        else:
+            self.listbox.unselect_all()
+            self._show_detail(None)
+
+    def select_credential(self, cred_id: str) -> None:
+        row = self._rows.get(cred_id)
+        if row is not None:
+            self.listbox.select_row(row)
+            row.grab_focus()
 
     def selected_credential(self) -> Optional[Credential]:
-        selection = self.tree.get_selection()
-        model, tree_iter = selection.get_selected()
-        if tree_iter is None:
-            return None
-        cred_id = model[tree_iter][self.COL_ID]
-        return self.vault.get(cred_id)
+        row = self.listbox.get_selected_row()
+        return self.vault.get(row.cred_id) if row is not None else None
 
-    def on_selection_changed(self, _selection: Gtk.TreeSelection) -> None:
-        active = self.selected_credential() is not None
-        for button in (self.btn_edit, self.btn_del, self.btn_copy_user, self.btn_copy_password):
-            button.set_sensitive(active)
+    def on_row_selected(self, _listbox: Gtk.ListBox, row: Optional[Gtk.ListBoxRow]) -> None:
+        if row is not None:
+            self.selected_id = row.cred_id
+        self._show_detail(self.vault.get(row.cred_id) if row is not None else None)
+
+    # ------------------------------------------------------------------ dettaglio
+    def _show_detail(self, cred: Optional[Credential]) -> None:
+        if not self.vault.credentials:
+            self.stack.set_visible_child_name("empty")
+            return
+        if cred is None:
+            self.stack.set_visible_child_name("nothing")
+            return
+        self.stack.set_visible_child_name("detail")
+        self.d_title.set_text(cred.name)
+        self.d_group.set_text(cred.group or "Senza gruppo")
+        for key, value in (("user", cred.username), ("domain", cred.domain), ("notes", cred.notes)):
+            label = {"user": self.d_user, "domain": self.d_domain, "notes": self.d_notes}[key]
+            label.set_text(value)
+            for widget in self.d_rows[key]:
+                widget.set_visible(bool(value))
+        self.reveal.set_active(False)
+        self._show_password()
+        self.reveal.set_sensitive(bool(cred.password))
+        self.btn_copy_password.set_sensitive(bool(cred.password))
+
+        for child in self.d_usage.get_children():
+            self.d_usage.remove(child)
+        usage = self._usage(cred.id)
+        if not usage:
+            none = Gtk.Label(
+                label="Nessuna sessione la usa. Per collegarla, apri una sessione e sceglila nel campo Credenziale.",
+                xalign=0,
+            )
+            none.set_line_wrap(True)
+            none.get_style_context().add_class("muted")
+            self.d_usage.pack_start(none, False, False, 0)
+        for name, kind, folder in usage:
+            line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            tag = Gtk.Label(label=kind)
+            tag.get_style_context().add_class("vault-usage-kind")
+            line.pack_start(tag, False, False, 0)
+            text = Gtk.Label(label=name, xalign=0)
+            text.set_ellipsize(Pango.EllipsizeMode.END)
+            line.pack_start(text, False, False, 0)
+            if folder:
+                where = Gtk.Label(label=folder, xalign=0)
+                where.set_ellipsize(Pango.EllipsizeMode.START)
+                where.get_style_context().add_class("muted")
+                line.pack_start(where, True, True, 0)
+            self.d_usage.pack_start(line, False, False, 0)
+        self.d_usage.show_all()
+
+    def _show_password(self) -> None:
+        cred = self.selected_credential()
+        if cred is None:
+            return
+        if not cred.password:
+            self.d_password.set_text("nessuna password salvata")
+        elif self.reveal.get_active():
+            self.d_password.set_text(cred.password)
+        else:
+            self.d_password.set_text("•" * 12)
+        self.reveal.set_tooltip_text("Nascondi la password" if self.reveal.get_active() else "Mostra la password")
+
+    # ------------------------------------------------------------------ stato e suggerimenti
+    def _update_lock_state(self) -> None:
+        try:
+            minutes = int(self.parent_app.settings.vault_auto_lock_minutes)
+        except Exception:
+            minutes = 0
+        if minutes > 0:
+            when = "1 minuto" if minutes == 1 else f"{minutes} minuti"
+            text = f"Sbloccate · si bloccano dopo {when} senza attività"
+        else:
+            text = "Sbloccate finché FedTermHub resta aperto"
+        self.lock_state.set_text(text)
+        try:
+            seconds = int(self.parent_app.settings.clear_clipboard_seconds)
+        except Exception:
+            seconds = 0
+        if seconds > 0:
+            self.btn_copy_password.set_tooltip_text(
+                f"Copia password (Ctrl+C) · si cancella dagli appunti dopo {seconds} secondi"
+            )
+
+    def _group_suggestions(self) -> Dict[str, str]:
+        try:
+            return self.parent_app.credential_group_suggestions()
+        except Exception:
+            return {}
+
+    def _update_hint(self) -> None:
+        count = len(self._group_suggestions())
+        # no_show_all impedisce che un show_all() successivo faccia ricomparire la barra vuota.
+        self.hint.set_no_show_all(not count)
+        if not count:
+            self.hint.hide()
+            return
+        self.hint.show_all()
+        what = "1 credenziale senza gruppo è usata" if count == 1 else f"{count} credenziali senza gruppo sono usate"
+        self.hint_text.set_text(
+            f"{what} da sessioni che stanno in una cartella. Posso raggrupparle col nome di quella cartella "
+            "(di solito il cliente): le ritrovi insieme e puoi sempre cambiarlo."
+        )
+
+    def on_apply_groups(self, _button: Optional[Gtk.Button]) -> None:
+        suggestions = self._group_suggestions()
+        for cred in self.vault.credentials:
+            if not cred.group and cred.id in suggestions:
+                cred.group = suggestions[cred.id]
+        self.vault.save()
+        self.refresh()
+        self._update_hint()
+        self.parent_app.set_status(f"Raggruppate {len(suggestions)} credenziali per cartella.")
+
+    def _activity(self) -> bool:
+        try:
+            self.parent_app.mark_user_activity()
+        except Exception:
+            pass
+        return False
+
+    def _check_still_unlocked(self) -> bool:
+        if not self.vault.unlocked:
+            self._watch = 0
+            self.response(Gtk.ResponseType.CLOSE)
+            return False
+        return True
+
+    def _stop_watch(self, *_args) -> None:
+        if self._watch:
+            GLib.source_remove(self._watch)
+            self._watch = 0
+
+    # ------------------------------------------------------------------ tastiera
+    def on_key_press(self, _widget: Gtk.Widget, event: Gdk.EventKey) -> bool:
+        self._activity()
+        ctrl = bool(event.state & Gdk.ModifierType.CONTROL_MASK)
+        key = Gdk.keyval_name(event.keyval) or ""
+        focus = self.get_focus()
+        # Nei campi di testo e sul testo selezionato a mano Ctrl+C e Canc fanno il loro solito lavoro.
+        in_entry = isinstance(focus, (Gtk.Entry, Gtk.TextView)) or (
+            isinstance(focus, Gtk.Label) and focus.get_selection_bounds()[0]
+        )
+        if ctrl and key.lower() == "f":
+            self.search.grab_focus()
+            return True
+        if ctrl and key.lower() == "n":
+            self.on_add(None)
+            return True
+        if in_entry:
+            return False
+        if ctrl and key.lower() == "c" and self.selected_credential() is not None:
+            self.on_copy_password(None)
+            return True
+        if ctrl and key.lower() == "b" and self.selected_credential() is not None:
+            self.on_copy_username(None)
+            return True
+        if key == "Delete" and self.selected_credential() is not None:
+            self.on_delete(None)
+            return True
+        return False
+
+    def on_search_changed(self, entry: Gtk.SearchEntry) -> None:
+        self.filter_text = entry.get_text().strip().casefold()
+        self.refresh()
+        if self.filter_text and self.listbox.get_selected_row() is None:
+            first = self.listbox.get_row_at_index(0)
+            if first is not None:
+                self.listbox.select_row(first)
+
+    def on_search_activate(self, _entry: Gtk.SearchEntry) -> None:
+        row = self.listbox.get_selected_row() or self.listbox.get_row_at_index(0)
+        if row is not None:
+            self.listbox.select_row(row)
+            row.grab_focus()
+
+    def on_search_key(self, _entry: Gtk.SearchEntry, event: Gdk.EventKey) -> bool:
+        if Gdk.keyval_name(event.keyval) == "Down":
+            self.on_search_activate(self.search)
+            return True
+        return False
+
+    # ------------------------------------------------------------------ azioni
+    def _save(self, select_id: Optional[str] = None) -> None:
+        self.vault.save()
+        self.refresh(select_id)
+        self._update_hint()
+        try:
+            self.parent_app.refresh_sessions()
+        except Exception:
+            pass
 
     def on_add(self, _button: Optional[Gtk.Button]) -> None:
-        dialog = CredentialDialog(self)
+        dialog = CredentialDialog(self, groups=self.vault.groups())
+        selected = self.selected_credential()
+        if selected is not None and selected.group:
+            dialog.group.get_child().set_text(selected.group)
         if dialog.run() == Gtk.ResponseType.OK:
             credential = dialog.get_credential()
             self.vault.credentials.append(credential)
-            self.vault.save()
-            self.refresh(credential.id)
+            if self.filter_text and not self._matches(credential):
+                self.search.set_text("")
+            self._save(credential.id)
+            self.select_credential(credential.id)
         dialog.destroy()
 
     def on_edit(self, _button: Optional[Gtk.Button]) -> None:
         cred = self.selected_credential()
         if cred is None:
             return
-        dialog = CredentialDialog(self, cred)
+        dialog = CredentialDialog(self, cred, groups=self.vault.groups())
         if dialog.run() == Gtk.ResponseType.OK:
             updated = dialog.get_credential()
             for idx, item in enumerate(self.vault.credentials):
                 if item.id == updated.id:
                     self.vault.credentials[idx] = updated
                     break
-            self.vault.save()
-            self.refresh(updated.id)
+            self._save(updated.id)
         dialog.destroy()
 
     def on_delete(self, _button: Optional[Gtk.Button]) -> None:
         cred = self.selected_credential()
         if cred is None:
             return
+        usage = self._usage(cred.id)
         confirm = Gtk.MessageDialog(
             transient_for=self,
             flags=0,
             message_type=Gtk.MessageType.WARNING,
-            buttons=Gtk.ButtonsType.OK_CANCEL,
-            text=f"Eliminare la credenziale '{cred.name}'?",
+            buttons=Gtk.ButtonsType.NONE,
+            text=f"Eliminare «{cred.name}»?",
         )
-        confirm.format_secondary_text(
-            "Le sessioni che la usano resteranno salvate, ma non troveranno più questa credenziale."
-        )
+        if usage:
+            names = ", ".join(name for name, _kind, _folder in usage[:4]) + ("…" if len(usage) > 4 else "")
+            confirm.format_secondary_text(
+                f"È usata da {len(usage)} {'sessione' if len(usage) == 1 else 'sessioni'} ({names}): "
+                "resteranno salvate ma ti chiederanno la password a ogni connessione."
+            )
+        else:
+            confirm.format_secondary_text("Nessuna sessione la usa. L'eliminazione non si può annullare.")
+        confirm.add_button("_Annulla", Gtk.ResponseType.CANCEL)
+        delete = confirm.add_button("_Elimina", Gtk.ResponseType.OK)
+        delete.get_style_context().add_class("destructive-action")
+        confirm.set_default_response(Gtk.ResponseType.CANCEL)
         response = confirm.run()
         confirm.destroy()
         if response != Gtk.ResponseType.OK:
             return
+        index = self.listbox.get_selected_row().get_index()
         self.vault.credentials = [x for x in self.vault.credentials if x.id != cred.id]
-        self.vault.save()
-        self.refresh()
+        self._save("")
+        neighbour = self.listbox.get_row_at_index(min(index, len(self._rows) - 1)) if self._rows else None
+        if neighbour is not None:
+            self.listbox.select_row(neighbour)
+        self.parent_app.set_status(f"Credenziale «{cred.name}» eliminata.")
 
     def on_copy_username(self, _button: Optional[Gtk.Button]) -> None:
         cred = self.selected_credential()
-        if cred is None:
-            self.parent_app.set_status("Seleziona una credenziale.")
-            return
-        self.parent_app.copy_sensitive_text(cred.username, "Username")
+        if cred is not None:
+            self.parent_app.copy_sensitive_text(cred.account_text() if cred.domain else cred.username, "Utente")
+
+    def on_copy_domain(self, _button: Optional[Gtk.Button]) -> None:
+        cred = self.selected_credential()
+        if cred is not None:
+            self.parent_app.copy_sensitive_text(cred.domain, "Dominio")
 
     def on_copy_password(self, _button: Optional[Gtk.Button]) -> None:
         cred = self.selected_credential()
-        if cred is None:
-            self.parent_app.set_status("Seleziona una credenziale.")
-            return
-        self.parent_app.copy_sensitive_text(cred.password, "Password")
+        if cred is not None:
+            self.parent_app.copy_sensitive_text(cred.password, "Password")
+
+    def on_change_master(self, _button: Optional[Gtk.Button]) -> None:
+        dialog = MasterPasswordDialog(self, mode="change")
+
+        def change() -> Optional[str]:
+            if not self.vault.verify_master_password(dialog.get_current_password()):
+                return "La master password attuale non è corretta."
+            try:
+                self.vault.change_master_password(dialog.get_password())
+            except Exception as exc:
+                return f"Impossibile cambiare la master password: {exc}"
+            return None
+
+        changed = dialog.run_validated(change)
+        dialog.destroy()
+        if changed:
+            self.parent_app.set_status("Master password cambiata. Le credenziali sono state cifrate di nuovo.")
 
     def on_export_encrypted(self, _button: Optional[Gtk.Button]) -> None:
-        self.parent_app.export_vault_encrypted()
+        self.parent_app.export_vault_encrypted(self)
         self.refresh()
 
     def on_import_encrypted(self, _button: Optional[Gtk.Button]) -> None:
-        self.parent_app.import_vault_encrypted()
+        self.parent_app.import_vault_encrypted(self)
         self.refresh()
+        self._update_hint()
 
     def on_lock(self, _button: Optional[Gtk.Button]) -> None:
         self.vault.lock()
@@ -8254,8 +9083,8 @@ class AppWindow(Gtk.ApplicationWindow):
         menubar.append(self.make_menu("Strumenti", [
             ("Tunneling SSH", lambda *_: self.on_tunnel_manager(None)),
             ("Password Manager", lambda *_: self.on_password_manager(None)),
-            ("Esporta credenziali cifrate", lambda *_: self.export_vault_encrypted()),
-            ("Importa credenziali cifrate", lambda *_: self.import_vault_encrypted()),
+            ("Esporta backup cifrato delle password", lambda *_: self.export_vault_encrypted()),
+            ("Importa backup cifrato delle password", lambda *_: self.import_vault_encrypted()),
             ("Blocca vault", lambda *_: self.on_lock_vault(None)),
             ("---", None),
             ("Chiavi SSH", lambda *_: self.run_quick_tool("Chiavi SSH", self.quick_tool_commands()["Chiavi SSH"])),
@@ -10250,14 +11079,49 @@ class AppWindow(Gtk.ApplicationWindow):
         .vault-header { background: #151920; border: 1px solid #303844; border-radius: 12px; padding: 11px 13px; }
         .vault-header label { color: #f4f7fb; }
         .vault-header .muted { color: #b9c3d0; }
-        .vault-toolbar, .vault-footer { background: #151920; border: 1px solid #303844; border-radius: 11px; padding: 7px; }
-        .vault-search { min-width: 260px; }
-        .vault-list-card { background: #12161c; border: 1px solid #323a46; border-radius: 12px; }
-        .vault-list, .vault-list.view { background: #12161c; color: #f1f4f8; }
-        .vault-list:selected { background: #285f87; color: #ffffff; }
-        .vault-list header button { background: #1d232c; color: #f5f7fb; border-color: #343d49; }
-        .vault-list header button label { color: #f5f7fb; font-weight: 700; }
-        .vault-status { color: #b9c3d0; font-weight: 600; }
+        .vault-hint { background: #17283a; border: 1px solid #2c4f70; border-radius: 11px; padding: 8px 12px; }
+        .vault-hint label { color: #dbeaf6; }
+        .vault-search { min-width: 220px; }
+        .vault-sidebar { margin-right: 6px; }
+        .vault-list-scroll { background: #12161c; border: 1px solid #323a46; border-radius: 12px; }
+        .vault-list { background: #12161c; color: #f1f4f8; }
+        .vault-group-header { color: #9cc3e4; font-size: 11px; font-weight: 800; letter-spacing: 1px; padding: 12px 12px 4px 12px; }
+        .vault-row { padding: 7px 10px; border-radius: 9px; margin: 1px 4px; }
+        .vault-row:hover { background: #1a2029; }
+        .vault-row:selected { background: #285f87; }
+        .vault-row-title { color: #f4f7fb; font-weight: 700; }
+        .vault-row-subtitle { color: #a9b4c2; font-size: 12px; }
+        .vault-row:selected .vault-row-title { color: #ffffff; }
+        .vault-row:selected .vault-row-subtitle { color: #dbeaf6; }
+        .vault-avatar { background: #24415a; color: #cfe8fb; border-radius: 999px; min-width: 32px; min-height: 32px; font-weight: 800; }
+        .vault-row:selected .vault-avatar { background: #3d7aa8; color: #ffffff; }
+        .vault-badge { background: #222a35; color: #c9d3df; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+        .vault-detail { background: #151920; border: 1px solid #303844; border-radius: 12px; }
+        .vault-detail-page, .vault-fields { color: #f2f4f8; }
+        .vault-detail-title { color: #ffffff; font-size: 19px; font-weight: 800; }
+        .vault-field-caption { color: #9aa6b4; font-size: 12px; font-weight: 700; min-width: 74px; padding: 6px 0; }
+        .vault-field-value { color: #f2f4f8; padding: 6px 0; }
+        .vault-secret { font-family: monospace; letter-spacing: 1px; }
+        .vault-usage-scroll, .vault-usage-scroll viewport { background: transparent; border: none; }
+        .vault-usage label { color: #e6ebf2; }
+        .vault-usage .muted { color: #a9b4c2; }
+        .vault-usage-kind { background: #1d3346; color: #a9d3f5; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 800; }
+        .vault-icon-button { padding: 4px 6px; border-radius: 8px; background: transparent; border: none; box-shadow: none; }
+        .vault-icon-button:hover, .vault-icon-button:checked { background: #26303c; }
+        .vault-delete { background: transparent; color: #ff9b9b; border: 1px solid #6b2c35; border-radius: 9px; padding: 5px 10px; }
+        .vault-delete:hover { background: #3a1d23; }
+        .vault-delete label, .vault-delete image { color: #ff9b9b; }
+        .vault-empty label { color: #f2f4f8; }
+        .vault-empty .muted { color: #b9c3d0; }
+        .vault-empty-title { font-size: 16px; font-weight: 800; }
+        .vault-empty-icon { opacity: 0.55; }
+        .vault-error { color: #ff9b9b; font-weight: 700; }
+        .vault-notes, .vault-notes textview, .vault-notes text { background: #12161c; color: #f2f4f8; border-color: #343d49; }
+        .vault-strength block { min-height: 6px; min-width: 22px; border-radius: 3px; border: none; }
+        .vault-strength block.empty { background: #2a313c; }
+        .vault-strength block.filled.low { background: #e5534b; }
+        .vault-strength block.filled.high { background: #d4a72c; }
+        .vault-strength block.filled.full { background: #3fb950; }
         .tunnel-editor, .tunnel-manager { background: #111419; color: #e8ebf1; }
         .tunnel-radio-strip, .tunnel-diagram, .tunnel-card { background: #171a20; border: 1px solid #343b47; border-radius: 12px; padding: 10px; }
         .tunnel-section-title, .tunnel-node-label { color: #f5f7fa; font-weight: 800; }
@@ -10626,14 +11490,49 @@ class AppWindow(Gtk.ApplicationWindow):
         .vault-header { background: #ffffff; border: 1px solid #d2dae4; border-radius: 12px; padding: 11px 13px; }
         .vault-header label { color: #111a24; }
         .vault-header .muted { color: #526174; }
-        .vault-toolbar, .vault-footer { background: #f8fafc; border: 1px solid #d2dae4; border-radius: 11px; padding: 7px; }
-        .vault-search { min-width: 260px; background: #ffffff; color: #111827; }
-        .vault-list-card { background: #ffffff; border: 1px solid #cbd4df; border-radius: 12px; }
-        .vault-list, .vault-list.view { background: #ffffff; color: #111827; }
-        .vault-list:selected { background: #c5e7fb; color: #0b2538; }
-        .vault-list header button { background: #e9eef4; color: #111827; border-color: #c5cfda; }
-        .vault-list header button label { color: #111827; font-weight: 700; }
-        .vault-status { color: #445164; font-weight: 600; }
+        .vault-hint { background: #eaf4fd; border: 1px solid #b7d7f2; border-radius: 11px; padding: 8px 12px; }
+        .vault-hint label { color: #173a57; }
+        .vault-search { min-width: 220px; background: #ffffff; color: #111827; }
+        .vault-sidebar { margin-right: 6px; }
+        .vault-list-scroll { background: #ffffff; border: 1px solid #cbd4df; border-radius: 12px; }
+        .vault-list { background: #ffffff; color: #111827; }
+        .vault-group-header { color: #4a5d73; font-size: 11px; font-weight: 800; letter-spacing: 1px; padding: 12px 12px 4px 12px; }
+        .vault-row { padding: 7px 10px; border-radius: 9px; margin: 1px 4px; }
+        .vault-row:hover { background: #f0f4f8; }
+        .vault-row:selected { background: #c5e7fb; }
+        .vault-row-title { color: #111a24; font-weight: 700; }
+        .vault-row-subtitle { color: #4b5a6b; font-size: 12px; }
+        .vault-row:selected .vault-row-title { color: #0b2538; }
+        .vault-row:selected .vault-row-subtitle { color: #24435b; }
+        .vault-avatar { background: #dbe9f6; color: #1b4f78; border-radius: 999px; min-width: 32px; min-height: 32px; font-weight: 800; }
+        .vault-row:selected .vault-avatar { background: #1f6fa8; color: #ffffff; }
+        .vault-badge { background: #e9eef4; color: #3a4a5c; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+        .vault-detail { background: #ffffff; border: 1px solid #d2dae4; border-radius: 12px; }
+        .vault-detail-page, .vault-fields { color: #17202a; }
+        .vault-detail-title { color: #0f1720; font-size: 19px; font-weight: 800; }
+        .vault-field-caption { color: #5b6676; font-size: 12px; font-weight: 700; min-width: 74px; padding: 6px 0; }
+        .vault-field-value { color: #111a24; padding: 6px 0; }
+        .vault-secret { font-family: monospace; letter-spacing: 1px; }
+        .vault-usage-scroll, .vault-usage-scroll viewport { background: transparent; border: none; }
+        .vault-usage label { color: #1c2938; }
+        .vault-usage .muted { color: #5b6676; }
+        .vault-usage-kind { background: #e3f0fb; color: #17507d; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 800; }
+        .vault-icon-button { padding: 4px 6px; border-radius: 8px; background: transparent; border: none; box-shadow: none; }
+        .vault-icon-button:hover, .vault-icon-button:checked { background: #e6edf4; }
+        .vault-delete { background: transparent; color: #b42318; border: 1px solid #f0b6b0; border-radius: 9px; padding: 5px 10px; }
+        .vault-delete:hover { background: #fdecea; }
+        .vault-delete label, .vault-delete image { color: #b42318; }
+        .vault-empty label { color: #17202a; }
+        .vault-empty .muted { color: #526174; }
+        .vault-empty-title { font-size: 16px; font-weight: 800; }
+        .vault-empty-icon { opacity: 0.55; }
+        .vault-error { color: #b91c1c; font-weight: 700; }
+        .vault-notes, .vault-notes textview, .vault-notes text { background: #ffffff; color: #111827; border-color: #cbd4df; }
+        .vault-strength block { min-height: 6px; min-width: 22px; border-radius: 3px; border: none; }
+        .vault-strength block.empty { background: #dde3ea; }
+        .vault-strength block.filled.low { background: #c9372c; }
+        .vault-strength block.filled.high { background: #b7791f; }
+        .vault-strength block.filled.full { background: #1a7f37; }
         .tunnel-radio-strip, .tunnel-diagram, .tunnel-card { background: #ffffff; border: 1px solid #d3dbe5; border-radius: 12px; padding: 10px; }
         .tunnel-dialog-content, .tunnel-editor-scroll, .tunnel-editor-scroll viewport, .tunnel-manager { background: #f5f7fa; color: #17202a; }
         .tunnel-type-selector { background: #eef2f6; border: 1px solid #d0d8e2; border-radius: 12px; padding: 5px; }
@@ -11043,61 +11942,43 @@ class AppWindow(Gtk.ApplicationWindow):
         if not CRYPTO_AVAILABLE:
             self.set_status("python3-cryptography non installato. Installa: sudo dnf install python3-cryptography")
             return False
-        if not self.vault.exists():
-            if not create_if_missing:
-                self.set_status("Password Manager non ancora creato.")
-                return False
-            dialog = MasterPasswordDialog(self, mode="create")
-            response = dialog.run()
-            if response != Gtk.ResponseType.OK:
-                dialog.destroy()
-                return False
-            password = dialog.get_password()
-            matches = dialog.password_matches()
-            dialog.destroy()
-            if not matches:
-                self.set_status("Le master password non coincidono.")
-                return False
-            try:
-                self.vault.create(password)
-                self.mark_user_activity()
-                self.set_status("Password Manager creato e sbloccato.")
-                GLib.idle_add(self.start_auto_tunnels)
-                return True
-            except Exception as exc:
-                self.set_status(f"Errore creazione vault: {exc}")
-                return False
-
-        dialog = MasterPasswordDialog(self, mode="unlock")
-        response = dialog.run()
-        if response != Gtk.ResponseType.OK:
-            dialog.destroy()
+        creating = not self.vault.exists()
+        if creating and not create_if_missing:
+            self.set_status("Password Manager non ancora creato.")
             return False
-        password = dialog.get_password()
+        dialog = MasterPasswordDialog(self, mode="create" if creating else "unlock")
+
+        def open_vault() -> Optional[str]:
+            try:
+                if creating:
+                    self.vault.create(dialog.get_password())
+                else:
+                    self.vault.unlock(dialog.get_password())
+                return None
+            except InvalidTag:
+                return "Password errata. Riprova."
+            except Exception as exc:
+                return f"Impossibile {'creare' if creating else 'aprire'} l'archivio delle password: {exc}"
+
+        opened = dialog.run_validated(open_vault)
         keep_unlocked = dialog.wants_keep_unlocked()
         dialog.destroy()
-        try:
-            self.vault.unlock(password)
-            self.mark_user_activity()
-            if keep_unlocked and int(self.settings.vault_auto_lock_minutes) != 0:
-                # Spunta nel prompt: disattiva il blocco automatico a tempo e
-                # rendi la scelta persistente (coerente con le Impostazioni).
-                self.settings.vault_auto_lock_minutes = 0
-                try:
-                    self.settings.save(SETTINGS_FILE)
-                except Exception:
-                    pass
-                self.set_status("Password Manager sbloccato (resterà sbloccato finché l'app è aperta).")
-            else:
-                self.set_status("Password Manager sbloccato.")
-            GLib.idle_add(self.start_auto_tunnels)
-            return True
-        except InvalidTag:
-            self.set_status("Master password errata oppure vault corrotto.")
+        if not opened:
             return False
-        except Exception as exc:
-            self.set_status(f"Errore apertura vault: {exc}")
-            return False
+        self.mark_user_activity()
+        message = "Password Manager creato e sbloccato." if creating else "Password Manager sbloccato."
+        if keep_unlocked and int(self.settings.vault_auto_lock_minutes) != 0:
+            # Spunta nel prompt: disattiva il blocco automatico a tempo e rende la scelta
+            # persistente (coerente con le Impostazioni).
+            self.settings.vault_auto_lock_minutes = 0
+            try:
+                self.settings.save(SETTINGS_FILE)
+            except Exception:
+                pass
+            message = message[:-1] + " (resterà sbloccato finché l'app è aperta)."
+        self.set_status(message)
+        GLib.idle_add(self.start_auto_tunnels)
+        return True
 
     def on_password_manager(self, _button: Gtk.Button) -> None:
         if not self.ensure_vault_unlocked(create_if_missing=True):
@@ -11168,6 +12049,56 @@ class AppWindow(Gtk.ApplicationWindow):
 
             GLib.timeout_add_seconds(seconds, clear_if_unchanged)
 
+    @staticmethod
+    def _folder_display(folder: str) -> str:
+        parts = [part for part in folder.split(" / ") if part]
+        if parts and parts[0] == HOME_SESSION_NAME:
+            parts = parts[1:]
+        return " / ".join(parts)
+
+    def credential_usage(self, cred_id: str) -> List[Tuple[str, str, str]]:
+        """Sessioni e tunnel che usano una credenziale: (nome, tipo, cartella)."""
+        if not cred_id:
+            return []
+        found: List[Tuple[str, str, str]] = []
+        for _path, sess, folder in self.store.iter_sessions():
+            name = sess.name or sess.host
+            if sess.credential_id == cred_id:
+                kind = "Terminale" if sess.protocol == "local" else sess.protocol.upper()
+                found.append((name, kind, self._folder_display(folder)))
+            if getattr(sess, "rdp_gateway_credential_id", "") == cred_id:
+                found.append((name, "Gateway", self._folder_display(folder)))
+        for tunnel in getattr(self.tunnel_store, "tunnels", []):
+            if tunnel.credential_id == cred_id:
+                found.append((tunnel.name, "Tunnel", ""))
+        return found
+
+    def session_group_name(self, session: Session) -> str:
+        """La cartella che contiene la sessione (di solito il cliente), vuota se sta nella radice."""
+        for _path, sess, folder in self.store.iter_sessions():
+            if sess is session:
+                display = self._folder_display(folder)
+                return display.split(" / ")[-1] if display else ""
+        return ""
+
+    def credential_group_suggestions(self) -> Dict[str, str]:
+        """Per le credenziali senza gruppo: la cartella delle sessioni che le usano, se e' una sola."""
+        folders: Dict[str, set] = {}
+        for _path, sess, folder in self.store.iter_sessions():
+            display = self._folder_display(folder)
+            last = display.split(" / ")[-1] if display else ""
+            for cred_id in (sess.credential_id, getattr(sess, "rdp_gateway_credential_id", "")):
+                if cred_id:
+                    folders.setdefault(cred_id, set()).add(last)
+        suggestions: Dict[str, str] = {}
+        for cred in self.vault.credentials:
+            names = folders.get(cred.id, set())
+            if not cred.group and len(names) == 1:
+                name = next(iter(names))
+                if name:
+                    suggestions[cred.id] = name
+        return suggestions
+
     def credential_options_for_dialog(self) -> List[Tuple[str, str]]:
         if not self.vault.unlocked:
             return []
@@ -11215,6 +12146,7 @@ class AppWindow(Gtk.ApplicationWindow):
             domain=sess.domain,
             password=password,
             notes=f"Credenziale RDP creata da FedTermHub per {sess.host}",
+            group=self.session_group_name(sess),
         )
         self.vault.credentials.append(cred)
         self.vault.save()
@@ -11415,8 +12347,8 @@ class AppWindow(Gtk.ApplicationWindow):
             "root": node_to_dict(node),
         }
 
-    def _choose_save_json(self, title: str, default_name: str) -> Optional[Path]:
-        dialog = Gtk.FileChooserDialog(title=title, transient_for=self, action=Gtk.FileChooserAction.SAVE)
+    def _choose_save_json(self, title: str, default_name: str, parent: Optional[Gtk.Window] = None) -> Optional[Path]:
+        dialog = Gtk.FileChooserDialog(title=title, transient_for=parent or self, action=Gtk.FileChooserAction.SAVE)
         dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
         dialog.set_do_overwrite_confirmation(True)
         dialog.set_current_name(default_name)
@@ -11428,8 +12360,8 @@ class AppWindow(Gtk.ApplicationWindow):
         finally:
             dialog.destroy()
 
-    def _choose_open_json(self, title: str) -> Optional[Path]:
-        dialog = Gtk.FileChooserDialog(title=title, transient_for=self, action=Gtk.FileChooserAction.OPEN)
+    def _choose_open_json(self, title: str, parent: Optional[Gtk.Window] = None) -> Optional[Path]:
+        dialog = Gtk.FileChooserDialog(title=title, transient_for=parent or self, action=Gtk.FileChooserAction.OPEN)
         dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Apri", Gtk.ResponseType.OK)
         apply_window_icon(dialog)
         try:
@@ -11532,67 +12464,81 @@ class AppWindow(Gtk.ApplicationWindow):
         except Exception as exc:
             self.set_status(f"Errore import in cartella: {exc}")
 
-    def _ask_export_password(self, title: str, confirm: bool = True) -> Optional[str]:
-        dialog = MasterPasswordDialog(self, mode="create" if confirm else "unlock")
-        dialog.set_title(title)
+    def _ask_export_password(
+        self,
+        parent: Optional[Gtk.Window] = None,
+        exporting: bool = True,
+        check: Optional[Callable[[str], Optional[str]]] = None,
+    ) -> Optional[str]:
+        dialog = MasterPasswordDialog(parent or self, mode="export" if exporting else "import")
         try:
-            response = dialog.run()
-            if response != Gtk.ResponseType.OK:
-                return None
-            password = dialog.get_password()
-            if confirm and not dialog.password_matches():
-                self.set_status("Le password non coincidono.")
-                return None
-            if not password:
-                self.set_status("Master password vuota non consentita.")
-                return None
-            return password
+            ok = dialog.run_validated((lambda: check(dialog.get_password())) if check else None)
+            return dialog.get_password() if ok else None
         finally:
             dialog.destroy()
 
-    def export_vault_encrypted(self, *_args) -> None:
+    def export_vault_encrypted(self, parent: Optional[Gtk.Window] = None, *_args) -> None:
+        if not isinstance(parent, Gtk.Window):
+            parent = None
         if not self.ensure_vault_unlocked(create_if_missing=False):
             return
         try:
-            dest = self._choose_save_json("Esporta credenziali cifrate", "fedtermhub-credentials-encrypted.json")
+            dest = self._choose_save_json("Esporta backup cifrato delle password", "fedtermhub-password-backup.json", parent)
             if dest is None:
                 return
-            password = self._ask_export_password("Master password export credenziali", confirm=True)
+            password = self._ask_export_password(parent, exporting=True)
             if password is None:
                 return
             payload = PasswordVault.encrypt_credentials_payload(self.vault.credentials, password)
             atomic_write_text(dest, json.dumps(payload, indent=2, ensure_ascii=False), mode=0o600)
-            self.set_status(f"Credenziali esportate cifrate in {dest.name}")
+            self.set_status(f"Backup cifrato di {len(self.vault.credentials)} credenziali salvato in {dest.name}")
         except Exception as exc:
             self.set_status(f"Errore export credenziali: {exc}")
 
-    def import_vault_encrypted(self, *_args) -> None:
+    def import_vault_encrypted(self, parent: Optional[Gtk.Window] = None, *_args) -> None:
+        if not isinstance(parent, Gtk.Window):
+            parent = None
         if not self.ensure_vault_unlocked(create_if_missing=True):
             return
         try:
-            src = self._choose_open_json("Importa credenziali cifrate")
+            src = self._choose_open_json("Importa backup cifrato delle password", parent)
             if src is None:
-                return
-            password = self._ask_export_password("Master password del file importato", confirm=False)
-            if password is None:
                 return
             raw = json.loads(src.read_text(encoding="utf-8"))
             if not isinstance(raw, dict):
                 raise ValueError("File credenziali non valido.")
-            imported = PasswordVault.decrypt_credentials_payload(raw, password)
+            imported: List[Credential] = []
+
+            def decrypt(password: str) -> Optional[str]:
+                try:
+                    imported[:] = PasswordVault.decrypt_credentials_payload(raw, password)
+                    return None
+                except InvalidTag:
+                    return "Password errata per questo backup. Riprova."
+                except Exception as exc:
+                    return f"Il file non è un backup valido: {exc}"
+
+            if self._ask_export_password(parent, exporting=False, check=decrypt) is None:
+                return
             confirm = Gtk.MessageDialog(
-                transient_for=self,
+                transient_for=parent or self,
                 flags=0,
                 message_type=Gtk.MessageType.QUESTION,
                 buttons=Gtk.ButtonsType.NONE,
                 text=f"Importare {len(imported)} credenziali?",
             )
             apply_window_icon(confirm)
-            confirm.format_secondary_text("Scegli 'Unisci' per mantenere quelle esistenti, oppure 'Sostituisci' per rimpiazzare il vault attuale.")
-            confirm.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Unisci", Gtk.ResponseType.OK, "Sostituisci", Gtk.ResponseType.YES)
+            confirm.format_secondary_text(
+                "«Aggiungi» le unisce a quelle che hai già. «Sostituisci» cancella le credenziali attuali "
+                "e tiene solo quelle del backup."
+            )
+            confirm.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Sostituisci", Gtk.ResponseType.YES)
+            merge = confirm.add_button("A_ggiungi", Gtk.ResponseType.OK)
+            merge.get_style_context().add_class("suggested-action")
+            confirm.set_default_response(Gtk.ResponseType.OK)
             response = confirm.run()
             confirm.destroy()
-            if response == Gtk.ResponseType.CANCEL:
+            if response not in (Gtk.ResponseType.OK, Gtk.ResponseType.YES):
                 return
             if response == Gtk.ResponseType.YES:
                 self.vault.credentials = imported
@@ -11603,12 +12549,12 @@ class AppWindow(Gtk.ApplicationWindow):
                     if cred.id in existing_ids:
                         cred.id = uuid.uuid4().hex
                     if cred.name in existing_names:
-                        cred.name = f"{cred.name} import"
+                        cred.name = f"{cred.name} (importata)"
                     self.vault.credentials.append(cred)
                     existing_ids.add(cred.id)
                     existing_names.add(cred.name)
             self.vault.save()
-            self.set_status(f"Credenziali importate da {src.name}")
+            self.set_status(f"Importate {len(imported)} credenziali da {src.name}")
         except Exception as exc:
             self.set_status(f"Errore import credenziali: {exc}")
 

@@ -44,6 +44,27 @@ CONTRASTI = [
     # testo bianco sull'azione principale (Salva, Applica, Avvia), entrambi i temi
     ("azione principale",        "#ffffff", "#1f6fa8"),
     ("azione principale :hover", "#ffffff", "#2479b6"),
+    # finestra Password: testi secondari e segnali, sullo sfondo reale di ciascun pannello
+    ("scuro  .vault-field-caption",   "#9aa6b4", "#151920"),
+    ("scuro  .vault-row-subtitle",    "#a9b4c2", "#12161c"),
+    ("scuro  subtitle selezionata",   "#dbeaf6", "#285f87"),
+    ("scuro  .vault-group-header",    "#9cc3e4", "#12161c"),
+    ("scuro  .vault-badge",           "#c9d3df", "#222a35"),
+    ("scuro  .vault-usage-kind",      "#a9d3f5", "#1d3346"),
+    ("scuro  .vault-delete",          "#ff9b9b", "#151920"),
+    ("scuro  .vault-error",           "#ff9b9b", "#0f1115"),
+    ("scuro  .vault-hint",            "#dbeaf6", "#17283a"),
+    ("scuro  .vault-avatar",          "#cfe8fb", "#24415a"),
+    ("chiaro .vault-field-caption",   "#5b6676", "#ffffff"),
+    ("chiaro .vault-row-subtitle",    "#4b5a6b", "#ffffff"),
+    ("chiaro subtitle selezionata",   "#24435b", "#c5e7fb"),
+    ("chiaro .vault-group-header",    "#4a5d73", "#ffffff"),
+    ("chiaro .vault-badge",           "#3a4a5c", "#e9eef4"),
+    ("chiaro .vault-usage-kind",      "#17507d", "#e3f0fb"),
+    ("chiaro .vault-delete",          "#b42318", "#ffffff"),
+    ("chiaro .vault-error",           "#b91c1c", "#f5f7fa"),
+    ("chiaro .vault-hint",            "#173a57", "#eaf4fd"),
+    ("chiaro .vault-avatar",          "#1b4f78", "#dbe9f6"),
 ]
 SOGLIA = 4.5
 
