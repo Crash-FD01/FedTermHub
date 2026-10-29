@@ -112,7 +112,7 @@ find %{buildroot}%{_datadir}/fedtermhub/fedtermhub -name '*.py' \
 bash -n install.sh uninstall.sh
 desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.crash_fd01.fedtermhub.desktop
 appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/io.github.crash_fd01.fedtermhub.metainfo.xml
-/usr/bin/python3 tests/test_core.py
+xvfb-run -a /usr/bin/python3 tests/test_core.py
 /usr/bin/python3 tests/test_theme_parity.py
 /usr/bin/python3 tests/test_connection_diagnostics.py
 xvfb-run -a /usr/bin/python3 tests/test_rdp_monitor_ui.py

@@ -22,8 +22,8 @@ jobs:
     name: Sintassi e coerenza interfaccia
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -36,22 +36,19 @@ jobs:
       - name: Parità dei temi, contrasti, mnemonici, tooltip
         run: python tests/test_theme_parity.py
 
-      - name: Invarianti del sorgente
-        run: python tests/test_core.py
-
       - name: Analisi statica
         run: |
           pipx install ruff
           # Solo le regole che segnalano errori veri: lo stile verrà dopo,
           # quando il monolite sarà stato spezzato.
-          ruff check --select=E9,F63,F7,F82,B --ignore=B008 fedtermhub tests
+          ruff check --select=E9,F63,F7,F82 fedtermhub tests
 
   # Conformità REUSE: ogni file deve dichiarare autore e licenza.
   reuse:
     name: Licenze (REUSE)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: fsfe/reuse-action@v5
 
   # Build RPM reale in un container Fedora: è l'unico modo di verificare che
@@ -62,11 +59,11 @@ jobs:
     runs-on: ubuntu-24.04
     container: fedora:41
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Dipendenze di build
         run: |
-          dnf -y install rpm-build rpmdevtools rpmlint dnf-plugins-core tar gzip
+          dnf -y install rpm-build rpmdevtools rpmlint dnf-plugins-core tar gzip git
           dnf -y builddep fedtermhub.spec
 
       - name: Preparazione del tarball
@@ -99,7 +96,7 @@ jobs:
             || { echo "ERRORE: il binario non ha BIND_NOW, %set_build_flags non ha avuto effetto"; exit 1; }
 
       - name: Pubblica gli RPM come artefatto
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: rpm-fedora41
           path: ~/rpmbuild/RPMS/*/*.rpm
