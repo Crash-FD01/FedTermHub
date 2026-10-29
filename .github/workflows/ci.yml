@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: fsfe/reuse-action@v5
+      - uses: fsfe/reuse-action@v6
 
   # Build RPM reale in un container Fedora: è l'unico modo di verificare che
   # lo spec stia in piedi, che il binario C compili con gli hardening flag
