@@ -98,7 +98,10 @@ def main() -> int:
         error_tab.show_all()
         diagnostic_buttons = [
             widget for widget in walk(error_tab)
-            if isinstance(widget, Gtk.Button) and widget.get_label() == "Diagnostica connessione"
+            # L'etichetta porta il mnemonico ("_Diagnostica connessione"):
+            # si confronta il testo visibile, senza il trattino basso.
+            if isinstance(widget, Gtk.Button)
+            and (widget.get_label() or "").replace("_", "") == "Diagnostica connessione"
         ]
         assert len(diagnostic_buttons) == 1
         diagnostic_buttons[0].clicked()
