@@ -22,7 +22,7 @@ jobs:
     name: Sintassi e coerenza interfaccia
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -54,7 +54,7 @@ jobs:
     name: Licenze (REUSE)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: fsfe/reuse-action@v5
 
   # Build RPM reale in un container Fedora: è l'unico modo di verificare che
@@ -71,7 +71,7 @@ jobs:
         fedora: ['43', '44']
     container: fedora:${{ matrix.fedora }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Dipendenze di build
         run: |
