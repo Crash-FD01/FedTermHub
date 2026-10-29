@@ -100,18 +100,37 @@ jobs:
       - name: Controlli rpmlint
         # Informativo: rpmlint segnala anche convenzioni opinabili. Serve a
         # vedere la lista crescere o calare, non a bloccare la build.
-        run: rpmlint ~/rpmbuild/RPMS/*/*.rpm || true
+        run: |
+          rpmlint ~/rpmbuild/RPMS/*/*.rpm 2>&1 | tee /tmp/rpmlint.log || true
+          # Riepilogo nelle annotazioni: errori e avvisi, senza i log completi.
+          righe=$(grep -E ': (E|W): ' /tmp/rpmlint.log | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          esito=$(tail -1 /tmp/rpmlint.log)
+          echo "::notice title=rpmlint::${esito}%0A${righe}"
 
       - name: Verifica degli hardening flag nel binario nativo
+        # Si controlla il binario DENTRO l'RPM prodotto, cioe' quello che
+        # arriva all'utente, non una copia rimasta nella cartella di build
+        # (che rpm 4.20 puo' gia' aver ripulito a fine build).
         run: |
-          dnf -y install binutils
-          BIN=$(find ~/rpmbuild/BUILD -name fedtermrdp-native -type f | head -1)
-          echo "Binario: $BIN"
-          # -z now produce la sezione .dynamic con BIND_NOW: se manca, i flag
-          # della distribuzione non sono arrivati al compilatore.
-          readelf -d "$BIN" | grep -q 'BIND_NOW' \
-            && echo "OK: BIND_NOW presente" \
-            || { echo "ERRORE: il binario non ha BIND_NOW, %set_build_flags non ha avuto effetto"; exit 1; }
+          dnf -y install binutils cpio
+          RPM=$(ls ~/rpmbuild/RPMS/*/fedtermhub-[0-9]*.rpm | grep -v debug | head -1)
+          mkdir -p /tmp/estratto && cd /tmp/estratto
+          rpm2cpio "$RPM" | cpio -idm --quiet
+          BIN=$(find /tmp/estratto -name fedtermrdp-native -type f | head -1)
+          if [ -z "$BIN" ]; then
+            echo "::error title=Hardening::fedtermrdp-native non trovato dentro $(basename "$RPM")"
+            exit 1
+          fi
+          dinamica=$(readelf -d "$BIN")
+          intestaz=$(readelf -h "$BIN" | grep 'Type:' | xargs)
+          # -z now imposta BIND_NOW (DT_FLAGS) e NOW (DT_FLAGS_1): con uno
+          # dei due la risoluzione dei simboli avviene tutta all'avvio.
+          if echo "$dinamica" | grep -qE 'BIND_NOW|Flags:.* NOW'; then
+            echo "::notice title=Hardening::OK in $(basename "$RPM"): binding immediato (-z now) presente; ${intestaz}"
+          else
+            echo "::error title=Hardening::fedtermrdp-native senza BIND_NOW/NOW; ${intestaz}"
+            exit 1
+          fi
 
       - name: Pubblica gli RPM come artefatto
         uses: actions/upload-artifact@v5
