@@ -46,7 +46,16 @@ LOGIN="$(gh api user --jq .login)"
 USER_ID="$(gh api user --jq .id)"
 
 [[ "$(git rev-parse --abbrev-ref HEAD)" == main ]] || die "esegui lo script dal ramo main"
-[[ -z "$(git status --porcelain)" ]] || die "ci sono modifiche non salvate: fai commit o annullale prima"
+# Senza nome ed email git rifiuta il commit della chiave pubblica: lo script si fermava a meta',
+# con la chiave gia' nel secret ma non ancora pubblicata. Si usa l'indirizzo noreply di GitHub, cosi'
+# l'email personale non finisce nei commit pubblici; vale solo per questo repository.
+if [[ -z "$(git config user.email || true)" ]]; then
+    git config user.name "$LOGIN"
+    git config user.email "$USER_ID+$LOGIN@users.noreply.github.com"
+    echo "  (git: in questo repository firmo i commit come $LOGIN, con l'indirizzo noreply di GitHub)"
+fi
+pending="$(git status --porcelain | grep -v ' packaging/signing-key.asc$' || true)"
+[[ -z "$pending" ]] || die "ci sono modifiche non salvate: fai commit o annullale prima"
 git fetch -q origin main
 [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || die "il ramo main locale non e' allineato a GitHub: git pull"
 
@@ -80,8 +89,20 @@ gh api -X POST "repos/$REPO/environments/github-pages/deployment-branch-policies
     > /dev/null 2>&1 || true
 
 # ------------------------------------------------------------------ 3. chiave di firma
+publish_public_key() {
+    git add packaging/signing-key.asc
+    git diff --cached --quiet || git commit -q -m "Chiave pubblica che firma i pacchetti"
+    git push -q origin HEAD:main
+}
 if gh secret list -R "$REPO" 2> /dev/null | grep -q "^$SECRET"; then
     echo "  chiave di firma gia' configurata"
+    # Un'esecuzione precedente puo' essersi fermata dopo aver creato il secret ma prima di
+    # pubblicare la chiave pubblica: in quel caso la pubblica ora, prima del tag.
+    if [[ -f packaging/signing-key.asc ]] && ! git ls-files --error-unmatch packaging/signing-key.asc > /dev/null 2>&1 \
+        || ! git diff --cached --quiet -- packaging/signing-key.asc; then
+        echo "  pubblico la chiave pubblica rimasta in sospeso"
+        publish_public_key
+    fi
 else
     bold "Creo la chiave che firma i pacchetti"
     KEYHOME="$(mktemp -d /tmp/fthkey.XXXXXX)"   # percorso corto: il socket di gpg-agent ha un limite
@@ -94,9 +115,7 @@ else
     (umask 077; GNUPGHOME="$KEYHOME" gpg --armor --export-secret-keys "$FPR" > "$BACKUP")
     gh secret set "$SECRET" -R "$REPO" < "$BACKUP"
     GNUPGHOME="$KEYHOME" gpg --armor --export "$FPR" > packaging/signing-key.asc
-    git add packaging/signing-key.asc
-    git commit -q -m "Chiave pubblica che firma i pacchetti"
-    git push -q origin HEAD:main
+    publish_public_key
     echo "  impronta: $FPR"
     echo "  copia di backup della chiave privata: $BACKUP"
     echo "  → spostala in un posto sicuro (gestore di password, chiavetta) e cancellala da qui."
