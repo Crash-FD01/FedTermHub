@@ -36,6 +36,9 @@ jobs:
       - name: Parità dei temi, contrasti, mnemonici, tooltip
         run: python tests/test_theme_parity.py
 
+      - name: Stessa versione in spec, programma, install.sh e metainfo
+        run: python tests/test_versions.py
+
       - name: Sito e script di installazione
         run: |
           bash packaging/render-site.sh /tmp/sito https://example.invalid/FedTermHub https://github.com/example/FedTermHub 0.0.0

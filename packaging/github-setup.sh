@@ -137,5 +137,5 @@ echo "  Rilascio:    https://github.com/$REPO/actions (qualche minuto; oppure: g
 echo "  Poi il sito: $SITE_URL"
 echo "  Installazione per gli utenti: curl -fsSL $SITE_URL/setup.sh | sudo sh"
 echo
-echo "  Prossime versioni: aggiorna Version e %changelog nello spec (e la release nel metainfo),"
+echo "  Prossime versioni: aggiorna la versione (python3 tests/test_versions.py ti dice dove),"
 echo "  fai commit e push, poi: git tag -a vX.Y.Z -m 'FedTermHub X.Y.Z' && git push origin vX.Y.Z"

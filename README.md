@@ -3,6 +3,7 @@
 # FedTermHub
 
 [![CI](https://github.com/Crash-FD01/FedTermHub/actions/workflows/ci.yml/badge.svg)](https://github.com/Crash-FD01/FedTermHub/actions/workflows/ci.yml)
+[![Installazione](https://github.com/Crash-FD01/FedTermHub/actions/workflows/install-check.yml/badge.svg)](https://github.com/Crash-FD01/FedTermHub/actions/workflows/install-check.yml)
 [![Versione](https://img.shields.io/github/v/release/Crash-FD01/FedTermHub?label=versione)](https://github.com/Crash-FD01/FedTermHub/releases/latest)
 [![Licenza: GPL-3.0-or-later](https://img.shields.io/badge/licenza-GPL--3.0--or--later-blue)](LICENSE)
 

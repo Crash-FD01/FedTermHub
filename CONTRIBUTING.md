@@ -40,6 +40,7 @@ Esegui i controlli che fa anche la CI:
 ```bash
 python3 -m compileall -q fedtermhub tests
 python3 tests/test_theme_parity.py
+python3 tests/test_versions.py
 for t in tests/test_*.py; do xvfb-run -a python3 "$t" || echo "FALLITO: $t"; done
 ```
 
@@ -94,15 +95,21 @@ Per ogni versione successiva:
 2. Aggiorna `APP_VERSION` in `fedtermhub/fedtermhub.py`, `APP_VERSION` in
    `install.sh` e il blocco `<releases>` di
    `packaging/io.github.crash_fd01.fedtermhub.metainfo.xml`.
+   `python3 tests/test_versions.py` controlla di non averne dimenticato nessuno.
 3. Commit e push, poi il tag con la **stessa** versione dello spec:
    ```bash
    git tag -a v0.9.08 -m "FedTermHub 0.9.08"
    git push origin v0.9.08
    ```
-4. Il workflow *Rilascio* verifica che tag e spec coincidano, costruisce gli RPM
+4. Il workflow *Rilascio* verifica che il tag coincida con la versione in tutti
+   quei file, costruisce gli RPM
    su Fedora 43, li firma, pubblica la release con `SHA256SUMS` firmato e
    aggiorna repository dnf e sito. Chi ha installato con `setup.sh` riceve
    l'aggiornamento con `sudo dnf upgrade`.
+5. Subito dopo, il workflow *Verifica installazione* installa la nuova versione
+   dal sito su Fedora 43 e 44 puliti, con lo stesso comando del README, e
+   controlla firme, versione, avvio e rimozione. Gira anche ogni lunedì: se
+   diventa rosso, il problema lo vedono gli utenti.
 
 `.copr/Makefile` permette in alternativa di costruire su
 [Copr](https://copr.fedorainfracloud.org) con il metodo "Make SRPM".

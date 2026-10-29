@@ -4,7 +4,7 @@
 """
 FedTermHub - gestore integrato di sessioni remote per Fedora Workstation.
 
-Versione 0.9.07 (beta):
+Novita' della serie 0.9 (lo storico di ogni rilascio e' nel %changelog di fedtermhub.spec):
 - clipboard RDP bidirezionale anche per i FILE: copiando file dentro la sessione
   Windows vengono riconosciuti come FileGroupDescriptorW, mappati su percorsi
   locali via CliprdrFileContext (FUSE) e pubblicati sugli appunti GTK con i
@@ -86,6 +86,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+# La versione si scrive solo qui (e in fedtermhub.spec e nel metainfo): tests/test_versions.py
+# controlla che coincidano. Sta in cima perche' il doctor la stampa anche quando GTK non si carica.
+APP_ID = "io.github.crash_fd01.fedtermhub"
+APP_NAME = "FedTermHub"
+APP_VERSION = "0.9.07"
+
 RAW_ARGV = sys.argv[:]
 DOCTOR_MODE = "--doctor" in RAW_ARGV or "--doctor-strict" in RAW_ARGV
 DOCTOR_STRICT = "--doctor-strict" in RAW_ARGV
@@ -105,8 +111,9 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
     negativo.
     """
     core_ok = import_error is None
-    print("FedTermHub doctor 0.9.07")
-    print("========================")
+    title = f"{APP_NAME} doctor {APP_VERSION}"
+    print(title)
+    print("=" * len(title))
     print(f"Python: {sys.version.split()[0]}  ({sys.executable})")
     print(f"Sistema: {platform.platform()}")
     print(f"Desktop: XDG_SESSION_TYPE={os.environ.get('XDG_SESSION_TYPE', '-')}  XDG_CURRENT_DESKTOP={os.environ.get('XDG_CURRENT_DESKTOP', '-')}  GDK_BACKEND={os.environ.get('GDK_BACKEND', '-')}")
@@ -333,9 +340,6 @@ except Exception:  # pragma: no cover - dipendenza runtime
     PBKDF2HMAC = None
     CRYPTO_AVAILABLE = False
 
-APP_ID = "io.github.crash_fd01.fedtermhub"
-APP_NAME = "FedTermHub"
-APP_VERSION = "0.9.07"
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "fedtermhub"
 SESSIONS_FILE = CONFIG_DIR / "sessions.json"
 TUNNELS_FILE = CONFIG_DIR / "tunnels.json"
