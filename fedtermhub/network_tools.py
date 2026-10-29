@@ -988,7 +988,13 @@ class ServicesPage(ToolPage):
             self._status_timer = 0
 
     def _package_installed(self, package: str) -> bool:
-        return _run(["rpm", "-q", package], timeout=5).returncode == 0
+        # Senza rpm (avvio dai sorgenti su una distribuzione non RPM) l'intera
+        # finestra Strumenti di rete non si apriva: FileNotFoundError non era
+        # gestito. Un pacchetto che non si puo' verificare si considera assente.
+        try:
+            return _run(["rpm", "-q", package], timeout=5).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
 
     def refresh_status(self) -> bool:
         for service in self.SERVICES:

@@ -41,6 +41,9 @@ CONTRASTI = [
     ("chiaro .is-disconnected",  "#b91c1c", "#e9edf3"),
     ("chiaro .tab-close",        "#5b6676", "#e9edf3"),
     ("chiaro .tab-reconnect",    "#9a4708", "#e9edf3"),
+    # testo bianco sull'azione principale (Salva, Applica, Avvia), entrambi i temi
+    ("azione principale",        "#ffffff", "#1f6fa8"),
+    ("azione principale :hover", "#ffffff", "#2479b6"),
 ]
 SOGLIA = 4.5
 

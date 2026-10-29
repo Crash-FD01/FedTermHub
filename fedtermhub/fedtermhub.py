@@ -2470,7 +2470,7 @@ class MasterPasswordDialog(Gtk.Dialog):
         super().__init__(title=title, transient_for=parent, flags=0)
         self.set_modal(True)
         self.mode = mode
-        self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "OK", Gtk.ResponseType.OK)
+        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "OK", Gtk.ResponseType.OK)
         self.set_default_size(460, 190 if mode == "create" else 140)
 
         box = self.get_content_area()
@@ -2531,7 +2531,7 @@ class CredentialDialog(Gtk.Dialog):
     def __init__(self, parent: Gtk.Window, credential: Optional[Credential] = None) -> None:
         super().__init__(title="Credenziale", transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
+        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
         self.set_default_size(520, 300)
 
         self.credential = credential or Credential()
@@ -2580,7 +2580,7 @@ class RdpPasswordDialog(Gtk.Dialog):
     def __init__(self, parent: Gtk.Window, session: Session) -> None:
         super().__init__(title="Password RDP", transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Connetti", Gtk.ResponseType.OK)
+        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "Connetti", Gtk.ResponseType.OK)
         self.set_default_size(520, 230)
 
         box = self.get_content_area()
@@ -4373,7 +4373,7 @@ class SettingsDialog(Gtk.Dialog):
             transient_for=self,
             action=Gtk.FileChooserAction.SELECT_FOLDER,
         )
-        chooser.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Seleziona", Gtk.ResponseType.OK)
+        chooser.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "Seleziona", Gtk.ResponseType.OK)
         current = self.terminal_start_directory.get_text().strip()
         if current and Path(current).is_dir():
             chooser.set_filename(current)
@@ -4473,7 +4473,7 @@ class MultiExecDialog(Gtk.Dialog):
     def __init__(self, parent: Gtk.Window) -> None:
         super().__init__(title="MultiExec", transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Invia", Gtk.ResponseType.OK)
+        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "Invia", Gtk.ResponseType.OK)
         self.set_default_size(520, 140)
         box = self.get_content_area()
         grid = Gtk.Grid(column_spacing=10, row_spacing=10, margin=14)
@@ -4629,7 +4629,7 @@ class FolderDialog(Gtk.Dialog):
     ) -> None:
         super().__init__(title=title, transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
+        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
         self.set_default_size(430, 160)
 
         box = self.get_content_area()
@@ -4675,7 +4675,7 @@ class MoveDialog(Gtk.Dialog):
     def __init__(self, parent: Gtk.Window, folders: List[Tuple[str, str]], current_parent_path: str = "") -> None:
         super().__init__(title="Sposta in cartella", transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Sposta", Gtk.ResponseType.OK)
+        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "Sposta", Gtk.ResponseType.OK)
         self.set_default_size(420, 140)
 
         box = self.get_content_area()
@@ -4715,7 +4715,13 @@ class SessionDialog(Gtk.Dialog):
     def __init__(self, parent: Gtk.Window, session: Optional[Session] = None, credentials: Optional[List[Tuple[str, str]]] = None, tunnels: Optional[List[Tuple[str, str]]] = None) -> None:
         super().__init__(title="Sessione", transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
+        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
+        # Salva e' l'azione principale: evidenziata come "Applica" nelle
+        # Preferenze, e attivata da Invio nei campi di testo.
+        salva = self.get_widget_for_response(Gtk.ResponseType.OK)
+        if salva is not None:
+            salva.get_style_context().add_class("suggested-action")
+        self.set_default_response(Gtk.ResponseType.OK)
         self.set_default_size(720, 600)
 
         self.original = session or Session(name="")
@@ -6033,8 +6039,8 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
             action=Gtk.FileChooserAction.SAVE,
         )
         chooser.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-            Gtk.STOCK_SAVE, Gtk.ResponseType.OK,
+            "_Annulla", Gtk.ResponseType.CANCEL,
+            "_Salva", Gtk.ResponseType.OK,
         )
         safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", self.target.name).strip("-") or "sessione"
         chooser.set_current_name(f"fedtermhub-diagnostica-{safe_name}.txt")
@@ -7386,7 +7392,7 @@ class RdpTab(Gtk.Box):
             parent=parent if isinstance(parent, Gtk.Window) else None,
             action=Gtk.FileChooserAction.SAVE,
         )
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
+        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
         dialog.set_current_name("fedtermhub-rdp.log")
         dialog.set_do_overwrite_confirmation(True)
         try:
@@ -10183,8 +10189,16 @@ class AppWindow(Gtk.ApplicationWindow):
         .settings-stack { background: #111419; border: 1px solid #303743; border-radius: 12px; }
         .settings-page-scroll, .settings-page-viewport, .settings-page { background: #111419; color: #eef1f6; }
         .settings-page-scroll undershoot.top, .settings-page-scroll undershoot.bottom { background: none; }
-        .modern-dialog .suggested-action { background: #287fb3; color: #ffffff; border-color: #4aa8e8; font-weight: 700; }
-        .modern-dialog .suggested-action:hover { background: #3593ca; }
+        .modern-dialog .suggested-action { background: #1f6fa8; color: #ffffff; border-color: #4aa8e8; font-weight: 700; }
+        .modern-dialog .suggested-action:hover { background: #2479b6; }
+        /* Azione principale anche fuori da .modern-dialog: prima solo le
+           Preferenze la evidenziavano, mentre Salva (sessione, tunnel) e
+           Avvia laboratorio restavano pulsanti grigi qualsiasi. */
+        button.suggested-action { background: #1f6fa8; color: #ffffff; border-color: #4aa8e8; font-weight: 700; }
+        button.suggested-action:hover { background: #2479b6; }
+        button.suggested-action label { color: #ffffff; }
+        button.suggested-action:disabled { background: #2a3440; border-color: #3a4552; }
+        button.suggested-action:disabled label { color: #8e98a6; }
         .tab-label { color: inherit; font-weight: 600; }
         .tab-close { background: transparent; border: none; border-radius: 7px; padding: 2px 4px; color: #b8c0cb; }
         .tab-close:hover { background: #353c48; color: #ffffff; }
@@ -10562,8 +10576,16 @@ class AppWindow(Gtk.ApplicationWindow):
         .settings-stack { background: #ffffff; border: 1px solid #d3dbe5; border-radius: 12px; }
         .settings-page-scroll, .settings-page-viewport, .settings-page { background: #ffffff; color: #17202a; }
         .settings-page-scroll undershoot.top, .settings-page-scroll undershoot.bottom { background: none; }
-        .modern-dialog .suggested-action { background: #268dcc; color: #ffffff; border-color: #1d78ad; font-weight: 700; }
-        .modern-dialog .suggested-action:hover { background: #319bdc; }
+        .modern-dialog .suggested-action { background: #1f6fa8; color: #ffffff; border-color: #1a5f91; font-weight: 700; }
+        .modern-dialog .suggested-action:hover { background: #2479b6; }
+        /* Azione principale anche fuori da .modern-dialog: prima solo le
+           Preferenze la evidenziavano, mentre Salva (sessione, tunnel) e
+           Avvia laboratorio restavano pulsanti grigi qualsiasi. */
+        button.suggested-action { background: #1f6fa8; color: #ffffff; border-color: #1a5f91; font-weight: 700; }
+        button.suggested-action:hover { background: #2479b6; }
+        button.suggested-action label { color: #ffffff; }
+        button.suggested-action:disabled { background: #e3e8ee; border-color: #d3dae4; }
+        button.suggested-action:disabled label { color: #657386; }
         .panel-title, .dialog-heading, .section-heading { color: #111a24; font-weight: 800; font-size: 14px; }
         .shortcut-key { background: #edf2f7; color: #164f72; border: 1px solid #cbd5df; border-radius: 7px; padding: 3px 8px; font-family: monospace; font-weight: 700; }
         .muted, .workspace-hint { color: #687587; }
@@ -11391,7 +11413,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def _choose_save_json(self, title: str, default_name: str) -> Optional[Path]:
         dialog = Gtk.FileChooserDialog(title=title, transient_for=self, action=Gtk.FileChooserAction.SAVE)
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
+        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
         dialog.set_do_overwrite_confirmation(True)
         dialog.set_current_name(default_name)
         apply_window_icon(dialog)
@@ -11404,7 +11426,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def _choose_open_json(self, title: str) -> Optional[Path]:
         dialog = Gtk.FileChooserDialog(title=title, transient_for=self, action=Gtk.FileChooserAction.OPEN)
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
+        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Apri", Gtk.ResponseType.OK)
         apply_window_icon(dialog)
         try:
             if dialog.run() == Gtk.ResponseType.OK:
@@ -11592,7 +11614,7 @@ class AppWindow(Gtk.ApplicationWindow):
             transient_for=parent or self,
             action=Gtk.FileChooserAction.SAVE,
         )
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
+        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
         dialog.set_do_overwrite_confirmation(True)
         dialog.set_current_name("fedtermhub-settings.json")
         try:
@@ -11611,7 +11633,7 @@ class AppWindow(Gtk.ApplicationWindow):
             transient_for=parent or self,
             action=Gtk.FileChooserAction.OPEN,
         )
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
+        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Apri", Gtk.ResponseType.OK)
         imported = False
         try:
             if dialog.run() != Gtk.ResponseType.OK:
@@ -11641,7 +11663,7 @@ class AppWindow(Gtk.ApplicationWindow):
             transient_for=self,
             action=Gtk.FileChooserAction.SAVE,
         )
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
+        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
         dialog.set_current_name("fedtermhub-sessions-export.json")
         try:
             if dialog.run() == Gtk.ResponseType.OK:
@@ -11660,7 +11682,7 @@ class AppWindow(Gtk.ApplicationWindow):
             transient_for=self,
             action=Gtk.FileChooserAction.OPEN,
         )
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
+        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Apri", Gtk.ResponseType.OK)
         try:
             if dialog.run() != Gtk.ResponseType.OK:
                 return
