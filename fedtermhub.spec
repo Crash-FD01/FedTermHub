@@ -123,6 +123,7 @@ xvfb-run -a /usr/bin/python3 tests/test_routing_ui.py
 xvfb-run -a /usr/bin/python3 tests/test_remote_files.py
 xvfb-run -a /usr/bin/python3 tests/test_ephemeral_lab.py
 xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
+xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt

@@ -624,6 +624,24 @@ class RemoteFilesSidebar(Gtk.Box):
                 return False
         return True
 
+    def _count_text(self, entries: List[RemoteEntry], posizione: str = "") -> str:
+        """Testo della barra di stato dopo una lettura.
+
+        Conta gli elementi VISIBILI, non quelli letti dal server, e dichiara
+        quanti ne escludono i filtri: altrimenti una cartella di soli dotfile
+        sembrerebbe vuota, o il numero non corrisponderebbe a cio' che si vede.
+        Unica funzione per la cartella principale e per le sottocartelle, che
+        prima avevano due messaggi separati e divergenti.
+        """
+        visibili = sum(1 for e in entries if self.entry_is_visible(e))
+        esclusi = len(entries) - visibili
+        testo = f"{visibili} element{'o' if visibili == 1 else 'i'}"
+        if posizione:
+            testo += f" in {posizione}"
+        if esclusi:
+            testo += f" ({esclusi} non mostrat{'o' if esclusi == 1 else 'i'} dai filtri)"
+        return testo
+
     def _append_entry(self, parent: Optional[Gtk.TreeIter], entry: RemoteEntry) -> Optional[Gtk.TreeIter]:
         if not self.entry_is_visible(entry):
             return None
@@ -678,7 +696,7 @@ class RemoteFilesSidebar(Gtk.Box):
         self.tree.expand_row(tree_path, False)
         self.tree.get_selection().select_iter(root)
         self._set_current_path(path)
-        self.status_label.set_text(f"{len(entries)} element{'o' if len(entries)==1 else 'i'}")
+        self.status_label.set_text(self._count_text(entries))
         return False
 
     def refresh(self) -> None:
@@ -945,15 +963,7 @@ class RemoteFilesSidebar(Gtk.Box):
         # diverso da quanto si vede, e dichiararlo e' l'unico modo perche'
         # l'utente capisca che l'elenco e' parziale invece di credere che una
         # cartella sia vuota.
-        count = sum(1 for e in entries if self.entry_is_visible(e))
-        nascoste = len(entries) - count
-        posizione = self.store[tree_iter][self.COL_PATH]
-        testo = f"{count} element{'o' if count == 1 else 'i'} in {posizione}"
-        if nascoste:
-            testo += f" ({nascoste} non mostrat{'o' if nascoste == 1 else 'i'} dai filtri)"
-        self.status_label.set_text(
-            testo
-        )
+        self.status_label.set_text(self._count_text(entries, self.store[tree_iter][self.COL_PATH]))
         return False
 
     def _popup_item(self, menu: Gtk.Menu, label: str, callback: Callable[[], None], sensitive: bool = True) -> None:

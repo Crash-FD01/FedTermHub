@@ -10984,7 +10984,7 @@ class AppWindow(Gtk.ApplicationWindow):
         return parent or self.store.home_path()
 
     def new_session_parent_path(self) -> str:
-        """Dove finisce una sessione appena creata: in fondo alla radice.
+        """Dove finisce una sessione appena creata: in fondo all'elenco.
 
         Deliberatamente NON usa selected_target_folder_path(): quella
         restituisce la cartella evidenziata nell'albero in quel momento, per
@@ -10992,13 +10992,18 @@ class AppWindow(Gtk.ApplicationWindow):
         premeva "Nuova sessione" — una cartella a caso, dal punto di vista di
         chi la crea, e per giunta diversa a ogni volta.
 
-        La radice ("") e' il contenitore di primo livello, quindi la sessione
-        compare in fondo all'albero, sotto tutte le cartelle, dove si vede
-        subito e da dove l'utente la trascina dove vuole. Vale solo per le
-        sessioni: "Nuova cartella" e "Importa qui" continuano a rispettare la
-        selezione, perche' li' la destinazione e' il senso del comando.
+        La destinazione e' il primo livello di "Home Session", non la radice
+        vera ("") dello store: nel modello di FedTermHub la radice contiene
+        sempre e solo Home Session, e save() la normalizza a ogni salvataggio
+        riportando dentro Home tutto cio' che trova accanto. Puntare alla
+        radice funzionava solo grazie a quell'effetto collaterale: qui la
+        destinazione e' dichiarata. In fondo al primo livello di Home la sessione compare
+        sotto tutte le cartelle, dove si vede subito e da dove l'utente la
+        trascina dove vuole. Vale solo per le sessioni: "Nuova cartella" e
+        "Importa qui" continuano a rispettare la selezione, perche' li' la
+        destinazione e' il senso del comando.
         """
-        return ""
+        return self.store.home_path()
 
     def ensure_vault_unlocked(self, create_if_missing: bool = False) -> bool:
         if self.vault.unlocked:
