@@ -7,7 +7,7 @@ Version:        0.9.07
 Release:        1%{?dist}
 Summary:        Session manager per Fedora con backend RDP nativo libfreerdp
 License:        GPL-3.0-or-later
-URL:            https://github.com/Crash-FD01/fedtermhub
+URL:            https://github.com/Crash-FD01/FedTermHub
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  gcc

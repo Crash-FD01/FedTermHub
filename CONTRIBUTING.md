@@ -8,7 +8,7 @@ differenza.
 
 ## Segnalare un problema
 
-Apri una [issue](https://github.com/Crash-FD01/fedtermhub/issues) indicando:
+Apri una [issue](https://github.com/Crash-FD01/FedTermHub/issues) indicando:
 
 - la versione (`rpm -q fedtermhub`, oppure quella mostrata nella barra di stato);
 - la versione di Fedora e se usi Wayland o X11 (`echo $XDG_SESSION_TYPE`);
@@ -26,7 +26,7 @@ RDP maschera già la password, ma controlla prima di pubblicarlo.
 sudo dnf install python3-gobject python3-cairo gtk3 vte291 \
     python3-cryptography python3-defusedxml \
     freerdp-devel libwinpr-devel gcc make pkgconf-pkg-config
-git clone https://github.com/Crash-FD01/fedtermhub
+git clone https://github.com/Crash-FD01/FedTermHub
 cd fedtermhub
 make -C native
 FEDTERMHUB_RDP_NATIVE_HELPER="$PWD/native/fedtermrdp-native" \

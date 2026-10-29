@@ -47,9 +47,9 @@
 
   <launchable type="desktop-id">io.github.crash_fd01.fedtermhub.desktop</launchable>
 
-  <url type="homepage">https://github.com/Crash-FD01/fedtermhub</url>
-  <url type="bugtracker">https://github.com/Crash-FD01/fedtermhub/issues</url>
-  <url type="vcs-browser">https://github.com/Crash-FD01/fedtermhub</url>
+  <url type="homepage">https://github.com/Crash-FD01/FedTermHub</url>
+  <url type="bugtracker">https://github.com/Crash-FD01/FedTermHub/issues</url>
+  <url type="vcs-browser">https://github.com/Crash-FD01/FedTermHub</url>
 
   <categories>
     <category>Network</category>
@@ -78,7 +78,7 @@
        non alla pagina di GitHub che lo mostra.
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/Crash-FD01/fedtermhub/main/docs/screenshots/main.png</image>
+      <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/main.png</image>
       <caption>Sessions, terminal and remote files side by side</caption>
       <caption xml:lang="it">Sessioni, terminale e file remoti affiancati</caption>
     </screenshot>

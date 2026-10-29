@@ -1,6 +1,6 @@
 # FedTermHub
 
-[![CI](https://github.com/Crash-FD01/fedtermhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Crash-FD01/fedtermhub/actions/workflows/ci.yml)
+[![CI](https://github.com/Crash-FD01/FedTermHub/actions/workflows/ci.yml/badge.svg)](https://github.com/Crash-FD01/FedTermHub/actions/workflows/ci.yml)
 [![Copr](https://copr.fedorainfracloud.org/coprs/crash-fd01/fedtermhub/package/fedtermhub/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/crash-fd01/fedtermhub/)
 [![Licenza: GPL v3](https://img.shields.io/badge/licenza-GPLv3-blue.svg)](LICENSE)
 
@@ -66,7 +66,7 @@ Gli aggiornamenti arrivano poi con il normale `sudo dnf upgrade`.
 
 ### Dalle release GitHub
 
-Ogni [release](https://github.com/Crash-FD01/fedtermhub/releases) contiene il
+Ogni [release](https://github.com/Crash-FD01/FedTermHub/releases) contiene il
 tarball dei sorgenti e gli RPM già costruiti per Fedora.
 
 ### Compilando dai sorgenti

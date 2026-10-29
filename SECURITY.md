@@ -5,7 +5,7 @@
 ## Segnalare una vulnerabilità
 
 **Non aprire una issue pubblica.** Usa la segnalazione privata di GitHub:
-[Security › Report a vulnerability](https://github.com/Crash-FD01/fedtermhub/security/advisories/new).
+[Security › Report a vulnerability](https://github.com/Crash-FD01/FedTermHub/security/advisories/new).
 
 Indica la versione (`rpm -q fedtermhub`), come l'hai installato e i passi per
 riprodurre il problema. Ricevi una prima risposta entro una settimana; la
