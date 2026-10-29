@@ -90,12 +90,11 @@ mkdir -p %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 cp -R fedtermhub %{buildroot}%{_datadir}/fedtermhub/
 install -m 0755 native/fedtermrdp-native %{buildroot}%{_libexecdir}/fedtermhub/fedtermrdp-native
 install -m 0644 fedtermhub.desktop %{buildroot}%{_datadir}/applications/io.github.crash_fd01.fedtermhub.desktop
-%{_metainfodir}/io.github.crash_fd01.fedtermhub.metainfo.xml
 mkdir -p %{buildroot}%{_metainfodir}
 install -m 0644 packaging/io.github.crash_fd01.fedtermhub.metainfo.xml %{buildroot}%{_metainfodir}/io.github.crash_fd01.fedtermhub.metainfo.xml
 cp -a share/icons/hicolor/* %{buildroot}%{_datadir}/icons/hicolor/
 cat > %{buildroot}%{_bindir}/fedtermhub <<EOF
-#!/usr/bin/env bash
+#!/usr/bin/bash
 export FEDTERMHUB_RDP_NATIVE_HELPER="%{_libexecdir}/fedtermhub/fedtermrdp-native"
 exec /usr/bin/python3 "%{_datadir}/fedtermhub/fedtermhub/fedtermhub.py" "\$@"
 EOF
@@ -131,6 +130,7 @@ xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
 %{_libexecdir}/fedtermhub/fedtermrdp-native
 %{_datadir}/fedtermhub
 %{_datadir}/applications/io.github.crash_fd01.fedtermhub.desktop
+%{_metainfodir}/io.github.crash_fd01.fedtermhub.metainfo.xml
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
@@ -147,12 +147,12 @@ xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
 - Test: tests/test_external_rdp_cli.py era presente ma non veniva mai eseguito in %%check
 - Licenza: il progetto passa a GPL-3.0-or-later, come Helpix. Aggiunte le intestazioni SPDX a tutti i sorgenti e il file REUSE.toml; l'helper nativo, prima Apache-2.0, e' riallineato (FreeRDP resta Apache-2.0, compatibile con GPLv3)
 - Packaging: rimosso debug_package %%{nil}; il pacchetto debuginfo e' richiesto per ogni binario ELF
-- Packaging: l'helper nativo e' ora compilato con i flag di hardening della distribuzione (%%set_build_flags) piu' -z relro -z now. Prima il Makefile usava soltanto i propri flag di ripiego
+- Packaging: il Makefile dell'helper nativo aggiunge -z relro -z now ai flag che riceve e tiene gli avvisi separati dai CFLAGS. Le build RPM ricevevano gia' i flag di hardening di Fedora, perche' da Fedora 36 %%set_build_flags viene eseguito in automatico in %%build; ne beneficia la compilazione manuale con install.sh, che non li aveva
 - Packaging: aggiunti URL e Source0 completo; Epoch documentato
 - Packaging: app ID io.github.crash_fd01.fedtermhub al posto di it.local.FedTermHub, che non era un dominio controllato; icone e desktop file rinominati di conseguenza
 - Packaging: nuovo file AppStream, installato e validato in %%check
 - Packaging: nmap, tcpdump, tigervnc, python3-winrm, python3-pyserial e sshpass passano da Requires a Recommends: sono funzioni opzionali che a runtime degradano con un messaggio esplicito
-- Packaging: shebang /usr/bin/python3 solo sull'entry point; i moduli importati non sono piu' eseguibili. Rimossa l'installazione in pixmaps, percorso deprecato
+- Packaging: shebang /usr/bin/python3 solo sull'entry point e /usr/bin/bash nel launcher, niente /usr/bin/env; i moduli importati non sono piu' eseguibili. Rimossa l'installazione in pixmaps, percorso deprecato
 - Distribuzione: CI GitHub (sintassi, test, REUSE, build RPM in container Fedora con verifica di BIND_NOW), workflow di release sul tag, Makefile per Copr
 
 * Fri Sep 11 2026 Crash-FD01 - 1:0.9.06-1

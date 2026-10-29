@@ -49,4 +49,5 @@ in un modo che altrimenti non lo sarebbero, segnalalo qui.
   d'ambiente (`sshpass -e`) o via file descriptor su `memfd` sigillato.
 - I file di configurazione si scrivono in modo atomico con permessi 0600.
 - L'helper nativo viene compilato con i flag di hardening della distribuzione
-  (`%set_build_flags`); la CI verifica che il binario abbia `BIND_NOW`.
+  (`%set_build_flags`, automatico in `%build` da Fedora 36); la CI verifica
+  che il binario abbia `BIND_NOW`.
