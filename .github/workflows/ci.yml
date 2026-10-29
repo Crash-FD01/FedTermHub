@@ -145,7 +145,7 @@ jobs:
           fi
 
       - name: Pubblica gli RPM come artefatto
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: rpm-fedora${{ matrix.fedora }}
           path: ~/rpmbuild/RPMS/*/*.rpm

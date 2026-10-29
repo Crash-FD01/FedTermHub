@@ -74,7 +74,7 @@ jobs:
           tail -40 /tmp/rpmbuild.log | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' > /tmp/coda.txt
           echo "::error title=rpmbuild - ultime 40 righe::$(cat /tmp/coda.txt)"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: pacchetti
           path: dist/*
