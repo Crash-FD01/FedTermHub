@@ -45,12 +45,10 @@ jobs:
           dnf -y install rpm-build rpmdevtools dnf-plugins-core tar gzip git
           dnf -y builddep fedtermhub.spec
 
-      - name: Il tag deve corrispondere alla versione dello spec
+      - name: Il tag deve corrispondere alla versione in tutti i file
         run: |
-          SPEC=$(rpmspec -q --qf '%{version}\n' fedtermhub.spec | head -1)
-          echo "tag=${TAG#v}  spec=$SPEC"
-          if [ "${TAG#v}" != "$SPEC" ]; then
-            echo "::error title=Versione::Il tag ${TAG} non corrisponde a Version nello spec (${SPEC}). Allinea i due valori."
+          if ! python3 tests/test_versions.py "$TAG" | tee /tmp/versioni.txt; then
+            echo "::error title=Versione::Il tag ${TAG} e i file non dicono la stessa versione:%0A$(grep ERR /tmp/versioni.txt | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"
             exit 1
           fi
 
