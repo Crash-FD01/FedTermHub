@@ -77,7 +77,25 @@ jobs:
               -czf ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz .
 
       - name: Build del pacchetto
-        run: rpmbuild -ba fedtermhub.spec
+        run: |
+          set -o pipefail
+          rpmbuild -ba fedtermhub.spec 2>&1 | tee /tmp/rpmbuild.log
+          echo "esito rpmbuild: $?"
+
+      - name: Riepilogo dell'errore di build
+        # In caso di fallimento porta le righe utili del log nelle annotazioni
+        # della PR: si leggono subito, senza scaricare i log completi.
+        if: failure()
+        run: |
+          test -f /tmp/rpmbuild.log || exit 0
+          # Righe che segnalano un errore, con il loro numero
+          grep -nE 'error|Error|ERROR|FAILED|Traceback|AssertionError|No such file|not found|Bad exit status|E: ' /tmp/rpmbuild.log \
+            | tail -25 > /tmp/errori.txt || true
+          # Ultime righe del log: il contesto immediato del fallimento
+          tail -40 /tmp/rpmbuild.log > /tmp/coda.txt
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' "$1" | awk 'BEGIN{ORS="%0A"} {print}'; }
+          echo "::error title=rpmbuild - righe di errore::$(enc /tmp/errori.txt)"
+          echo "::error title=rpmbuild - ultime 40 righe::$(enc /tmp/coda.txt)"
 
       - name: Controlli rpmlint
         # Informativo: rpmlint segnala anche convenzioni opinabili. Serve a
