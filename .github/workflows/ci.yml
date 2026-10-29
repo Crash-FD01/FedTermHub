@@ -1,0 +1,152 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Controlli che non richiedono GTK: girano in pochi secondi su un runner
+  # normale e intercettano la maggior parte degli errori.
+  lint:
+    name: Sintassi e coerenza interfaccia
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Compilazione di tutti i moduli
+        run: python -m compileall -q fedtermhub tests
+
+      - name: Sintassi degli script di shell
+        run: bash -n install.sh uninstall.sh COMPILA-RPM.sh
+
+      - name: Parità dei temi, contrasti, mnemonici, tooltip
+        run: python tests/test_theme_parity.py
+
+      - name: Sito e script di installazione
+        run: |
+          bash packaging/render-site.sh /tmp/sito https://example.invalid/FedTermHub https://github.com/example/FedTermHub 0.0.0
+          sh -n /tmp/sito/setup.sh
+          bash -n packaging/update-repo.sh packaging/render-site.sh packaging/github-setup.sh
+
+      - name: Analisi statica
+        run: |
+          pipx install ruff
+          # Solo le regole che segnalano errori veri: lo stile verrà dopo,
+          # quando il monolite sarà stato spezzato.
+          ruff check --select=E9,F63,F7,F82 fedtermhub tests
+
+  # Conformità REUSE: ogni file deve dichiarare autore e licenza.
+  reuse:
+    name: Licenze (REUSE)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: fsfe/reuse-action@v5
+
+  # Build RPM reale in un container Fedora: è l'unico modo di verificare che
+  # lo spec stia in piedi, che il binario C compili con gli hardening flag
+  # della distribuzione e che i test con GTK passino sotto Xvfb.
+  rpm:
+    name: Build RPM su Fedora ${{ matrix.fedora }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # Le versioni di Fedora supportate: la piu' vecchia e' quella su cui
+        # vengono costruiti i pacchetti di release.
+        fedora: ['43', '44']
+    container: fedora:${{ matrix.fedora }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Dipendenze di build
+        run: |
+          dnf -y install rpm-build rpmdevtools rpmlint dnf-plugins-core tar gzip git
+          dnf -y builddep fedtermhub.spec
+
+      - name: Preparazione del tarball
+        run: |
+          VERSION=$(rpmspec -q --qf '%{version}\n' fedtermhub.spec | head -1)
+          mkdir -p ~/rpmbuild/SOURCES
+          # Il tarball deve avere il prefisso di cartella che %autosetup si
+          # aspetta, cioè nome-versione.
+          git config --global --add safe.directory "$PWD"
+          tar --exclude-vcs --transform "s,^\.,fedtermhub-${VERSION}," \
+              -czf ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz .
+
+      - name: Build del pacchetto
+        run: |
+          set -o pipefail
+          rpmbuild -ba fedtermhub.spec 2>&1 | tee /tmp/rpmbuild.log
+          echo "esito rpmbuild: $?"
+
+      - name: Riepilogo dell'errore di build
+        # In caso di fallimento porta le righe utili del log nelle annotazioni
+        # della PR: si leggono subito, senza scaricare i log completi.
+        if: failure()
+        run: |
+          test -f /tmp/rpmbuild.log || exit 0
+          # Righe che segnalano un errore, con il loro numero
+          grep -nE 'error|Error|ERROR|FAILED|Traceback|AssertionError|No such file|not found|Bad exit status|E: ' /tmp/rpmbuild.log \
+            | tail -25 > /tmp/errori.txt || true
+          # Ultime righe del log: il contesto immediato del fallimento
+          tail -40 /tmp/rpmbuild.log > /tmp/coda.txt
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' "$1" | awk 'BEGIN{ORS="%0A"} {print}'; }
+          echo "::error title=rpmbuild - righe di errore::$(enc /tmp/errori.txt)"
+          echo "::error title=rpmbuild - ultime 40 righe::$(enc /tmp/coda.txt)"
+
+      - name: Controlli rpmlint
+        # Informativo: rpmlint segnala anche convenzioni opinabili. Serve a
+        # vedere la lista crescere o calare, non a bloccare la build.
+        run: |
+          rpmlint ~/rpmbuild/RPMS/*/*.rpm 2>&1 | tee /tmp/rpmlint.log || true
+          # Riepilogo nelle annotazioni: errori e avvisi, senza i log completi.
+          righe=$(grep -E ': (E|W): ' /tmp/rpmlint.log | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          esito=$(tail -1 /tmp/rpmlint.log)
+          echo "::notice title=rpmlint::${esito}%0A${righe}"
+
+      - name: Verifica degli hardening flag nel binario nativo
+        # Si controlla il binario DENTRO l'RPM prodotto, cioe' quello che
+        # arriva all'utente, non una copia rimasta nella cartella di build
+        # (che rpm 4.20 puo' gia' aver ripulito a fine build).
+        run: |
+          dnf -y install binutils cpio
+          RPM=$(ls ~/rpmbuild/RPMS/*/fedtermhub-[0-9]*.rpm | grep -v debug | head -1)
+          mkdir -p /tmp/estratto && cd /tmp/estratto
+          rpm2cpio "$RPM" | cpio -idm --quiet
+          BIN=$(find /tmp/estratto -name fedtermrdp-native -type f | head -1)
+          if [ -z "$BIN" ]; then
+            echo "::error title=Hardening::fedtermrdp-native non trovato dentro $(basename "$RPM")"
+            exit 1
+          fi
+          dinamica=$(readelf -d "$BIN")
+          intestaz=$(readelf -h "$BIN" | grep 'Type:' | xargs)
+          # -z now imposta BIND_NOW (DT_FLAGS) e NOW (DT_FLAGS_1): con uno
+          # dei due la risoluzione dei simboli avviene tutta all'avvio.
+          if echo "$dinamica" | grep -qE 'BIND_NOW|Flags:.* NOW'; then
+            echo "::notice title=Hardening::OK in $(basename "$RPM"): binding immediato (-z now) presente; ${intestaz}"
+          else
+            echo "::error title=Hardening::fedtermrdp-native senza BIND_NOW/NOW; ${intestaz}"
+            exit 1
+          fi
+
+      - name: Pubblica gli RPM come artefatto
+        uses: actions/upload-artifact@v5
+        with:
+          name: rpm-fedora${{ matrix.fedora }}
+          path: ~/rpmbuild/RPMS/*/*.rpm
+          if-no-files-found: error

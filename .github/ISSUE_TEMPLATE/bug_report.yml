@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Segnala un problema / Bug report
+description: Qualcosa in FedTermHub non funziona come dovrebbe. / Something in FedTermHub doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grazie! Puoi scrivere in italiano o in inglese. / Thanks! Italian or English are both fine.
+        **Non incollare password, chiavi, indirizzi o nomi host dei tuoi clienti.** Il log RDP maschera la password, ma controllalo prima di pubblicarlo.
+        **Don't paste passwords, keys, or your customers' addresses and host names.** The RDP log masks the password, but check it first.
+        Problemi di sicurezza: non aprire una issue, vedi [SECURITY.md](../blob/main/SECURITY.md). / Security issues: see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Versione di FedTermHub / FedTermHub version
+      description: "Il risultato di: rpm -q fedtermhub — oppure quella in basso a destra nella finestra"
+      placeholder: fedtermhub-0.9.07-1.fc44.x86_64
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Come l'hai installato / How you installed it
+      options:
+        - Repository (setup.sh o dnf)
+        - RPM da una release / RPM from a release
+        - COMPILA-RPM.sh o install.sh (dai sorgenti / from source)
+        - Altro / Other
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Sistema e desktop / System and desktop
+      description: "Es. Fedora 44 GNOME (Wayland). Lo vedi con: cat /etc/fedora-release; echo $XDG_CURRENT_DESKTOP $XDG_SESSION_TYPE"
+      placeholder: Fedora 44, KDE Plasma, Wayland
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / Area
+      options:
+        - Terminale / Terminal
+        - SSH e file remoti / SSH and remote files
+        - Desktop remoto RDP / RDP
+        - VNC o seriale / VNC or serial
+        - Tunnel SSH / SSH tunnels
+        - Password Manager
+        - Strumenti di rete / Network tools
+        - Laboratorio / Lab
+        - Interfaccia o installazione / Interface or installation
+  - type: textarea
+    id: what
+    attributes:
+      label: Cosa è successo / What happened
+      description: Cosa ti aspettavi e cosa è successo invece. Uno screenshot aiuta. / What you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Come riprodurlo / Steps to reproduce
+      placeholder: |
+        1. Apro una sessione SSH
+        2. Lancio nano nel terminale
+        3. ...
+  - type: textarea
+    id: log
+    attributes:
+      label: Log o diagnostica (facoltativo / optional)
+      description: "Per il terminale: menu contestuale › Diagnostica terminale. Per RDP: il log della scheda. Altrimenti le ultime righe di ~/.cache/fedtermhub/fedtermhub.log"
+      render: text

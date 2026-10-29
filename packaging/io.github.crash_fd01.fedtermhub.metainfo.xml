@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2026 Crash
+     SPDX-License-Identifier: CC0-1.0 -->
+<component type="desktop-application">
+  <id>io.github.crash_fd01.fedtermhub</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>FedTermHub</name>
+  <summary>Terminals, SSH, RDP and file transfer in one window</summary>
+  <summary xml:lang="it">Terminali, SSH, RDP e trasferimento file in un'unica finestra</summary>
+
+  <developer id="io.github.crash_fd01">
+    <name>Crash</name>
+  </developer>
+
+  <description>
+    <p>
+      FedTermHub is a session manager and remote desktop client for Linux. It brings local terminals,
+      SSH sessions, RDP and VNC desktops, SFTP file transfer and an encrypted credential vault together
+      in one GTK application, so an administrator does not have to juggle a terminal emulator, a remote
+      desktop client and a file manager at the same time.
+    </p>
+    <p xml:lang="it">
+      FedTermHub è un gestore di sessioni e client di desktop remoto per Linux. Riunisce in un'unica
+      applicazione GTK i terminali locali, le sessioni SSH, i desktop RDP e VNC, il trasferimento file
+      SFTP e un vault cifrato per le credenziali, così chi amministra sistemi non deve tenere aperti
+      insieme un emulatore di terminale, un client di desktop remoto e un gestore di file.
+    </p>
+    <p>Main features:</p>
+    <p xml:lang="it">Funzioni principali:</p>
+    <ul>
+      <li>Multi-pane terminal built on VTE, with split layouts and input broadcast</li>
+      <li xml:lang="it">Terminale multi-riquadro basato su VTE, con layout divisi e invio simultaneo dell'input</li>
+      <li>Native RDP backend built directly on libfreerdp3, with bidirectional clipboard including files</li>
+      <li xml:lang="it">Backend RDP nativo costruito direttamente su libfreerdp3, con appunti bidirezionali compresi i file</li>
+      <li>Credential vault encrypted with AES-256-GCM and PBKDF2-HMAC-SHA256</li>
+      <li xml:lang="it">Vault delle credenziali cifrato con AES-256-GCM e PBKDF2-HMAC-SHA256</li>
+      <li>SFTP file browser that follows the directory you move to in the terminal</li>
+      <li xml:lang="it">Browser SFTP che segue la cartella in cui ti sposti nel terminale</li>
+      <li>SSH tunnel manager, network diagnostics and serial console</li>
+      <li xml:lang="it">Gestore di tunnel SSH, diagnostica di rete e console seriale</li>
+      <li>Disposable Linux lab built on libvirt, with transient QCOW2 overlays</li>
+      <li xml:lang="it">Laboratorio Linux usa e getta basato su libvirt, con overlay QCOW2 transienti</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.crash_fd01.fedtermhub.desktop</launchable>
+
+  <url type="homepage">https://github.com/Crash-FD01/FedTermHub</url>
+  <url type="bugtracker">https://github.com/Crash-FD01/FedTermHub/issues</url>
+  <url type="vcs-browser">https://github.com/Crash-FD01/FedTermHub</url>
+
+  <categories>
+    <category>Network</category>
+    <category>RemoteAccess</category>
+    <category>System</category>
+  </categories>
+
+  <keywords>
+    <keyword>ssh</keyword>
+    <keyword>rdp</keyword>
+    <keyword>vnc</keyword>
+    <keyword>sftp</keyword>
+    <keyword>terminal</keyword>
+    <keyword>serial</keyword>
+    <keyword>tunnel</keyword>
+  </keywords>
+
+  <provides>
+    <binary>fedtermhub</binary>
+  </provides>
+
+  <content_rating type="oars-1.1" />
+
+  <!-- I software center scaricano l'immagine: l'URL punta al file, non alla pagina di GitHub. -->
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/principale-chiaro.png</image>
+      <caption>Sessions in folders and an SSH terminal</caption>
+      <caption xml:lang="it">Sessioni in cartelle e un terminale SSH</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/file-remoti-chiaro.png</image>
+      <caption>The remote file tree follows the terminal</caption>
+      <caption xml:lang="it">L'albero dei file remoti segue il terminale</caption>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="0.9.07" date="2026-10-29">
+      <description>
+        <p>First public release. Ctrl+letter shortcuts reach the terminal, hidden-file filter and search in the remote file browser, light theme fixes.</p>
+        <p xml:lang="it">Prima versione pubblica. Le combinazioni Ctrl+lettera arrivano al terminale, filtro dei file nascosti e ricerca nei file remoti, correzioni del tema chiaro.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -1,0 +1,156 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Rilascio
+
+# Sul tag di versione (v0.9.07):
+#   1. costruisce RPM e pacchetto sorgente su Fedora 43, la versione supportata piu' vecchia, cosi'
+#      il pacchetto si installa anche sulle successive;
+#   2. firma i pacchetti con la chiave del progetto (secret FEDTERMHUB_GPG_PRIVATE_KEY, creato da
+#      packaging/github-setup.sh);
+#   3. pubblica la release con i pacchetti e SHA256SUMS firmato;
+#   4. aggiorna il repository dnf e il sito su GitHub Pages.
+# Il tag deve corrispondere a Version dello spec, altrimenti il rilascio si ferma.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag gia' pubblicato da (ri)rilasciare, per esempio v0.9.07
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rilascio
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    name: Pacchetti RPM
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Dipendenze
+        run: |
+          dnf -y install rpm-build rpmdevtools dnf-plugins-core tar gzip git
+          dnf -y builddep fedtermhub.spec
+
+      - name: Il tag deve corrispondere alla versione dello spec
+        run: |
+          SPEC=$(rpmspec -q --qf '%{version}\n' fedtermhub.spec | head -1)
+          echo "tag=${TAG#v}  spec=$SPEC"
+          if [ "${TAG#v}" != "$SPEC" ]; then
+            echo "::error title=Versione::Il tag ${TAG} non corrisponde a Version nello spec (${SPEC}). Allinea i due valori."
+            exit 1
+          fi
+
+      - name: Costruzione
+        run: |
+          VERSION="${TAG#v}"
+          mkdir -p ~/rpmbuild/SOURCES dist
+          git config --global --add safe.directory "$PWD"
+          tar --exclude-vcs --transform "s,^\.,fedtermhub-${VERSION}," \
+              -czf ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz .
+          set -o pipefail
+          rpmbuild -ba fedtermhub.spec 2>&1 | tee /tmp/rpmbuild.log
+          find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} dist/ \;
+          cp ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz dist/
+          ls -l dist
+
+      - name: Riepilogo dell'errore di build
+        if: failure()
+        run: |
+          test -f /tmp/rpmbuild.log || exit 0
+          tail -40 /tmp/rpmbuild.log | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' > /tmp/coda.txt
+          echo "::error title=rpmbuild - ultime 40 righe::$(cat /tmp/coda.txt)"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: pacchetti
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Pubblica release, repository e sito
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: pacchetti
+          path: pkgs
+
+      - name: Strumenti
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q rpm createrepo-c
+
+      - name: Chiave di firma
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.FEDTERMHUB_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::error title=Chiave di firma::Manca il secret FEDTERMHUB_GPG_PRIVATE_KEY. Crealo una volta con packaging/github-setup.sh dal tuo computer."
+            exit 1
+          fi
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')" >> "$GITHUB_ENV"
+
+      - name: Indirizzi
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          {
+            echo "SITE_URL=https://$owner.github.io/$repo"
+            echo "RPM_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+            echo "REPO_URL=https://github.com/$GITHUB_REPOSITORY"
+          } >> "$GITHUB_ENV"
+
+      - name: Firma i pacchetti e prepara repository e sito
+        run: |
+          packaging/update-repo.sh pkgs out "$RPM_URL" "$SITE_URL"
+          packaging/render-site.sh out/site "$SITE_URL" "$REPO_URL" "${TAG#v}"
+
+      - name: Release della versione
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd pkgs
+          sha256sum -- *.rpm *.tar.gz > SHA256SUMS
+          gpg --batch --yes --local-user "$GPG_KEY_ID" --armor --detach-sign SHA256SUMS
+          notes="Installa o aggiorna: $SITE_URL — con il repository aggiunto, gli aggiornamenti arrivano con sudo dnf upgrade."
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" -R "$GITHUB_REPOSITORY" -- *.rpm *.tar.gz SHA256SUMS SHA256SUMS.asc --clobber
+          else
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag --latest --title "FedTermHub ${TAG#v}" \
+              --notes "$notes" --generate-notes -- *.rpm *.tar.gz SHA256SUMS SHA256SUMS.asc
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out/site
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,282 @@
+<!-- SPDX-FileCopyrightText: 2026 Crash
+     SPDX-License-Identifier: GPL-3.0-or-later -->
+# Guida di FedTermHub
+
+- [Installazione](#installazione)
+- [Primi passi](#primi-passi)
+- [Terminale](#terminale)
+- [SSH e file remoti](#ssh-e-file-remoti)
+- [Tunnel SSH](#tunnel-ssh)
+- [Desktop remoto RDP](#desktop-remoto-rdp)
+- [VNC e console seriale](#vnc-e-console-seriale)
+- [Password Manager](#password-manager)
+- [Strumenti di rete](#strumenti-di-rete)
+- [Laboratorio Linux usa e getta](#laboratorio-linux-usa-e-getta)
+- [Scorciatoie da tastiera](#scorciatoie-da-tastiera)
+- [Dove sono i tuoi dati](#dove-sono-i-tuoi-dati)
+- [Risoluzione dei problemi](#risoluzione-dei-problemi)
+- [Limiti noti](#limiti-noti)
+
+## Installazione
+
+### Con un comando (consigliato)
+
+Su **Fedora 43 o più recente** (x86_64) apri un terminale e incolla:
+
+```bash
+curl -fsSL https://crash-fd01.github.io/FedTermHub/setup.sh | sudo sh
+```
+
+Lo script aggiunge il repository firmato di FedTermHub e installa il pacchetto.
+Da lì gli aggiornamenti arrivano con `sudo dnf upgrade` (e con GNOME Software o
+Discover), insieme a quelli del sistema. Leggilo pure prima di eseguirlo: fa
+solo quello che c'è scritto.
+
+Per toglierlo, insieme al repository:
+
+```bash
+curl -fsSL https://crash-fd01.github.io/FedTermHub/setup.sh | sudo sh -s -- --remove
+```
+
+Le tue sessioni restano in `~/.config/fedtermhub`.
+
+### A mano
+
+```bash
+sudo rpm --import https://crash-fd01.github.io/FedTermHub/fedtermhub.asc
+sudo curl -fsSL https://crash-fd01.github.io/FedTermHub/fedtermhub.repo -o /etc/yum.repos.d/fedtermhub.repo
+sudo dnf install fedtermhub
+```
+
+Sui sistemi immutabili (Silverblue, Kinoite, Bazzite): come sopra, poi
+`rpm-ostree install fedtermhub` e riavvia.
+
+### Dalle release
+
+Ogni [release](https://github.com/Crash-FD01/FedTermHub/releases) contiene gli RPM,
+il tarball dei sorgenti e il file `SHA256SUMS` firmato. Installa con
+`sudo dnf install ./fedtermhub-*.rpm` (senza repository non ricevi gli
+aggiornamenti automatici).
+
+### Dai sorgenti
+
+Per altre distribuzioni, o per provare una versione in sviluppo:
+
+```bash
+git clone https://github.com/Crash-FD01/FedTermHub.git
+cd FedTermHub
+bash COMPILA-RPM.sh     # Fedora: costruisce e installa un RPM
+# oppure
+bash install.sh         # installa nella cartella utente, senza pacchetto
+```
+
+`install.sh` usa `dnf` per le dipendenze; su altre distribuzioni lancialo con
+`--no-deps` dopo aver installato a mano GTK 3, VTE 2.91, PyGObject,
+python3-cryptography, python3-defusedxml e FreeRDP 3 con i file di sviluppo.
+Per toglierlo: `bash uninstall.sh`.
+
+### Requisiti
+
+- GTK 3 e VTE 2.91 (0.76 o più recente per gli appunti OSC 52)
+- Python 3 con PyGObject
+- FreeRDP 3 (libfreerdp3) per il desktop remoto nativo
+- OpenSSH client per SSH e SFTP
+- Facoltativi, attivano le funzioni corrispondenti: `wl-clipboard` o `xclip`
+  (incollare su Linux i file copiati in una sessione RDP), `nmap`, `tcpdump`,
+  `sshpass`, `tigervnc`, `python3-pyserial`, `python3-winrm`, libvirt e
+  `virt-install` (laboratorio). Il pacchetto li propone come `Recommends`.
+
+## Primi passi
+
+Le sessioni stanno nel pannello **Sessioni**, a sinistra, organizzate in
+cartelle dentro **Home Session**.
+
+- **Nuova sessione** (`Ctrl+Shift+N`): la sessione creata finisce **in fondo
+  all'elenco**, sotto tutte le cartelle, e viene selezionata. Trascinala nella
+  cartella che preferisci.
+- **Nuova cartella**: viene creata dentro la cartella selezionata. Il colore
+  della cartella si cambia dal menu contestuale.
+- **Connessione rapida** (`Ctrl+L`): scrivi nel campo in alto e premi Invio,
+  senza salvare una sessione. Accetta `utente@host`, `utente@host:2222`,
+  `rdp:host`, `vnc:host` e `serial:/dev/ttyUSB0@9600`.
+- **Command palette** (`Ctrl+K`): cerca una sessione per nome e aprila.
+- **Importa / Esporta**: dal menu contestuale di Home Session o di una cartella.
+  Le esportazioni non contengono password in chiaro.
+
+Doppio clic su una sessione per aprirla in una scheda.
+
+## Terminale
+
+Il terminale è basato su VTE, lo stesso componente di GNOME Terminal e Ptyxis.
+
+- **Riquadri**: dividi con `Ctrl+Shift+O` (affiancati) o `Ctrl+Shift+E` (sopra e
+  sotto); `Ctrl+Shift+L` passa da un layout all'altro (stack, tall, fat, grid).
+- **Broadcast** (`Ctrl+Shift+P`): quello che scrivi va in tutti i riquadri
+  insieme. Utile per lanciare lo stesso comando su più server.
+- **Hints** (`Ctrl+Shift+H`): assegna una lettera a ogni URL visibile e lo apri
+  da tastiera.
+- **Ricerca** nello scrollback con `Ctrl+Shift+F`.
+- **Appunti**: `Ctrl+Shift+C` e `Ctrl+Shift+V`. I programmi remoti possono
+  copiare negli appunti locali con OSC 52 (vim, tmux).
+- **Le combinazioni `Ctrl+lettera` appartengono al terminale** quando il
+  terminale ha il fuoco: `Ctrl+W` in bash cancella una parola, `Ctrl+K` in nano
+  taglia la riga, `Ctrl+B` è il prefisso di tmux. Le scorciatoie
+  dell'applicazione con `Ctrl` senza `Shift` funzionano quando il fuoco è
+  altrove, e restano disponibili dal menu.
+- **Diagnostica terminale** (menu contestuale): confronta la dimensione del
+  terminale vista da VTE, dal kernel e da ncurses. Se un'applicazione a schermo
+  intero disegna male, è il primo controllo da fare.
+
+## SSH e file remoti
+
+Aprendo una sessione SSH compare la scheda **File remoti** accanto a Sessioni.
+
+- **Segue la cartella del terminale**: quando fai `cd` nella shell, l'albero si
+  sposta nella stessa cartella. Funziona con bash e zsh: all'apertura della
+  sessione FedTermHub configura la shell remota perché comunichi la cartella
+  corrente (sequenza OSC 7), senza toccare i suoi file di configurazione.
+  L'interruttore con la freccia nella barra ferma l'inseguimento quando vuoi
+  navigare a mano. Su apparati di rete senza bash o zsh non è disponibile.
+- **File nascosti**: esclusi per impostazione predefinita; l'interruttore con
+  l'occhio o `Ctrl+H` li mostra. La barra di stato dice quanti elementi sono
+  esclusi dai filtri.
+- **Filtra per nome**: restringe la cartella aperta; le sottocartelle restano
+  visibili per poterci entrare.
+- **Caricare**: trascina file o cartelle dal file manager sopra una cartella
+  dell'albero, oppure usa *Carica qui*.
+- **Scaricare**: doppio clic su un file, oppure *Scarica*.
+
+Il browser usa il client OpenSSH di sistema e riusa la connessione della
+sessione quando possibile (multiplexing), quindi non chiede di nuovo la
+password.
+
+## Tunnel SSH
+
+**Gestore tunnel** (`Ctrl+Shift+T`): tunnel locali, remoti e proxy SOCKS
+dinamici, con verifica della connessione, avvio automatico, riconnessione e log.
+I tunnel restano attivi anche chiudendo la finestra del gestore.
+
+## Desktop remoto RDP
+
+FedTermHub usa un motore RDP nativo costruito su FreeRDP 3, che disegna la
+sessione dentro la scheda o in una finestra indipendente.
+
+- **Ridimensionamento dinamico**: la risoluzione remota segue la finestra.
+- **Schermo intero** su un monitor a scelta (`F11`); la barra di controllo in
+  alto si trascina dove vuoi e torna al suo posto con un doppio clic.
+- **Appunti bidirezionali**, testo e file. Per incollare su Linux i file copiati
+  in Windows serve `wl-clipboard` (Wayland) o `xclip` (X11).
+- **Cartella condivisa**: una cartella locale che compare in Esplora risorse
+  come unità di rete. Trascinare file sulla sessione li copia lì.
+- **Gestisci sessioni**: disconnetti, chiudi la sessione o manda un messaggio
+  agli utenti di un server Windows (richiede `python3-winrm`).
+- Lo stato di Bloc Num e Bloc Maiusc viene sincronizzato entrando nella scheda.
+
+Se il motore nativo non è disponibile, FedTermHub ripiega su `xfreerdp`.
+
+## VNC e console seriale
+
+- **VNC** apre `vncviewer` (TigerVNC) con i parametri della sessione.
+- **Seriale**: indica il dispositivo (`/dev/ttyUSB0`) e la velocità. Serve
+  `python3-pyserial` e l'appartenenza al gruppo `dialout`.
+
+## Password Manager
+
+`Ctrl+Shift+V` quando il fuoco non è nel terminale, oppure dalla barra comandi.
+
+- Le credenziali sono cifrate con AES-256-GCM; la chiave deriva dalla master
+  password con PBKDF2-HMAC-SHA256 a 600.000 iterazioni.
+- Una sessione può usare una credenziale salvata invece di una password scritta
+  nella sessione: nel file delle sessioni non finisce mai una password.
+- Blocco automatico dopo un periodo di inattività, configurabile nelle
+  impostazioni, oppure sblocco per l'intera sessione di lavoro.
+- **La master password non si recupera.** Se la perdi, le credenziali salvate
+  sono perse: fai un'esportazione cifrata del vault ogni tanto.
+
+## Strumenti di rete
+
+Dal menu **Rete**: network scanner e port scanner (`nmap`; l'ARP con privilegi
+mostra MAC e produttore), cattura pacchetti (`tcpdump`), Wake-on-LAN, porte in
+ascolto e server locali (SSH, FTP, TFTP, HTTP, NFS, VNC) da avviare al volo per
+un intervento. Le operazioni che richiedono privilegi chiedono conferma con
+Polkit.
+
+## Laboratorio Linux usa e getta
+
+**Lab** crea una macchina virtuale a partire da un'immagine cloud (QCOW2): la
+macchina lavora su una copia temporanea, l'immagine originale resta intatta e
+tutto viene eliminato chiudendo la console.
+
+Servono `libvirt-daemon-kvm`, `libvirt-client`, `virt-install`, `virt-viewer` e
+`qemu-img`. Le immagini cloud di Debian e Fedora usano la console seriale: se la
+finestra grafica resta ferma sui messaggi del kernel, la macchina è avviata e
+aspetta su `virsh -c qemu:///session console <nome>`.
+
+## Scorciatoie da tastiera
+
+| Tasti | Azione |
+|---|---|
+| `Ctrl+K` | Command palette: cerca e apri una sessione |
+| `Ctrl+Shift+N` | Nuova sessione |
+| `Ctrl+L` | Connessione rapida |
+| `Ctrl+T` | Nuovo terminale locale |
+| `Ctrl+W` | Chiudi la scheda |
+| `Ctrl+B` | Mostra o nascondi il pannello laterale |
+| `Ctrl+H` | File remoti: mostra i file nascosti |
+| `Ctrl+,` | Impostazioni |
+| `Ctrl+Shift+T` | Gestore tunnel |
+| `Ctrl+Shift+V` | Password Manager (fuori dal terminale) |
+| `F11` | Schermo intero |
+
+Le scorciatoie con `Ctrl` senza `Shift` valgono quando il fuoco **non** è nel
+terminale. Dentro il terminale:
+
+| Tasti | Azione |
+|---|---|
+| `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copia / Incolla |
+| `Ctrl+Shift+Invio` | Nuovo riquadro |
+| `Ctrl+Shift+O` / `Ctrl+Shift+E` | Dividi affiancato / sopra e sotto |
+| `Ctrl+Shift+L` | Cambia layout dei riquadri |
+| `Ctrl+Shift+[` / `Ctrl+Shift+]` | Riquadro precedente / successivo |
+| `Ctrl+Shift+W` | Chiudi il riquadro |
+| `Ctrl+Shift+P` | Broadcast dell'input |
+| `Ctrl+Shift+H` | Hints: apri un URL da tastiera |
+| `Ctrl+Shift+F` | Cerca nello scrollback |
+| `Ctrl` `+` / `-` / `0` | Zoom del carattere |
+
+## Dove sono i tuoi dati
+
+Tutto resta sul tuo computer; FedTermHub non manda dati da nessuna parte.
+
+| Percorso | Contenuto |
+|---|---|
+| `~/.config/fedtermhub/sessions.json` | Sessioni e cartelle (senza password) |
+| `~/.config/fedtermhub/vault.json` | Credenziali cifrate |
+| `~/.config/fedtermhub/tunnels.json` | Tunnel SSH |
+| `~/.config/fedtermhub/settings.json` | Impostazioni |
+| `~/.cache/fedtermhub/fedtermhub.log` | Log dell'applicazione |
+| `~/.cache/fedtermhub/labs/` | Dischi temporanei del laboratorio |
+
+I file di configurazione hanno permessi `0600` e vengono scritti in modo
+atomico.
+
+## Risoluzione dei problemi
+
+- **nano, htop o vim disegnano male**: menu contestuale del terminale ›
+  *Diagnostica terminale*. Le tre dimensioni mostrate devono coincidere.
+- **Su un apparato di rete i programmi a schermo intero non funzionano**: molti
+  apparati hanno un database terminfo ridotto e non conoscono `xterm-256color`.
+  Avvia FedTermHub con `FEDTERMHUB_TERM=xterm fedtermhub`.
+- **RDP non si connette**: il pulsante del log nella barra della sessione
+  mostra i messaggi di FreeRDP (la password è mascherata). *Diagnostica
+  connessione* prova raggiungibilità, porta e certificato.
+- **Incollare in Linux file copiati in Windows non fa nulla**: installa
+  `wl-clipboard` (Wayland) o `xclip` (X11).
+
+## Limiti noti
+
+- L'interfaccia è in italiano; la traduzione in inglese è prevista.
+- Il motore RDP nativo richiede FreeRDP 3: su sistemi con FreeRDP 2 si usa il
+  ripiego `xfreerdp`.
+- L'inseguimento della cartella nei file remoti richiede bash o zsh sul server.
+- I pacchetti sono costruiti per x86_64; su altre architetture si installa dai sorgenti.
