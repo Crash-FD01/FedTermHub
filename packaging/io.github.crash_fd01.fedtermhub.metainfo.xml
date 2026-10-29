@@ -73,23 +73,25 @@
 
   <content_rating type="oars-1.1" />
 
-  <!-- Le schermate vanno caricate nel repository e servite via raw.githubusercontent:
-       i software center scaricano l'immagine, quindi l'URL deve puntare al file,
-       non alla pagina di GitHub che lo mostra.
+  <!-- I software center scaricano l'immagine: l'URL punta al file, non alla pagina di GitHub. -->
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/main.png</image>
-      <caption>Sessions, terminal and remote files side by side</caption>
-      <caption xml:lang="it">Sessioni, terminale e file remoti affiancati</caption>
+      <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/principale-chiaro.png</image>
+      <caption>Sessions in folders and an SSH terminal</caption>
+      <caption xml:lang="it">Sessioni in cartelle e un terminale SSH</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/file-remoti-chiaro.png</image>
+      <caption>The remote file tree follows the terminal</caption>
+      <caption xml:lang="it">L'albero dei file remoti segue il terminale</caption>
     </screenshot>
   </screenshots>
-  -->
 
   <releases>
     <release version="0.9.07" date="2026-10-29">
       <description>
-        <p>Light theme parity, hidden-file filter and search in the remote file browser, keyboard mnemonics.</p>
-        <p xml:lang="it">Parità del tema chiaro, filtro dei file nascosti e ricerca nel browser dei file remoti, mnemonici da tastiera.</p>
+        <p>First public release. Ctrl+letter shortcuts reach the terminal, hidden-file filter and search in the remote file browser, light theme fixes.</p>
+        <p xml:lang="it">Prima versione pubblica. Le combinazioni Ctrl+lettera arrivano al terminale, filtro dei file nascosti e ricerca nei file remoti, correzioni del tema chiaro.</p>
       </description>
     </release>
   </releases>

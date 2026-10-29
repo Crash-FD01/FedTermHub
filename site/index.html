@@ -1,0 +1,186 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Crash -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FedTermHub</title>
+<meta name="description" content="FedTermHub: terminali, SSH, desktop remoto RDP e VNC, file SFTP e un vault cifrato in un'unica finestra, per chi amministra sistemi Linux. Open source, GPL-3.0.">
+<link rel="icon" href="icon.png">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #16181d; --muted: #5d6470; --line: #e2e5ea;
+  --accent: #1f6fa8; --accent-ink: #ffffff; --code-bg: #f0f2f5; --code-text: #16181d; --ok: #1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --panel: #171a20; --text: #eceef2; --muted: #9aa1ad; --line: #272b33;
+    --accent: #4aa3df; --accent-ink: #0b1220; --code-bg: #0b0f14; --code-text: #e6e8ec; --ok: #3fb950;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, "Cantarell", "Segoe UI", sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+header { display: flex; align-items: center; gap: 12px; padding: 20px 0; }
+header img { width: 32px; height: 32px; }
+header b { font-size: 18px; letter-spacing: -.01em; }
+header nav { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.lang { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 8px;
+        padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.lang[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
+.hero { padding: 40px 0 24px; }
+h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.12; letter-spacing: -.025em; margin: 0 0 16px; max-width: 820px; }
+.lead { font-size: 18px; color: var(--muted); max-width: 740px; margin: 0 0 28px; }
+.shot { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line);
+        box-shadow: 0 24px 60px -24px rgba(0,0,0,.35); margin: 8px 0 0; }
+section { padding: 36px 0; border-top: 1px solid var(--line); }
+h2 { font-size: 24px; letter-spacing: -.015em; margin: 0 0 8px; }
+h3 { font-size: 16px; margin: 20px 0 6px; }
+p { margin: 0 0 12px; }
+.muted { color: var(--muted); }
+.cmd { display: flex; align-items: stretch; background: var(--code-bg); border: 1px solid var(--line);
+       border-radius: 10px; margin: 10px 0 14px; }
+pre { margin: 0; padding: 14px 16px; overflow-x: auto; flex: 1; font: 14px/1.6 ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+      color: var(--code-text); white-space: pre; }
+.copy { flex: none; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted);
+        font: inherit; font-size: 13px; padding: 0 14px; cursor: pointer; border-radius: 0 10px 10px 0; }
+.copy:hover { color: var(--text); }
+.copy.done { color: var(--ok); }
+.primary .cmd { border-color: var(--accent); }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 16px; margin: 10px 0; }
+summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.card b { display: block; margin-bottom: 4px; }
+.card p { color: var(--muted); font-size: 15px; margin: 0; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: center; }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+code { font: 0.9em ui-monospace, "JetBrains Mono", monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 5px; }
+.fp { font: 13px ui-monospace, monospace; word-break: break-all; color: var(--muted); }
+footer { padding: 28px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+[data-l="en"] { display: none; }
+html[lang="en"] [data-l="it"] { display: none; }
+html[lang="en"] [data-l="en"] { display: revert; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="icon.png" alt="">
+    <b>FedTermHub</b>
+    <nav>
+      <button class="lang" data-set="it" aria-pressed="true">IT</button>
+      <button class="lang" data-set="en" aria-pressed="false">EN</button>
+      <a class="lang" href="@REPO_URL@">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1><span data-l="it">Terminali, SSH e desktop remoto in un'unica finestra.</span><span data-l="en">Terminals, SSH and remote desktops in one window.</span></h1>
+    <p class="lead" data-l="it">FedTermHub riunisce terminali locali, sessioni SSH, desktop RDP e VNC, file SFTP e un vault cifrato
+      per le credenziali, con le sessioni organizzate in cartelle. Pensato per chi amministra sistemi. Open source, gratuito, per Fedora.</p>
+    <p class="lead" data-l="en">FedTermHub brings local terminals, SSH sessions, RDP and VNC desktops, SFTP files and an encrypted
+      credential vault together, with sessions organized in folders. Built for system administrators. Open source, free, for Fedora.</p>
+    <picture>
+      <source srcset="screenshot-dark.png" media="(prefers-color-scheme: dark)">
+      <img class="shot" src="screenshot-light.png" width="1360" height="840" alt="FedTermHub: sessions in folders and an open SSH terminal">
+    </picture>
+  </div>
+
+  <section id="install" class="primary">
+    <h2><span data-l="it">Installa</span><span data-l="en">Install</span></h2>
+    <p class="muted" data-l="it">Fedora 43 o più recente, x86_64. Un comando: aggiunge il repository firmato di FedTermHub e lo installa.</p>
+    <p class="muted" data-l="en">Fedora 43 or newer, x86_64. One command: adds FedTermHub's signed repository and installs it.</p>
+    <div class="cmd"><pre>curl -fsSL @SITE_URL@/setup.sh | sudo sh</pre><button class="copy">Copia</button></div>
+    <p data-l="it"><b>Aggiornamenti:</b> arrivano insieme a quelli del sistema, con <code>sudo dnf upgrade</code> o con GNOME Software e Discover.</p>
+    <p data-l="en"><b>Updates</b> arrive with your system's: <code>sudo dnf upgrade</code>, GNOME Software or Discover.</p>
+
+    <details>
+      <summary><span data-l="it">Preferisci farlo a mano?</span><span data-l="en">Rather do it by hand?</span></summary>
+      <div class="cmd"><pre>sudo rpm --import @SITE_URL@/fedtermhub.asc
+sudo curl -fsSL @SITE_URL@/fedtermhub.repo -o /etc/yum.repos.d/fedtermhub.repo
+sudo dnf install fedtermhub</pre><button class="copy">Copia</button></div>
+      <p class="muted" data-l="it">Silverblue, Kinoite, Bazzite: come sopra, poi <code>rpm-ostree install fedtermhub</code> e riavvia.</p>
+      <p class="muted" data-l="en">Silverblue, Kinoite, Bazzite: as above, then <code>rpm-ostree install fedtermhub</code> and reboot.</p>
+    </details>
+    <details>
+      <summary><span data-l="it">Altre distribuzioni: dai sorgenti</span><span data-l="en">Other distributions: from source</span></summary>
+      <p data-l="it">Serve FreeRDP 3 con i file di sviluppo, GTK 3, VTE 2.91 e PyGObject. Dettagli nella <a href="@REPO_URL@/blob/main/docs/GUIDA.md#dai-sorgenti">guida</a>.</p>
+      <p data-l="en">Requires FreeRDP 3 with development files, GTK 3, VTE 2.91 and PyGObject. Details in the <a href="@REPO_URL@/blob/main/docs/GUIDA.md#dai-sorgenti">guide</a> (Italian).</p>
+      <div class="cmd"><pre>git clone @REPO_URL@.git &amp;&amp; cd FedTermHub &amp;&amp; bash install.sh</pre><button class="copy">Copia</button></div>
+    </details>
+    <p class="muted" style="margin-top:16px"><span data-l="it">Impronta della chiave che firma i pacchetti:</span><span data-l="en">Fingerprint of the package signing key:</span><br>
+      <span class="fp">@FINGERPRINT@</span></p>
+  </section>
+
+  <section>
+    <h2><span data-l="it">Cosa fa</span><span data-l="en">What it does</span></h2>
+    <div class="grid">
+      <div class="card"><b><span data-l="it">Sessioni in cartelle</span><span data-l="en">Sessions in folders</span></b>
+        <p data-l="it">SSH, RDP, VNC, SFTP, seriale e terminale locale, con ricerca, command palette e connessione rapida.</p>
+        <p data-l="en">SSH, RDP, VNC, SFTP, serial and local terminal, with search, command palette and quick connect.</p></div>
+      <div class="card"><b><span data-l="it">Terminale a riquadri</span><span data-l="en">Split terminal</span></b>
+        <p data-l="it">Layout divisibili e lo stesso comando inviato a più server insieme. Basato su VTE.</p>
+        <p data-l="en">Split layouts and the same command sent to several servers at once. Built on VTE.</p></div>
+      <div class="card"><b><span data-l="it">Desktop remoto nativo</span><span data-l="en">Native remote desktop</span></b>
+        <p data-l="it">Motore RDP su FreeRDP 3: appunti anche per i file, cartella condivisa, schermo intero su ogni monitor.</p>
+        <p data-l="en">RDP engine on FreeRDP 3: clipboard for files too, shared folder, full screen on any monitor.</p></div>
+      <div class="card"><b><span data-l="it">Password Manager</span><span data-l="en">Password manager</span></b>
+        <p data-l="it">AES-256-GCM. Le password non finiscono mai nel file delle sessioni né sulla riga di comando.</p>
+        <p data-l="en">AES-256-GCM. Passwords never land in the session file or on a process command line.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="split">
+      <div>
+        <h2><span data-l="it">I file seguono il terminale</span><span data-l="en">Files follow the terminal</span></h2>
+        <p class="muted" data-l="it">Accanto a ogni sessione SSH c'è l'albero dei file remoti. Fai <code>cd</code> nella shell e l'albero si sposta con te;
+          trascini un file dal tuo computer per caricarlo, fai doppio clic per scaricarlo.</p>
+        <p class="muted" data-l="en">Next to every SSH session there's the remote file tree. <code>cd</code> in the shell and the tree moves with you;
+          drag a file from your computer to upload it, double-click to download.</p>
+      </div>
+      <picture>
+        <source srcset="files-dark.png" media="(prefers-color-scheme: dark)">
+        <img class="shot" src="files-light.png" width="1360" height="840" alt="Remote file tree next to an SSH session">
+      </picture>
+    </div>
+  </section>
+
+  <footer>
+    FedTermHub @VERSION@ · <a href="@REPO_URL@">@REPO_URL@</a> ·
+    <span data-l="it">software libero sotto licenza</span><span data-l="en">free software under the</span>
+    <a href="@REPO_URL@/blob/main/LICENSE">GPL-3.0-or-later</a> · © 2026 Crash
+  </footer>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  function setLang(l) {
+    root.lang = l;
+    document.querySelectorAll(".lang[data-set]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.set === l)); });
+    document.querySelectorAll(".copy").forEach(function (b) { if (!b.classList.contains("done")) b.textContent = l === "en" ? "Copy" : "Copia"; });
+    try { localStorage.setItem("fedtermhub-lang", l); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("fedtermhub-lang"); } catch (e) {}
+  setLang(saved || ((navigator.language || "it").slice(0, 2) === "it" ? "it" : "en"));
+  document.querySelectorAll(".lang[data-set]").forEach(function (b) { b.onclick = function () { setLang(b.dataset.set); }; });
+  document.querySelectorAll(".copy").forEach(function (b) {
+    b.onclick = function () {
+      var text = b.previousElementSibling.textContent;
+      var done = function () {
+        b.classList.add("done"); b.textContent = root.lang === "en" ? "Copied" : "Copiato";
+        setTimeout(function () { b.classList.remove("done"); b.textContent = root.lang === "en" ? "Copy" : "Copia"; }, 1500);
+      };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+    };
+  });
+})();
+</script>
+</body>
+</html>

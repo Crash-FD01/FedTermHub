@@ -127,7 +127,7 @@ xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt
-%doc README.md TEST_REPORT.md
+%doc README.md docs/GUIDA.md TEST_REPORT.md
 %{_bindir}/fedtermhub
 %{_libexecdir}/fedtermhub/fedtermrdp-native
 %{_datadir}/fedtermhub
@@ -137,6 +137,12 @@ xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
 
 %changelog
 * Thu Oct 29 2026 Crash-FD01 - 1:0.9.07-1
+- Tastiera: con il fuoco nel terminale Ctrl+lettera arriva al terminale. In GTK3 il gestore della finestra viene chiamato prima del widget con il fuoco: Ctrl+W chiudeva la scheda invece di cancellare una parola o cercare in nano, Ctrl+K/L/T/B (B e' il prefisso di tmux) non arrivavano mai al terminale e Ctrl+Shift+V apriva il gestore password invece di incollare. Verificato con tasti veri inviati con xdotool sotto Xvfb
+- Interfaccia: pulsanti dei dialoghi in italiano al posto di Gtk.STOCK_* (deprecati, e in inglese su un sistema in inglese); azione principale evidenziata in tutti i dialoghi con contrasto sopra 4.5:1; stato premuto visibile per gli interruttori della barra dei file remoti
+- File remoti: il numero di elementi esclusi dai filtri ora compare anche per la cartella principale, non solo per le sottocartelle
+- Strumenti di rete: la finestra non si apriva senza il comando rpm (avvio dai sorgenti su una distribuzione non RPM)
+- Test: nuovo tests/test_ui_behaviours.py sull'applicazione vera sotto Xvfb (tastiera nel terminale, posizione delle sessioni nuove, filtri dei file remoti); tools/screenshots.py rigenera le schermate con dati inventati
+- Distribuzione: repository dnf firmato e sito su GitHub Pages pubblicati dal workflow Rilascio, installazione con un comando (setup.sh); README e guida completa in docs/GUIDA.md; modelli per issue e pull request; build su Fedora 43 e 44
 - Interfaccia: il tema chiaro non stilizzava 13 selettori presenti solo nel tema scuro. Il caso piu' grave era il pallino di stato della connessione nella barra schede (.is-connected/.is-disconnected): senza colore definito prendeva quello del testo e smetteva di indicare lo stato. Aggiunte anche .tab-label, .tab-close, .tab-reconnect, .diagnostics-listbox, .session-scroll, .tunnel-explain, .tunnel-editor e gli stati :active di ribbon e rail
 - Interfaccia: il tema scuro non stilizzava .session-error-tab, che ricadeva sul bianco di GTK dentro un'interfaccia scura
 - Nuovo test tests/test_theme_parity.py: fa fallire la build quando una classe e' stilizzata in un tema solo, quando un colore scende sotto 4.5:1 di contrasto sullo sfondo reale, quando due mnemonici collidono nella stessa finestra o quando un pulsante solo-icona resta senza tooltip

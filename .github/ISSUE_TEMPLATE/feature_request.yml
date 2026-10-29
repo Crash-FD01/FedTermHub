@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Proponi un'idea / Feature request
+description: Una funzione nuova o un miglioramento. / A new feature or an improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Cosa vorresti fare / What you want to do
+      description: Il problema o la situazione, prima della soluzione. / The problem or situation, before the solution.
+      placeholder: Quando gestisco molti firewall dello stesso cliente vorrei...
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Come te lo immagini / How you picture it
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Come fai oggi / How you do it today
+      description: Un altro programma, uno script, un passaggio a mano. / Another program, a script, a manual step.

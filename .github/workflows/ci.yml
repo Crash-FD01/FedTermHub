@@ -36,6 +36,12 @@ jobs:
       - name: Parità dei temi, contrasti, mnemonici, tooltip
         run: python tests/test_theme_parity.py
 
+      - name: Sito e script di installazione
+        run: |
+          bash packaging/render-site.sh /tmp/sito https://example.invalid/FedTermHub https://github.com/example/FedTermHub 0.0.0
+          sh -n /tmp/sito/setup.sh
+          bash -n packaging/update-repo.sh packaging/render-site.sh packaging/github-setup.sh
+
       - name: Analisi statica
         run: |
           pipx install ruff
@@ -55,9 +61,15 @@ jobs:
   # lo spec stia in piedi, che il binario C compili con gli hardening flag
   # della distribuzione e che i test con GTK passino sotto Xvfb.
   rpm:
-    name: Build RPM su Fedora
+    name: Build RPM su Fedora ${{ matrix.fedora }}
     runs-on: ubuntu-24.04
-    container: fedora:41
+    strategy:
+      fail-fast: false
+      matrix:
+        # Le versioni di Fedora supportate: la piu' vecchia e' quella su cui
+        # vengono costruiti i pacchetti di release.
+        fedora: ['43', '44']
+    container: fedora:${{ matrix.fedora }}
     steps:
       - uses: actions/checkout@v5
 
@@ -135,6 +147,6 @@ jobs:
       - name: Pubblica gli RPM come artefatto
         uses: actions/upload-artifact@v5
         with:
-          name: rpm-fedora41
+          name: rpm-fedora${{ matrix.fedora }}
           path: ~/rpmbuild/RPMS/*/*.rpm
           if-no-files-found: error

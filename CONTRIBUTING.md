@@ -39,10 +39,22 @@ Esegui i controlli che fa anche la CI:
 
 ```bash
 python3 -m compileall -q fedtermhub tests
-python3 tests/test_core.py
 python3 tests/test_theme_parity.py
-xvfb-run -a python3 tests/test_remote_files.py   # e gli altri test GTK
+for t in tests/test_*.py; do xvfb-run -a python3 "$t" || echo "FALLITO: $t"; done
 ```
+
+`tests/test_ui_behaviours.py` prova sull'applicazione vera i comportamenti che si
+rompono facilmente: le combinazioni da tastiera dentro il terminale, la posizione
+delle sessioni nuove, i filtri dei file remoti.
+
+Se cambi l'interfaccia, rigenera le schermate (dati inventati, non tocca la tua
+configurazione):
+
+```bash
+xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . light docs/screenshots/principale-chiaro.png
+```
+
+e le altre tre varianti indicate in `tools/screenshots.py`.
 
 Alcune regole che il progetto si è dato, quasi sempre dopo averle imparate a
 proprie spese:
@@ -72,14 +84,25 @@ successiva, come il resto del progetto.
 
 ## Pubblicare una versione (manutentori)
 
+La prima volta, dal tuo computer, una sola volta: `packaging/github-setup.sh`.
+Configura la pagina del repository e GitHub Pages, crea la chiave che firma i
+pacchetti (la privata resta tua e nel secret di GitHub) e pubblica il primo tag.
+
+Per ogni versione successiva:
+
 1. Aggiorna `Version` e aggiungi la voce di `%changelog` in `fedtermhub.spec`.
-2. Aggiorna `APP_VERSION` in `fedtermhub/fedtermhub.py`, la versione in
-   `README.md` e `install.sh`, e il blocco `<releases>` del file
+2. Aggiorna `APP_VERSION` in `fedtermhub/fedtermhub.py`, `APP_VERSION` in
+   `install.sh` e il blocco `<releases>` di
    `packaging/io.github.crash_fd01.fedtermhub.metainfo.xml`.
-3. Commit, poi tag con la **stessa** versione dello spec:
+3. Commit e push, poi il tag con la **stessa** versione dello spec:
    ```bash
-   git tag v0.9.07
-   git push origin main v0.9.07
+   git tag -a v0.9.08 -m "FedTermHub 0.9.08"
+   git push origin v0.9.08
    ```
-4. Il workflow *Release* verifica che tag e spec coincidano, costruisce gli RPM
-   e pubblica la release. Copr ricostruisce da solo grazie al webhook.
+4. Il workflow *Rilascio* verifica che tag e spec coincidano, costruisce gli RPM
+   su Fedora 43, li firma, pubblica la release con `SHA256SUMS` firmato e
+   aggiorna repository dnf e sito. Chi ha installato con `setup.sh` riceve
+   l'aggiornamento con `sudo dnf upgrade`.
+
+`.copr/Makefile` permette in alternativa di costruire su
+[Copr](https://copr.fedorainfracloud.org) con il metodo "Make SRPM".
