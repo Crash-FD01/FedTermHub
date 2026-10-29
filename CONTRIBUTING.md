@@ -27,7 +27,7 @@ sudo dnf install python3-gobject python3-cairo gtk3 vte291 \
     python3-cryptography python3-defusedxml \
     freerdp-devel libwinpr-devel gcc make pkgconf-pkg-config
 git clone https://github.com/Crash-FD01/FedTermHub
-cd fedtermhub
+cd FedTermHub
 make -C native
 FEDTERMHUB_RDP_NATIVE_HELPER="$PWD/native/fedtermrdp-native" \
     python3 fedtermhub/fedtermhub.py
