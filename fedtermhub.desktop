@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=FedTermHub
+Comment=Terminale e session manager SSH/RDP/VNC/SFTP/Seriale/Tunnel per Fedora
+Exec=fedtermhub
+Icon=io.github.crash_fd01.fedtermhub
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=ssh;rdp;vnc;sftp;seriale;console;terminal;fedora;
+StartupNotify=true
+X-GNOME-UsesNotifications=true

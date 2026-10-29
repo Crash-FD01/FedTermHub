@@ -1,6 +1,10 @@
 # FedTermHub
 
-**Versione 0.9.03 — BETA**
+[![CI](https://github.com/Crash-FD01/fedtermhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Crash-FD01/fedtermhub/actions/workflows/ci.yml)
+[![Copr](https://copr.fedorainfracloud.org/coprs/crash-fd01/fedtermhub/package/fedtermhub/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/crash-fd01/fedtermhub/)
+[![Licenza: GPL v3](https://img.shields.io/badge/licenza-GPLv3-blue.svg)](LICENSE)
+
+**Versione 0.9.07 — BETA**
 
 FedTermHub è un gestore di terminali e connessioni remote per Linux (Fedora),
 sviluppato come progetto indipendente. Riunisce in un'unica applicazione
@@ -51,20 +55,80 @@ sessioni Windows remote, laboratori temporanei.
 
 ## Installazione
 
-### Da RPM (consigliato)
+### Da Copr (consigliato su Fedora)
 
-# Sicurezza
+```bash
+sudo dnf copr enable crash-fd01/fedtermhub
+sudo dnf install fedtermhub
+```
+
+Gli aggiornamenti arrivano poi con il normale `sudo dnf upgrade`.
+
+### Dalle release GitHub
+
+Ogni [release](https://github.com/Crash-FD01/fedtermhub/releases) contiene il
+tarball dei sorgenti e gli RPM già costruiti per Fedora.
+
+### Compilando dai sorgenti
+
+```bash
+tar -xzf fedtermhub-0.9.07.tar.gz
+cd fedtermhub-0.9.07
+bash COMPILA-RPM.sh
+```
+
+Lo script installa le dipendenze di build, compila il componente nativo RDP e
+produce un RPM installabile. In alternativa: `bash install.sh` per
+un'installazione diretta senza pacchetto.
+
+### Disinstallazione
+
+```bash
+bash uninstall.sh
+```
+
+oppure `sudo dnf remove fedtermhub` se installato da RPM.
+
+## Scorciatoie principali
+
+| Tasti | Azione |
+|---|---|
+| `Ctrl+K` | Command palette: cerca e apri una sessione |
+| `Ctrl+Shift+Invio` | Nuovo riquadro terminale |
+| `Ctrl+Shift+O` / `Ctrl+Shift+E` | Dividi il riquadro (verticale / orizzontale) |
+| `Ctrl+Shift+L` | Cambia layout dei riquadri |
+| `Ctrl+Shift+[` / `Ctrl+Shift+]` | Riquadro precedente / successivo |
+| `Ctrl+Shift+W` | Chiudi il riquadro |
+| `Ctrl+Shift+P` | Broadcast input on/off |
+| `Ctrl+Shift+H` | Hints: apri un URL visibile da tastiera |
+| `Ctrl+Shift+F` | Cerca nello scrollback |
+| `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copia / Incolla |
+| `Ctrl` `+`/`-`/`0` | Zoom del font |
+| `F11` | Schermo intero |
+
+## Sicurezza
 
 Le password non compaiono mai nella riga di comando dei processi (passaggio
 via file descriptor su memoria anonima sigillata). I file di configurazione
 vengono scritti in modo atomico con permessi 0600. Il vault usa cifratura
 autenticata e nessun dato lascia la macchina.
 
+## Contribuire
+
+Segnalazioni e pull request sono benvenute: vedi
+[CONTRIBUTING.md](CONTRIBUTING.md). Per le vulnerabilità di sicurezza **non**
+aprire una issue pubblica: vedi [SECURITY.md](SECURITY.md).
+
 ## Licenza e autore
 
-Distribuito con licenza **MIT** (vedi `LICENSE`).
+FedTermHub è software libero, distribuito con licenza **GNU GPL versione 3 o
+successiva** (vedi `LICENSE`). Puoi usarlo, studiarlo, modificarlo e
+ridistribuirlo; le versioni modificate che distribuisci devono restare sotto la
+stessa licenza e con i sorgenti disponibili.
 
-Autore: **Crash-FD01** — progetto indipendente.
+Autore: **Crash** ([Crash-FD01](https://github.com/Crash-FD01)).
 
-Il componente nativo RDP si collega a FreeRDP (licenza Apache 2.0); la licenza
-completa è inclusa in `LICENSES/Apache-2.0.txt`.
+Il componente nativo RDP si collega a FreeRDP, distribuito con licenza
+Apache 2.0, compatibile con la GPL versione 3; il testo è incluso in
+`LICENSES/Apache-2.0.txt`. Il progetto segue la specifica
+[REUSE](https://reuse.software): ogni file dichiara autore e licenza.

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+__pycache__/
+*.pyc
+.ruff_cache/
+.venv/
+venv/
+
+# Binario dell'helper nativo: si ricostruisce con `make -C native`
+native/fedtermrdp-native
+
+# Prodotti di build RPM e release
+rpmbuild/
+dist/
+*.rpm
+*.tar.gz
+
+# Chiavi di firma: MAI nel repository
+*PRIVATE*.asc
+*.key
+*.pem

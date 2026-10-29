@@ -1,0 +1,31 @@
+# Licenze dei file che non possono contenere un'intestazione (immagini, dati,
+# documentazione) e del codice di terzi.
+# Formato REUSE (https://reuse.software): `reuse lint` verifica che ogni file
+# del repository abbia autore e licenza dichiarati.
+version = 1
+SPDX-PackageName = "FedTermHub"
+SPDX-PackageSupplier = "Crash"
+SPDX-PackageDownloadLocation = "https://github.com/Crash-FD01/fedtermhub"
+
+# Tutto ciò che è di FedTermHub e non ha un'intestazione propria: icone,
+# documentazione, metadati, configurazione, file di packaging, dati dei test.
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Crash"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# I metadati AppStream sono CC0: lo richiedono Flathub e i software center,
+# che li riusano per generare i cataloghi.
+[[annotations]]
+path = "packaging/io.github.crash_fd01.fedtermhub.metainfo.xml"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Crash"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Testi delle licenze: si riportano verbatim e non ricevono un'intestazione.
+[[annotations]]
+path = "LICENSES/**"
+precedence = "override"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC0-1.0"

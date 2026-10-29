@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Release
+
+# Si attiva sul tag di versione, per esempio v0.9.07. Il tag deve coincidere
+# con il campo Version dello spec: il job lo verifica e fallisce altrimenti,
+# perché un tag disallineato manda Copr a costruire la versione sbagliata.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tarball e RPM di release
+    runs-on: ubuntu-24.04
+    container: fedora:41
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dipendenze
+        run: |
+          dnf -y install rpm-build rpmdevtools dnf-plugins-core tar gzip git
+          dnf -y builddep fedtermhub.spec
+
+      - name: Il tag deve corrispondere alla versione dello spec
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          SPEC=$(rpmspec -q --qf '%{version}\n' fedtermhub.spec | head -1)
+          echo "tag=$TAG  spec=$SPEC"
+          test "$TAG" = "$SPEC" || {
+            echo "Il tag ($TAG) non corrisponde a Version nello spec ($SPEC)."
+            echo "Allinea i due valori prima di pubblicare."
+            exit 1
+          }
+
+      - name: Costruzione del tarball e degli RPM
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p ~/rpmbuild/SOURCES
+          git config --global --add safe.directory "$PWD"
+          tar --exclude-vcs --transform "s,^\.,fedtermhub-${VERSION}," \
+              -czf ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz .
+          cp ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz .
+          rpmbuild -ba fedtermhub.spec
+          mkdir -p dist
+          find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} dist/ \;
+          ls -l dist
+
+      - name: Pubblicazione della release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.rpm
+            fedtermhub-*.tar.gz
+          generate_release_notes: true
+          fail_on_unmatched_files: true
