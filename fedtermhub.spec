@@ -5,7 +5,7 @@ Name:           fedtermhub
 Epoch:          1
 Version:        0.9.07
 Release:        1%{?dist}
-Summary:        Session manager per Fedora con backend RDP nativo libfreerdp
+Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
 URL:            https://github.com/Crash-FD01/FedTermHub
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
@@ -33,8 +33,6 @@ Requires:       openssh-clients
 Requires:       iproute
 Recommends:     nmap
 Recommends:     tcpdump
-Requires:       freerdp-libs
-Requires:       libwinpr
 Requires:       freerdp
 Recommends:     tigervnc
 Requires:       python3-cryptography
@@ -66,10 +64,13 @@ Recommends:     virt-viewer
 Recommends:     qemu-img
 
 %description
-FedTermHub è un session manager per Fedora con terminale locale, SSH,
-RDP, VNC, SFTP, seriale, tunnel SSH, gestione a cartelle e password
-manager locale cifrato con master password. Il backend RDP 3.x usa
-libfreerdp per schede integrate e finestre indipendenti gestite da FedTermHub.
+FedTermHub is a session manager and remote desktop client for Linux. It
+brings local terminals, SSH sessions, RDP and VNC desktops, SFTP file
+transfer, serial consoles and SSH tunnels together in one GTK application,
+with sessions organized in folders and credentials kept in an encrypted
+vault protected by a master password. The native RDP backend is built
+directly on FreeRDP 3 and renders sessions both in tabs and in detached
+windows.
 
 %prep
 %autosetup
@@ -124,7 +125,7 @@ xvfb-run -a /usr/bin/python3 tests/test_ephemeral_lab.py
 xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
 
 %files
-%license LICENSE LICENSES/GPL-3.0-or-later.txt LICENSES/Apache-2.0.txt
+%license LICENSE LICENSES/Apache-2.0.txt
 %doc README.md TEST_REPORT.md
 %{_bindir}/fedtermhub
 %{_libexecdir}/fedtermhub/fedtermrdp-native
@@ -153,6 +154,7 @@ xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
 - Packaging: nuovo file AppStream, installato e validato in %%check
 - Packaging: nmap, tcpdump, tigervnc, python3-winrm, python3-pyserial e sshpass passano da Requires a Recommends: sono funzioni opzionali che a runtime degradano con un messaggio esplicito
 - Packaging: shebang /usr/bin/python3 solo sull'entry point e /usr/bin/bash nel launcher, niente /usr/bin/env; i moduli importati non sono piu' eseguibili. Rimossa l'installazione in pixmaps, percorso deprecato
+- Packaging: Summary e %%description in inglese, come richiesto per i metadati dei pacchetti Fedora; rimossi i Requires espliciti su freerdp-libs e libwinpr, che rpm ricava dal binario; LICENSE non piu' duplicato in %%license
 - Distribuzione: CI GitHub (sintassi, test, REUSE, build RPM in container Fedora con verifica di BIND_NOW), workflow di release sul tag, Makefile per Copr
 
 * Fri Sep 11 2026 Crash-FD01 - 1:0.9.06-1
