@@ -9,6 +9,8 @@
 2. La sidebar dei file remoti nasconde i file che iniziano con un punto, li
    mostra con l'interruttore, filtra per nome senza nascondere le cartelle e
    dichiara quanti elementi sono esclusi.
+3. Con il fuoco nel terminale, Ctrl+lettera e Ctrl+Shift+V arrivano al
+   terminale invece di essere intercettati dalla finestra.
 
 Uso:  xvfb-run -a python3 tests/test_ui_behaviours.py
 """
@@ -155,6 +157,57 @@ def check_remote_filters(app, window) -> None:
     print("  file remoti: dotfile nascosti, interruttore e filtro per nome corretti")
 
 
+def evento_tasto(window, keyval: int, ctrl: bool = True, shift: bool = False):
+    ev = Gdk.Event.new(Gdk.EventType.KEY_PRESS)
+    ev.key.keyval = keyval
+    stato = 0
+    if ctrl:
+        stato |= Gdk.ModifierType.CONTROL_MASK
+    if shift:
+        stato |= Gdk.ModifierType.SHIFT_MASK
+    ev.key.state = Gdk.ModifierType(stato)
+    ev.key.window = window.get_window()
+    # Si restituisce l'evento INTERO, non ev.key: ev.key e' una vista dentro
+    # ev, e se ev viene liberato punta a memoria non piu' valida. La prima
+    # stesura di questo test restituiva ev.key e passava per caso: il gestore
+    # leggeva ctrl=False e un nome di tasto vuoto.
+    return ev
+
+
+def check_terminal_keys(app, window) -> None:
+    """Con il fuoco nel terminale, Ctrl+lettera deve arrivare al terminale.
+
+    In GTK3 il gestore della finestra viene chiamato prima del widget con il
+    fuoco: Ctrl+W chiudeva la scheda invece di arrivare a bash o a nano, e
+    Ctrl+K/L/T/B non arrivavano mai. Ctrl+Shift+V apriva il gestore password
+    invece di incollare. Il gestore deve restituire False (non consumato).
+    """
+    window.add_terminal_tab("tasti", ["/bin/sleep", "60"])
+    tab = window.terminal_tabs[-1]
+    pump_until(lambda: bool(getattr(tab, "panes", [])))
+    pagine = window.notebook.get_n_pages()
+    tab.panes[0].terminal.grab_focus()
+    pump_until(lambda: window._terminal_has_focus())
+    assert window._terminal_has_focus(), "il terminale non ha preso il fuoco"
+
+    for nome in ("w", "k", "l", "t", "b", "h"):
+        consumato = window.on_global_key_press(window, evento_tasto(window, Gdk.keyval_from_name(nome)))
+        assert not consumato, f"Ctrl+{nome.upper()} intercettato dalla finestra con il fuoco nel terminale"
+    assert not window.on_global_key_press(window, evento_tasto(window, Gdk.KEY_V, shift=True)), \
+        "Ctrl+Shift+V deve incollare nel terminale, non aprire il gestore password"
+    assert window.notebook.get_n_pages() == pagine, "una scorciatoia ha chiuso o aperto una scheda"
+
+    # Con il fuoco altrove le scorciatoie dell'applicazione funzionano ancora.
+    window.session_tree.grab_focus()
+    pump_until(lambda: not window._terminal_has_focus())
+    visibile = window.sidebar.get_visible()
+    assert window.on_global_key_press(window, evento_tasto(window, Gdk.KEY_b)), "Ctrl+B non gestito fuori dal terminale"
+    pump_until(lambda: window.sidebar.get_visible() != visibile)
+    assert window.sidebar.get_visible() != visibile, "Ctrl+B non ha cambiato la barra laterale"
+    window.toggle_sidebar()
+    print("  tasti: Ctrl+lettera arriva al terminale; fuori dal terminale le scorciatoie funzionano")
+
+
 def main() -> int:
     if Gdk.Display.get_default() is None:
         print("UI_BEHAVIOURS_SKIP: nessun display GTK")
@@ -176,6 +229,7 @@ def main() -> int:
         window.show_all()
         check_new_session_placement(app, window)
         check_remote_filters(app, window)
+        check_terminal_keys(app, window)
         window.destroy()
     print("UI_BEHAVIOURS_OK")
     return 0

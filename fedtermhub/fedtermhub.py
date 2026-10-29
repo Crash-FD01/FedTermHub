@@ -10096,6 +10096,10 @@ class AppWindow(Gtk.ApplicationWindow):
             background: #232831; color: #f0f3f7; border: 1px solid #3a424f; border-radius: 9px; padding: 5px 10px;
         }
         .small-action:hover, .mini-action:hover, .secondary-action:hover { background: #303641; border-color: #4a5463; }
+        /* Interruttori (segui il terminale, file nascosti): senza uno stato
+           premuto visibile, attivo e spento erano indistinguibili. */
+        .mini-action:checked { background: #285f87; border-color: #3d759a; }
+        .mini-action:checked image { color: #ffffff; }
         .side-titlebar { background: #191d24; border-bottom: 1px solid #2d333e; padding: 5px 7px; }
         .count-badge { color: #06131d; background: #72c7ff; border-radius: 10px; padding: 2px 7px; font-size: 10px; font-weight: 800; }
         .session-toolbar, .side-footer { background: #15181e; border-bottom: 1px solid #292f39; padding: 2px 3px; }
@@ -10491,6 +10495,8 @@ class AppWindow(Gtk.ApplicationWindow):
         switch:checked { background: #268dcc; }
         .small-action, .mini-action, .secondary-action { background: #ffffff; color: #1c2938; border: 1px solid #cbd4df; border-radius: 9px; padding: 5px 10px; }
         .small-action:hover, .mini-action:hover, .secondary-action:hover { background: #edf2f7; }
+        .mini-action:checked { background: #cce9fb; border-color: #9ed0ee; }
+        .mini-action:checked image { color: #102231; }
         .side-titlebar, .session-toolbar, .side-footer, .workspace-strip, .rdp-toolbar { background: #f8fafc; border-color: #d7dee7; padding: 4px 7px; }
         .side-titlebar, .session-toolbar, .workspace-strip, .rdp-toolbar { border-bottom: 1px solid #d7dee7; }
         .quick-label, .side-title, .field-label { color: #243244; font-weight: 600; }
@@ -13602,6 +13608,13 @@ class AppWindow(Gtk.ApplicationWindow):
             self.terminal_tabs.remove(widget)
         self.notebook.remove_page(page_num)
 
+    def _terminal_has_focus(self) -> bool:
+        """True se il widget con il fuoco della tastiera e' un terminale VTE."""
+        try:
+            return isinstance(self.get_focus(), Vte.Terminal)
+        except Exception:
+            return False
+
     def on_global_key_press(self, _window: Gtk.Window, event: Gdk.EventKey) -> bool:
         self.mark_user_activity()
         try:
@@ -13625,6 +13638,21 @@ class AppWindow(Gtk.ApplicationWindow):
         ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
         shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
         key = Gdk.keyval_name(event.keyval) or ""
+        # Con il fuoco nel terminale, Ctrl+lettera appartiene al terminale.
+        # In GTK3 questo gestore della finestra viene chiamato PRIMA del widget
+        # che ha il fuoco: senza questo controllo Ctrl+W chiudeva la scheda
+        # invece di cancellare una parola (bash) o cercare (nano), e Ctrl+K,
+        # Ctrl+L, Ctrl+T, Ctrl+B (il prefisso di tmux) non arrivavano mai al
+        # terminale. Verificato inviando tasti veri con xdotool sotto Xvfb.
+        # Ctrl+Shift+V incolla nel terminale (lo gestisce TerminalPane) invece
+        # di aprire il gestore password. Le scorciatoie dell'applicazione
+        # restano attive quando il fuoco e' altrove e da menu e barra comandi:
+        # e' la stessa convenzione di GNOME Terminal.
+        if ctrl and self._terminal_has_focus():
+            if not shift:
+                return False
+            if key.lower() == "v":
+                return False
         if event.keyval == Gdk.KEY_F11:
             self._fullscreen = not self._fullscreen
             self.fullscreen() if self._fullscreen else self.unfullscreen()
