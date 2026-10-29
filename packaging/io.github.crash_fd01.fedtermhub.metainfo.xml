@@ -81,6 +81,11 @@
       <caption xml:lang="it">Sessioni in cartelle e un terminale SSH</caption>
     </screenshot>
     <screenshot>
+      <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/password-chiaro.png</image>
+      <caption>Saved passwords grouped by client</caption>
+      <caption xml:lang="it">Password salvate raggruppate per cliente</caption>
+    </screenshot>
+    <screenshot>
       <image>https://raw.githubusercontent.com/Crash-FD01/FedTermHub/main/docs/screenshots/file-remoti-chiaro.png</image>
       <caption>The remote file tree follows the terminal</caption>
       <caption xml:lang="it">L'albero dei file remoti segue il terminale</caption>
@@ -88,6 +93,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.9.08" date="2026-10-29">
+      <description>
+        <p>Redesigned password manager: credentials grouped by client, details and copy buttons side by side, which sessions use each credential, password generator, change of master password. A wrong master password no longer closes the prompt.</p>
+        <p xml:lang="it">Password Manager ridisegnato: credenziali raggruppate per cliente, dati e pulsanti Copia affiancati, sessioni che usano ogni credenziale, generatore di password, cambio della master password. Una master password sbagliata non chiude più la finestra.</p>
+      </description>
+    </release>
     <release version="0.9.07" date="2026-10-29">
       <description>
         <p>First public release. Ctrl+letter shortcuts reach the terminal, hidden-file filter and search in the remote file browser, light theme fixes.</p>

@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.9.07
+Version:        0.9.08
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -124,6 +124,7 @@ xvfb-run -a /usr/bin/python3 tests/test_remote_files.py
 xvfb-run -a /usr/bin/python3 tests/test_ephemeral_lab.py
 xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
 xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
+xvfb-run -a /usr/bin/python3 tests/test_vault_ui.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt
@@ -136,6 +137,20 @@ xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Oct 29 2026 Crash-FD01 - 1:0.9.08-1
+- Password Manager ridisegnato a due pannelli: elenco a sinistra con ricerca, dettaglio della credenziale a destra con i pulsanti Copia accanto a ogni dato, password nascosta finche' non la si chiede e di nuovo nascosta cambiando credenziale. Prima era una tabella con le azioni divise fra la barra in alto e quella in basso, e Esporta/Importa/Blocca avevano lo stesso peso di Copia password
+- Password Manager: credenziali raggruppate (di solito per cliente) e ordinate per gruppo e nome, "Senza gruppo" in fondo; la ricerca trova anche il gruppo e accetta piu' parole. Per le credenziali senza gruppo propone il nome della cartella delle sessioni che le usano, con un clic. La password RDP salvata da una sessione prende il gruppo della sua cartella
+- Password Manager: per ogni credenziale si vede quali sessioni e tunnel la usano; l'eliminazione avvisa quali sessioni torneranno a chiedere la password
+- Password Manager: pagina di benvenuto quando l'archivio e' vuoto, che spiega a cosa serve e come collegare una credenziale a una sessione
+- Password Manager: scorciatoie Ctrl+F (cerca), Ctrl+N (nuova), Ctrl+C (copia password), Ctrl+B (copia utente), Canc (elimina), Invio (modifica); nei campi di testo Ctrl+C copia il testo come sempre
+- Password Manager: cambio della master password dal menu, con verifica della password attuale
+- Credenziale: campi larghi, gruppo con suggerimenti, occhio per mostrare la password, generatore (20 caratteri senza caratteri ambigui, tutti i tipi richiesti da Active Directory), barra di robustezza, note su piu' righe, Salva disattivo senza nome, avviso di cambiare la password anche sul server quando la si modifica
+- Master password: una password sbagliata non chiude piu' la finestra lasciando solo un messaggio nella barra di stato; l'errore compare nella finestra e si riprova. Minimo 8 caratteri alla creazione, con barra di robustezza. La spunta "non chiedere piu'" ora vale anche alla creazione (prima era mostrata ma ignorata)
+- Backup cifrati: testi propri invece di quelli della master password, finestre aperte sopra il Password Manager e non dietro, password del backup sbagliata segnalata nella finestra con nuovo tentativo
+- Le tendine Credenziale delle sessioni seguono lo stesso ordine e mostrano il gruppo accanto al nome
+- Test: tests/test_vault_ui.py prova la finestra con GTK reale sotto Xvfb; tests/test_versions.py controlla che la versione sia la stessa in spec, programma, install.sh e metainfo
+- Verifica installazione: un workflow installa ogni release dal sito su Fedora 43 e 44 puliti e ne controlla firme, avvio e rimozione
+
 * Thu Oct 29 2026 Crash-FD01 - 1:0.9.07-1
 - Tastiera: con il fuoco nel terminale Ctrl+lettera arriva al terminale. In GTK3 il gestore della finestra viene chiamato prima del widget con il fuoco: Ctrl+W chiudeva la scheda invece di cancellare una parola o cercare in nano, Ctrl+K/L/T/B (B e' il prefisso di tmux) non arrivavano mai al terminale e Ctrl+Shift+V apriva il gestore password invece di incollare. Verificato con tasti veri inviati con xdotool sotto Xvfb
 - Interfaccia: pulsanti dei dialoghi in italiano al posto di Gtk.STOCK_* (deprecati, e in inglese su un sistema in inglese); azione principale evidenziata in tutti i dialoghi con contrasto sopra 4.5:1; stato premuto visibile per gli interruttori della barra dei file remoti

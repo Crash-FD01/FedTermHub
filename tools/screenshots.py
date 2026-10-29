@@ -10,6 +10,8 @@ file remoti legge da un server simulato. Non tocca ~/.config/fedtermhub.
     xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . dark  docs/screenshots/principale-scuro.png
     xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . light docs/screenshots/file-remoti-chiaro.png file
     xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . dark  docs/screenshots/file-remoti-scuro.png file
+    xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . light docs/screenshots/password-chiaro.png password
+    xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . dark  docs/screenshots/password-scuro.png password
 
 Su Fedora servono xorg-x11-server-Xvfb e librsvg2 (per le icone SVG).
 """
@@ -93,7 +95,38 @@ win.add_terminal_tab("web01", ["/bin/sleep", "3600"], session=web01)
 tab = win.terminal_tabs[-1]
 win.resize(1360, 840); win.show_all()
 
+finestra = {"w": win}
+if VISTA == "password":
+    C = app.Credential
+    rossi = albero[0].children[0].children
+    bianchi = albero[0].children[1].children
+    credenziali = [
+        C(name="Administrator dominio Rossi", username="Administrator", domain="STUDIOROSSI",
+          password="Xr7!kq2Lm#90", notes="Account di dominio. Scade a marzo.", group="Studio Rossi"),
+        C(name="Firewall perimetrale", username="admin", password="fw-Pass-2026", group="Studio Rossi"),
+        C(name="Backup NAS", username="backup", password="nas-Backup-2026", group="Studio Rossi"),
+        C(name="Web e database", username="admin", password="W3b!Bianchi#2026", group="Officine Bianchi"),
+        C(name="Terminal server", username="m.verdi", domain="BIANCHI", password="TsB-77!aa", group="Officine Bianchi"),
+        C(name="root Proxmox", username="root", password="pve-root-2026", group="Infrastruttura"),
+    ]
+    rossi[0].credential_id = credenziali[1].id
+    rossi[1].credential_id = credenziali[0].id
+    rossi[2].credential_id = credenziali[2].id
+    bianchi[0].credential_id = bianchi[1].credential_id = credenziali[3].id
+    bianchi[2].credential_id = credenziali[4].id
+    albero[1].children[0].credential_id = credenziali[5].id
+    win.store.save()
+    app.KDF_ITERATIONS = 2_000
+    win.vault.create("demo-solo-per-schermate")
+    win.vault.credentials = credenziali
+    win.vault.save()
+
 def mostra():
+    if VISTA == "password":
+        dialogo = app.VaultManagerDialog(win, win.vault)
+        dialogo.select_credential(win.vault.credentials[0].id)
+        finestra["w"] = dialogo
+        return False
     for pane in getattr(tab, "panes", []):
         pane.terminal.feed(testo.encode())
     win._show_remote_files_for_page(tab)
@@ -107,7 +140,7 @@ def mostra():
 
 def scatta():
     while Gtk.events_pending(): Gtk.main_iteration_do(False)
-    gw = win.get_window(); w, h = gw.get_width(), gw.get_height()
+    gw = finestra["w"].get_window(); w, h = gw.get_width(), gw.get_height()
     Gdk.pixbuf_get_from_window(gw, 0, 0, w, h).savev(str(USCITA), "png", [], [])
     print(f"salvata {USCITA} {w}x{h}"); application.quit(); Gtk.main_quit(); return False
 

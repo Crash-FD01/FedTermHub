@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_VERSION="0.9.07"
+APP_VERSION="0.9.08"
 APPDIR="${HOME}/.local/share/fedtermhub"
 BINDIR="${HOME}/.local/bin"
 LIBEXECDIR="${HOME}/.local/libexec/fedtermhub"

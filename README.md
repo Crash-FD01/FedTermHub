@@ -26,8 +26,8 @@ cifrato per le credenziali, con le sessioni organizzate in cartelle. Gratuito e 
   trascini i file per caricarli.
 - 🪟 **Desktop remoto nativo** — motore RDP costruito su FreeRDP 3, con appunti bidirezionali anche per i
   file, cartella condivisa e schermo intero su qualsiasi monitor.
-- 🔐 **Password Manager** — credenziali cifrate con AES-256-GCM, mai scritte nel file delle sessioni né
-  sulla riga di comando dei processi.
+- 🔐 **Password Manager** — credenziali raggruppate per cliente, copia di utente e password con un clic e
+  generatore; cifrate con AES-256-GCM, mai scritte nel file delle sessioni né sulla riga di comando dei processi.
 - 🧰 **Strumenti di rete** — tunnel SSH, scansione di rete e porte, cattura pacchetti, server temporanei e
   un laboratorio Linux usa e getta su libvirt.
 
