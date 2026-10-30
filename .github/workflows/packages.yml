@@ -89,9 +89,45 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Un sito di prova come quello pubblicato (repository APT e RPM firmati, setup.sh), con una chiave
+  # usa e getta: le prove installano da qui con setup.sh, esattamente come un utente. Così un problema
+  # dei repository (per esempio zypper che non trova i pacchetti) si vede prima del rilascio.
+  site:
+    name: Sito di prova
+    needs: build
+    if: ${{ !inputs.ref || inputs.test }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: universali-*
+          path: pkgs
+          merge-multiple: true
+      - name: Repository e sito con una chiave di prova
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q rpm createrepo-c apt-utils dpkg-dev > /dev/null
+          export GNUPGHOME="$(mktemp -d)"
+          gpg --batch --pinentry-mode loopback --passphrase '' --quick-gen-key "FedTermHub CI <ci@example.invalid>" rsa3072 sign 1d
+          export GPG_KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+          ALLOW_MISSING=1 .github/scripts/annotate.sh "Repository di prova" \
+            packaging/update-repo.sh pkgs out https://example.invalid/release http://localhost:8080
+          .github/scripts/annotate.sh "Sito di prova" \
+            packaging/render-site.sh out/site http://localhost:8080 "https://github.com/$GITHUB_REPOSITORY" test
+          find out/site -maxdepth 2 | sort
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sito-prova
+          path: out/site
+          include-hidden-files: true
+          retention-days: 3
+
   test:
     name: ${{ matrix.image }} ${{ matrix.arch }}
-    needs: build
+    needs: site
     # Chiamato dal Rilascio (che passa sempre «ref») si fa solo con test=true; sulle pull request e a
     # mano «inputs» è vuoto e le prove si fanno sempre.
     if: ${{ !inputs.ref || inputs.test }}
@@ -117,9 +153,9 @@ jobs:
       # checkout ha bisogno di tar (e openSUSE e le immagini minime non sempre lo hanno)
       - name: Preparazione del container
         run: |
-          if command -v apt-get > /dev/null; then apt-get update -q && apt-get install -y -q tar gzip bash > /dev/null
-          elif command -v zypper > /dev/null; then zypper --non-interactive -q install tar gzip bash gawk
-          elif command -v dnf > /dev/null; then dnf -y -q install tar gzip bash findutils
+          if command -v apt-get > /dev/null; then apt-get update -q && apt-get install -y -q tar gzip bash python3 > /dev/null
+          elif command -v zypper > /dev/null; then zypper --non-interactive -q install tar gzip bash gawk python3
+          elif command -v dnf > /dev/null; then dnf -y -q install tar gzip bash findutils python3
           fi
         shell: sh
 
@@ -129,10 +165,12 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          pattern: universali-*
-          path: pkgs
-          merge-multiple: true
+          name: sito-prova
+          path: /srv/sito
 
-      - name: Installazione e prove
+      - name: Installazione con setup.sh dal sito di prova, e prove
         shell: bash
-        run: packaging/ci-install-test.sh --packages pkgs --source-tests
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory /srv/sito > /tmp/http.log 2>&1 &
+          for _ in $(seq 1 20); do (exec 3<> /dev/tcp/127.0.0.1/8080) 2> /dev/null && break; sleep 0.25; done
+          packaging/ci-install-test.sh --site http://localhost:8080 --source-tests

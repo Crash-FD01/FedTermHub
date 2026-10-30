@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.9.13" date="2026-10-30">
+      <description>
+        <p>openSUSE: installation from the repository works on Tumbleweed and Leap 16.</p>
+        <p xml:lang="it">openSUSE: l'installazione dal repository funziona su Tumbleweed e Leap 16.</p>
+      </description>
+    </release>
     <release version="0.9.12" date="2026-10-30">
       <description>
         <p>Packages for Debian, Ubuntu, Linux Mint, RHEL/AlmaLinux/Rocky and openSUSE, x86_64 and ARM64, with one install command. The RDP engine carries its own FreeRDP 3, so remote desktops work the same everywhere.</p>
