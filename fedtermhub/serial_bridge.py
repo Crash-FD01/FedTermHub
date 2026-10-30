@@ -17,8 +17,10 @@ from typing import Optional
 
 try:
     from .i18n import tr
+    from . import distro
 except ImportError:  # avviato come script dal terminale della sessione seriale
     from i18n import tr
+    import distro  # type: ignore[no-redef]
 
 try:
     import serial
@@ -36,7 +38,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if serial is None:
-        print(tr("python3-pyserial non installato. Su Fedora: sudo dnf install python3-pyserial"), file=sys.stderr)
+        print(tr("python3-pyserial non installato. Installa: {command}").format(command=distro.install_command("python3-pyserial")), file=sys.stderr)
         return 2
 
     baud = int(args.baud)

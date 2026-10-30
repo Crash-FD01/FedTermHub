@@ -1,0 +1,131 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Pacchetti per le altre distribuzioni
+
+# Costruisce i pacchetti «universali» (.deb per Debian/Ubuntu/Mint, .rpm per RHEL/Alma/Rocky e openSUSE,
+# x86_64 e aarch64) e li installa su ogni distribuzione supportata, controllando che il programma parta
+# e che il motore RDP, con la sua FreeRDP 3, si colleghi davvero a un server.
+#
+# Gira sulle pull request che toccano programma o pacchetti, e viene chiamato dal Rilascio (con
+# test=false: i pacchetti di una versione sono già stati provati sulla sua pull request).
+on:
+  pull_request:
+    paths:
+      - 'fedtermhub/**'
+      - 'native/**'
+      - 'packaging/**'
+      - 'tests/**'
+      - '.github/workflows/packages.yml'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      test:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Costruzione ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    # AlmaLinux 9 ha la glibc più vecchia fra le distribuzioni supportate (2.34): quello che si compila
+    # qui parte anche su tutte le altre.
+    container: almalinux:9
+    steps:
+      - name: Strumenti di compilazione
+        run: |
+          dnf -y -q install epel-release dnf-plugins-core
+          dnf config-manager --set-enabled crb
+          dnf -y -q install gcc make cmake ninja-build pkgconf-pkg-config openssl-devel zlib-devel krb5-devel \
+            pulseaudio-libs-devel cups-devel pcsc-lite-devel fuse3-devel fuse3-libs rpm-build redhat-rpm-config \
+            dpkg binutils findutils tar gzip zstd curl python3 diffutils which
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Versione di FreeRDP inclusa
+        id: freerdp
+        run: echo "version=$(sed -n 's/^FREERDP_VERSION="\${FREERDP_VERSION:-\([^}]*\)}"/\1/p' packaging/build-freerdp.sh)" >> "$GITHUB_OUTPUT"
+
+      # La compilazione di FreeRDP prende qualche minuto: si rifà solo quando cambiano versione o opzioni.
+      - uses: actions/cache@v5
+        with:
+          path: /opt/freerdp
+          key: freerdp-${{ steps.freerdp.outputs.version }}-${{ matrix.arch }}-alma9-${{ hashFiles('packaging/build-freerdp.sh') }}
+
+      - name: Pacchetti
+        run: |
+          [ -f /opt/freerdp/lib/pkgconfig/freerdp3.pc ] || packaging/build-freerdp.sh /opt/freerdp
+          # Il pacchetto principale è uguale per tutte le architetture: si costruisce una volta.
+          export FREERDP_PREFIX=/opt/freerdp
+          if [ "${{ matrix.arch }}" != x86_64 ]; then export SKIP_MAIN=1; fi
+          packaging/build-packages.sh ${{ matrix.arch }} 2>&1 | grep -v -e 'deprecated' -e '^ *|' -e '^ *[0-9]* |' -e 'note:' -e 'In function' -e 'from /' -e 'In file included'
+          ls -l dist/packages
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: universali-${{ matrix.arch }}
+          path: dist/packages/*
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: ${{ matrix.image }} ${{ matrix.arch }}
+    needs: build
+    # Chiamato dal Rilascio con test=false si salta; sulle pull request e a mano «inputs.test» è vuoto.
+    if: inputs.test != false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: 'debian:12', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'debian:13', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'ubuntu:22.04', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'ubuntu:24.04', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'almalinux:9', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'almalinux:10', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'rockylinux/rockylinux:9', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'opensuse/tumbleweed', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'opensuse/leap:16.0', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'ubuntu:24.04', arch: aarch64, runner: ubuntu-24.04-arm }
+          - { image: 'debian:12', arch: aarch64, runner: ubuntu-24.04-arm }
+          - { image: 'almalinux:9', arch: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    steps:
+      # checkout ha bisogno di tar (e openSUSE e le immagini minime non sempre lo hanno)
+      - name: Preparazione del container
+        run: |
+          if command -v apt-get > /dev/null; then apt-get update -q && apt-get install -y -q tar gzip bash > /dev/null
+          elif command -v zypper > /dev/null; then zypper --non-interactive -q install tar gzip bash gawk
+          elif command -v dnf > /dev/null; then dnf -y -q install tar gzip bash findutils
+          fi
+        shell: sh
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: universali-*
+          path: pkgs
+          merge-multiple: true
+
+      - name: Installazione e prove
+        shell: bash
+        run: packaging/ci-install-test.sh --packages pkgs --source-tests

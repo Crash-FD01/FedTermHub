@@ -15,8 +15,10 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 try:
     from .i18n import tr, trn
+    from . import distro
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import tr, trn
+    import distro  # type: ignore[no-redef]
 
 import gi
 
@@ -212,7 +214,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
         self.spinner.hide()
 
         if winrm is None:
-            self._set_status(tr("Modulo WinRM mancante. Installa: sudo dnf install python3-winrm"), error=True)
+            self._set_status(tr("Modulo WinRM mancante. Installa: {command}").format(command=distro.install_command("python3-winrm")), error=True)
         elif not self.password:
             self._set_status(tr("Password non disponibile: sblocca il Password Manager o inseriscila nella sessione RDP."), error=True)
         else:
@@ -394,7 +396,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
 
     def refresh(self) -> bool:
         if winrm is None:
-            self._set_status(tr("Modulo WinRM mancante. Installa: sudo dnf install python3-winrm"), error=True)
+            self._set_status(tr("Modulo WinRM mancante. Installa: {command}").format(command=distro.install_command("python3-winrm")), error=True)
             return False
         try:
             config = self._endpoint_and_auth()

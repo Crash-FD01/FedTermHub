@@ -129,6 +129,7 @@ xvfb-run -a /usr/bin/python3 tests/test_vault_ui.py
 xvfb-run -a /usr/bin/python3 tests/test_revisione.py
 xvfb-run -a /usr/bin/python3 tests/test_network_tools.py
 xvfb-run -a /usr/bin/python3 tests/test_i18n.py
+/usr/bin/python3 tests/test_distro.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt

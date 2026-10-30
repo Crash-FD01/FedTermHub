@@ -12,6 +12,13 @@ WARNFLAGS = -Wall -Wextra -Wformat=2
 # Hardening del collegamento richiesto dalle linee guida Fedora. Anche qui in
 # aggiunta, cosi' %{build_ldflags} resta intatto.
 LDFLAGS += -Wl,-z,relro -Wl,-z,now
+# Cartella delle librerie private (pacchetti che portano con se' FreeRDP 3): per esempio
+#   make RPATH='$$ORIGIN/lib'
+# Vuota per chi compila contro la FreeRDP del sistema (Fedora, install.sh).
+RPATH ?=
+ifneq ($(strip $(RPATH)),)
+LDFLAGS += -Wl,-rpath,'$(RPATH)' -Wl,--enable-new-dtags
+endif
 PKGS = freerdp3 freerdp-client3 winpr3
 CPPFLAGS += $(shell pkg-config --cflags $(PKGS))
 LDLIBS += $(shell pkg-config --libs $(PKGS)) -pthread

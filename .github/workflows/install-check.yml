@@ -3,10 +3,11 @@
 name: Verifica installazione
 
 # Installa FedTermHub come lo installa un utente: dal sito pubblicato, con il comando del README, su
-# un Fedora pulito. Controlla che dnf accetti firme e metadati, che arrivi l'ultima versione
-# rilasciata, che il programma si avvii davvero e che --remove lasci il sistema pulito.
-# La CI prova i sorgenti, questo prova quello che arriva agli utenti: gira dopo ogni rilascio e
-# ogni lunedi', cosi' un sito o un repository rotto si scopre prima che lo segnali qualcuno.
+# ogni distribuzione supportata appena installata. Controlla che apt, dnf e zypper accettino firme e
+# metadati, che arrivi l'ultima versione rilasciata, che il programma si avvii davvero, che il motore
+# RDP si colleghi a un server e che --remove lasci il sistema pulito.
+# La CI prova i sorgenti, questo prova quello che arriva agli utenti: gira dopo ogni rilascio e ogni
+# lunedì, così un sito o un repository rotto si scopre prima che lo segnali qualcuno.
 on:
   workflow_run:
     workflows: [Rilascio, Pubblicazione automatica]
@@ -16,100 +17,65 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [.github/workflows/install-check.yml]
+    paths: [.github/workflows/install-check.yml, packaging/ci-install-test.sh]
 
 permissions:
   contents: read
 
 jobs:
-  install:
-    name: Installazione da setup.sh su Fedora ${{ matrix.fedora }}
+  latest:
+    name: Ultima versione rilasciata
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        fedora: ['43', '44']
-    container: fedora:${{ matrix.fedora }}
-    defaults:
-      run:
-        shell: bash
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      site: ${{ steps.release.outputs.site }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Indirizzi e ultima versione rilasciata
+      - id: release
         run: |
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          echo "SITE_URL=https://$owner.github.io/${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
-          latest=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest" \
-            | sed -n 's/^ *"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p')
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name' | sed 's/^v//')
           test -n "$latest" || { echo "::error title=Release::nessuna release pubblicata"; exit 1; }
-          echo "LATEST=$latest" >> "$GITHUB_ENV"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+          echo "site=https://$owner.github.io/${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
           echo "ultima release: $latest"
 
-      - name: Installazione con il comando del README
+  install:
+    name: ${{ matrix.image }} ${{ matrix.arch }}
+    needs: latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: 'fedora:43', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'fedora:44', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'debian:12', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'debian:13', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'ubuntu:22.04', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'ubuntu:24.04', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'almalinux:9', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'almalinux:10', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'opensuse/tumbleweed', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'opensuse/leap:16.0', arch: x86_64, runner: ubuntu-24.04 }
+          - { image: 'fedora:44', arch: aarch64, runner: ubuntu-24.04-arm }
+          - { image: 'ubuntu:24.04', arch: aarch64, runner: ubuntu-24.04-arm }
+          - { image: 'almalinux:9', arch: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    steps:
+      - name: Preparazione del container
+        shell: sh
         run: |
-          curl -fsSL "$SITE_URL/setup.sh" -o /tmp/setup.sh
-          sh /tmp/setup.sh 2>&1 | tee /tmp/setup.log
-          test "${PIPESTATUS[0]}" = 0 || {
-            echo "::error title=setup.sh::installazione fallita su Fedora ${{ matrix.fedora }}%0A$(tail -25 /tmp/setup.log | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"
-            exit 1
-          }
-
-      - name: Firme, versione e integrita' del pacchetto
-        run: |
-          repo=/etc/yum.repos.d/fedtermhub.repo
-          grep -qx 'gpgcheck=1' "$repo" || { echo "::error title=Repository::gpgcheck non attivo in $repo"; exit 1; }
-          grep -qx 'repo_gpgcheck=1' "$repo" || { echo "::error title=Repository::repo_gpgcheck non attivo in $repo"; exit 1; }
-          installed=$(rpm -q --qf '%{VERSION}' fedtermhub)
-          if [ "$installed" != "$LATEST" ]; then
-            echo "::error title=Versione::il repository installa $installed ma l'ultima release e' $LATEST: il sito non e' stato aggiornato"
-            exit 1
-          fi
-          # dnf con gpgcheck=1 rifiuta gia' un pacchetto senza firma valida: qui si mostra quale chiave
-          # l'ha firmato, per confrontarla con l'impronta pubblicata sul sito.
-          sig=$(rpm -qi fedtermhub | sed -n 's/^Signature *: *//p')
-          echo "firma: ${sig:-(non mostrata da questa versione di rpm)}"
-          case "$sig" in *"(none)"*) echo "::error title=Firma::pacchetto installato senza firma"; exit 1;; esac
-          rpm -V fedtermhub && echo "file del pacchetto integri"
-          echo "::notice title=Fedora ${{ matrix.fedora }}::installata la $(rpm -q fedtermhub) dal sito, firme e metadati verificati da dnf"
-
-      - name: Il programma si avvia
-        run: |
-          fedtermhub --doctor-strict | tee /tmp/doctor.txt
-          dnf -y -q install xorg-x11-server-Xvfb xdotool dbus-daemon
-          Xvfb :99 -screen 0 1280x800x24 > /dev/null 2>&1 &
-          export DISPLAY=:99
-          cat > /tmp/avvio.sh <<'EOF'
-          fedtermhub > /tmp/app.log 2>&1 &
-          pid=$!
-          for _ in $(seq 1 40); do
-            if xdotool search --name "^FedTermHub $LATEST\$" > /dev/null 2>&1; then
-              echo "finestra principale aperta: FedTermHub $LATEST"
-              kill "$pid"; exit 0
-            fi
-            kill -0 "$pid" 2> /dev/null || break
-            sleep 0.5
-          done
-          kill "$pid" 2> /dev/null
-          exit 1
-          EOF
-          if ! dbus-run-session -- bash /tmp/avvio.sh; then
-            echo "::error title=Avvio::la finestra «FedTermHub $LATEST» non si e' aperta%0A$(tail -25 /tmp/app.log | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"
-            exit 1
-          fi
-          if grep -q Traceback /tmp/app.log; then
-            echo "::error title=Avvio::eccezione Python all'avvio%0A$(sed 's/%/%25/g' /tmp/app.log | tail -25 | awk 'BEGIN{ORS="%0A"} {print}')"
-            exit 1
+          if command -v apt-get > /dev/null; then apt-get update -q && apt-get install -y -q tar gzip bash > /dev/null
+          elif command -v zypper > /dev/null; then zypper --non-interactive -q install tar gzip bash gawk
+          elif command -v dnf > /dev/null; then dnf -y -q install tar gzip bash findutils
           fi
 
-      - name: Aggiornamento e rimozione
-        run: |
-          dnf -y upgrade --refresh fedtermhub
-          sh /tmp/setup.sh --remove
-          if rpm -q fedtermhub > /dev/null || [ -e /etc/yum.repos.d/fedtermhub.repo ]; then
-            echo "::error title=Rimozione::setup.sh --remove ha lasciato il pacchetto o il repository"
-            exit 1
-          fi
-          echo "rimozione pulita"
+      # Dal repository servono solo lo script delle prove e la sonda del motore RDP.
+      - uses: actions/checkout@v7
+
+      - name: Installazione con il comando del README e prove
+        shell: bash
+        run: packaging/ci-install-test.sh --site "${{ needs.latest.outputs.site }}" --version "${{ needs.latest.outputs.version }}"
