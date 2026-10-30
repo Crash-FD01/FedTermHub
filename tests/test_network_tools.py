@@ -148,10 +148,11 @@ def main() -> int:
         # --- port scanner
         created = []
         scanner = nt.PortScannerPage(window, lambda proto, host, port="": created.append((proto, host, port)))
-        scanner.target.set_text("-oN/tmp/fedtermhub-x")
-        scanner.scan(None)
-        assert messages and messages[-1][0] == "Destinazione non valida", messages
         if shutil.which("nmap"):
+            # Senza nmap la scansione si ferma prima, con "Nmap non installato".
+            scanner.target.set_text("-oN/tmp/fedtermhub-x")
+            scanner.scan(None)
+            assert messages and messages[-1][0] == "Destinazione non valida", messages
             scanner.target.set_text("127.0.0.1")
             scanner.profile.set_active_id("custom")
             scanner.ports.set_text(str(service.port))
