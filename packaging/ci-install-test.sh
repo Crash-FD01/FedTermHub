@@ -60,22 +60,47 @@ pkg() {  # installa pacchetti di servizio per i controlli
 }
 
 # ------------------------------------------------------------------ strumenti per i controlli
+# Uno alla volta: un nome che in questa distribuzione non esiste non deve bloccare gli altri.
+tools() { local name; for name in "$@"; do pkg "$name" > /dev/null 2>&1 || echo "  (non disponibile: $name)"; done; }
 case "$family" in
     deb)
-        apt-get update -q
-        pkg curl ca-certificates xvfb xauth xdotool dbus dbus-x11 procps openssl python3 > /dev/null
+        apt-get update -q > /dev/null
+        tools curl ca-certificates xvfb xauth xdotool dbus dbus-x11 procps openssl python3
         ;;
     rpm-dnf)
-        if [[ "$ID" != fedora ]]; then dnf -y -q install epel-release > /dev/null 2>&1 || true; fi
-        pkg curl xorg-x11-server-Xvfb xorg-x11-xauth dbus-daemon procps-ng openssl python3 > /dev/null
-        pkg xdotool > /dev/null 2>&1 || echo "xdotool non disponibile: controllo della finestra semplificato"
+        if [[ "$ID" != fedora ]]; then
+            dnf -y -q install epel-release > /dev/null 2>&1 || true
+            dnf config-manager --set-enabled crb > /dev/null 2>&1 || true
+        fi
+        tools curl xorg-x11-server-Xvfb xorg-x11-xauth xauth dbus-daemon dbus-tools procps-ng openssl python3 xdotool
         ;;
     rpm-zypper)
-        pkg curl xvfb-run xorg-x11-server xauth dbus-1 procps openssl python3 > /dev/null
-        pkg xdotool > /dev/null 2>&1 || echo "xdotool non disponibile: controllo della finestra semplificato"
+        tools curl xvfb-run xorg-x11-server xorg-x11-server-Xvfb xauth dbus-1 dbus-1-daemon procps openssl python3 xdotool
         ;;
     *) fail "Distribuzione" "famiglia non riconosciuta: ID=$ID ID_LIKE=${ID_LIKE:-}"; exit 1 ;;
 esac
+
+# xvfb-run dove c'è; altrimenti (RHEL 10 ha solo Xvfb, o niente) lo stesso a mano.
+xvfb() {  # xvfb comando argomenti...
+    if command -v xvfb-run > /dev/null; then
+        xvfb-run -a -s "-screen 0 1400x900x24" "$@"
+    elif command -v Xvfb > /dev/null; then
+        local display=":$((90 + RANDOM % 9))" xpid status
+        Xvfb "$display" -screen 0 1400x900x24 -nolisten tcp > /dev/null 2>&1 &
+        xpid=$!
+        sleep 1
+        DISPLAY="$display" "$@"
+        status=$?
+        kill "$xpid" 2> /dev/null
+        return $status
+    else
+        echo "Xvfb non disponibile in questa distribuzione"
+        return 127
+    fi
+}
+HAVE_X=1
+command -v xvfb-run > /dev/null || command -v Xvfb > /dev/null || HAVE_X=0
+[[ $HAVE_X -eq 1 ]] || annotate warning "Xvfb" "nessun server X virtuale installabile: provati solo doctor e motore RDP senza finestra"
 
 # ------------------------------------------------------------------ installazione
 if [[ "$MODE" == site ]]; then
@@ -122,7 +147,8 @@ if [[ "$MODE" == site && "$family" != deb ]]; then
 fi
 
 # ------------------------------------------------------------------ il programma parte
-if ! xvfb-run -a fedtermhub --doctor-strict > /tmp/doctor.txt 2>&1; then
+if [[ $HAVE_X -eq 1 ]]; then doctor() { xvfb fedtermhub --doctor-strict; }; else doctor() { fedtermhub --doctor-strict; }; fi
+if ! doctor > /tmp/doctor.txt 2>&1; then
     fail "Doctor" /tmp/doctor.txt
 fi
 grep -E "Distribuzione|GTK/VTE|helper libfreerdp|Python:" /tmp/doctor.txt || true
@@ -145,11 +171,15 @@ done
 kill "$pid" 2> /dev/null
 exit 1
 EOF
-if ! xvfb-run -a -s "-screen 0 1280x800x24" dbus-run-session -- bash /tmp/avvio.sh; then
-    fail "Avvio" /tmp/app.log
-fi
-if grep -q Traceback /tmp/app.log; then
-    fail "Eccezione all'avvio" /tmp/app.log
+if [[ $HAVE_X -eq 1 ]]; then
+    runner=(bash /tmp/avvio.sh)
+    command -v dbus-run-session > /dev/null && runner=(dbus-run-session -- bash /tmp/avvio.sh)
+    if ! xvfb "${runner[@]}"; then
+        fail "Avvio" "$(cat /tmp/app.log 2> /dev/null | tail -30)"
+    fi
+    if grep -q Traceback /tmp/app.log 2> /dev/null; then
+        fail "Eccezione all'avvio" /tmp/app.log
+    fi
 fi
 
 # ------------------------------------------------------------------ il motore RDP si collega
@@ -180,13 +210,15 @@ elif pkg xrdp > /tmp/xrdp-install.log 2>&1; then
     kill "$xrdp_pid" 2> /dev/null || true
 else
     annotate warning "Motore RDP" "xrdp non disponibile qui: provato solo l'avvio del motore. $(tail -3 /tmp/xrdp-install.log)"
-    "$HELPER" --help 2>&1 | grep -q -- --config-fd || fail "Motore RDP" "il motore non parte: $("$HELPER" --help 2>&1 | tail -3)"
+    usage="$("$HELPER" --help 2>&1)"   # senza argomenti validi stampa l'uso ed esce con errore
+    grep -q -- --config-fd <<< "$usage" || fail "Motore RDP" "il motore non parte: $usage"
 fi
 
 # ------------------------------------------------------------------ test dei sorgenti con il GTK della distribuzione
 if [[ $SOURCE_TESTS -eq 1 ]]; then
     for t in test_core test_distro test_i18n test_vault_ui test_ui_behaviours test_home_session_ui test_revisione; do
-        if xvfb-run -a -s "-screen 0 1400x900x24" python3 "tests/$t.py" > "/tmp/$t.log" 2>&1; then
+        [[ $HAVE_X -eq 1 ]] || break
+        if xvfb python3 "tests/$t.py" > "/tmp/$t.log" 2>&1; then
             echo "  OK $t"
         else
             fail "Test $t" "/tmp/$t.log"
