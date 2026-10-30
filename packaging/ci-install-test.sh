@@ -166,14 +166,18 @@ grep -E "Distribuzione|GTK/VTE|helper libfreerdp|Python:" /tmp/doctor.txt || tru
 cat > /tmp/avvio.sh <<'EOF'
 fedtermhub > /tmp/app.log 2>&1 &
 pid=$!
-for _ in $(seq 1 60); do
-    if command -v xdotool > /dev/null; then
+# Con X11 (Xvfb) si cerca la finestra con xdotool; su Wayland (mutter senza schermo) xdotool non
+# vede le finestre: basta che il programma resti in vita 12 secondi senza eccezioni.
+use_xdotool=no
+if command -v xdotool > /dev/null && [ -z "${WAYLAND_DISPLAY:-}" ]; then use_xdotool=yes; fi
+for i in $(seq 1 60); do
+    if [ "$use_xdotool" = yes ]; then
         if xdotool search --name "^FedTermHub " > /dev/null 2>&1; then
             echo "finestra aperta: $(xdotool search --name '^FedTermHub ' getwindowname 2> /dev/null | head -1)"
             kill "$pid"; exit 0
         fi
-    elif [ "$_" -ge 24 ]; then
-        kill -0 "$pid" 2> /dev/null && { echo "in esecuzione da 12 secondi"; kill "$pid"; exit 0; }
+    elif [ "$i" -ge 24 ]; then
+        if kill -0 "$pid" 2> /dev/null; then echo "in esecuzione da 12 secondi"; kill "$pid"; exit 0; fi
     fi
     kill -0 "$pid" 2> /dev/null || break
     sleep 0.5
