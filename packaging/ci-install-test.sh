@@ -203,7 +203,8 @@ elif pkg xrdp > /tmp/xrdp-install.log 2>&1; then
         sleep 0.5
     done
     if python3 tests/rdp_engine_probe.py "$HELPER" 127.0.0.1 > /tmp/probe.txt 2>&1; then
-        annotate notice "Motore RDP" "$(cat /tmp/probe.txt) — $(cat /usr/share/doc/fedtermhub-rdp/BUNDLED-COMPONENTS.txt 2> /dev/null | grep -m1 '^FreeRDP' || echo 'FreeRDP del sistema')"
+        # (le immagini dei container spesso escludono /usr/share/doc: la libreria usata la dice ldd)
+        annotate notice "Motore RDP" "$(cat /tmp/probe.txt) — $(ldd "$HELPER" | awk '/libfreerdp3/{print $3}')"
     else
         fail "Motore RDP" "$(cat /tmp/probe.txt; echo; tail -10 /tmp/xrdp.log)"
     fi
