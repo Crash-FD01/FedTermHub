@@ -67,14 +67,17 @@ jobs:
   # lo spec stia in piedi, che il binario C compili con gli hardening flag
   # della distribuzione e che i test con GTK passino sotto Xvfb.
   rpm:
-    name: Build RPM su Fedora ${{ matrix.fedora }}
-    runs-on: ubuntu-24.04
+    name: Build RPM su Fedora ${{ matrix.fedora }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         # Le versioni di Fedora supportate: la piu' vecchia e' quella su cui
-        # vengono costruiti i pacchetti di release.
-        fedora: ['43', '44']
+        # vengono costruiti i pacchetti di release (x86_64 e aarch64).
+        include:
+          - { fedora: '43', arch: x86_64, runner: ubuntu-24.04 }
+          - { fedora: '44', arch: x86_64, runner: ubuntu-24.04 }
+          - { fedora: '43', arch: aarch64, runner: ubuntu-24.04-arm }
     container: fedora:${{ matrix.fedora }}
     steps:
       - uses: actions/checkout@v7
@@ -153,6 +156,6 @@ jobs:
       - name: Pubblica gli RPM come artefatto
         uses: actions/upload-artifact@v7
         with:
-          name: rpm-fedora${{ matrix.fedora }}
+          name: rpm-fedora${{ matrix.fedora }}-${{ matrix.arch }}
           path: ~/rpmbuild/RPMS/*/*.rpm
           if-no-files-found: error

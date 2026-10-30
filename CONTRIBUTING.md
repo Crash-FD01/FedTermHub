@@ -11,7 +11,7 @@ differenza.
 Apri una [issue](https://github.com/Crash-FD01/FedTermHub/issues) indicando:
 
 - la versione (`rpm -q fedtermhub`, oppure quella mostrata nella barra di stato);
-- la versione di Fedora e se usi Wayland o X11 (`echo $XDG_SESSION_TYPE`);
+- la distribuzione e la versione (`fedtermhub --doctor` le stampa) e se usi Wayland o X11 (`echo $XDG_SESSION_TYPE`);
 - cosa hai fatto, cosa ti aspettavi e cosa è successo invece;
 - per i problemi del terminale, l'output di **Diagnostica terminale** (menu
   contestuale del terminale);
@@ -23,13 +23,11 @@ RDP maschera già la password, ma controlla prima di pubblicarlo.
 ## Preparare l'ambiente
 
 ```bash
-sudo dnf install python3-gobject python3-cairo gtk3 vte291 \
-    python3-cryptography python3-defusedxml \
-    freerdp-devel libwinpr-devel gcc make pkgconf-pkg-config
 git clone https://github.com/Crash-FD01/FedTermHub
 cd FedTermHub
-make -C native
-FEDTERMHUB_RDP_NATIVE_HELPER="$PWD/native/fedtermrdp-native" \
+./install.sh            # dipendenze con dnf/apt/zypper/pacman e motore RDP compilato
+# poi, per provare le modifiche direttamente dai sorgenti:
+FEDTERMHUB_RDP_NATIVE_HELPER="$HOME/.local/libexec/fedtermhub/fedtermrdp-native" \
     python3 fedtermhub/fedtermhub.py
 ```
 
@@ -125,13 +123,28 @@ Per ogni versione successiva:
    file si ferma con un errore e non crea niente. Unire modifiche senza
    cambiare versione non pubblica nulla.
    Il tag a mano funziona ancora: `git tag -a vX.Y.Z -m "FedTermHub X.Y.Z" && git push origin vX.Y.Z`.
-4. *Rilascio* costruisce gli RPM su Fedora 43, li firma, pubblica la release
-   con `SHA256SUMS` firmato e aggiorna repository dnf e sito. Chi ha
-   installato con `setup.sh` riceve l'aggiornamento con `sudo dnf upgrade`.
+4. *Rilascio* costruisce gli RPM per Fedora su Fedora 43 e, con
+   *Pacchetti per le altre distribuzioni*, i `.deb` e gli `.rpm` universali su
+   AlmaLinux 9 (la glibc più vecchia fra quelle supportate), con FreeRDP 3
+   inclusa nel motore RDP; x86_64 e aarch64. Li firma, pubblica la release con
+   `SHA256SUMS` firmato e aggiorna i repository (dnf per Fedora, dnf/zypper per
+   RHEL e openSUSE, APT) e il sito. Chi ha installato con `setup.sh` riceve
+   l'aggiornamento con `apt`, `dnf` o `zypper`.
 5. Subito dopo, il workflow *Verifica installazione* installa la nuova versione
-   dal sito su Fedora 43 e 44 puliti, con lo stesso comando del README, e
-   controlla firme, versione, avvio e rimozione. Gira anche ogni lunedì: se
+   dal sito su Fedora, Debian, Ubuntu, AlmaLinux e openSUSE puliti, con lo
+   stesso comando del README, e controlla firme, versione, avvio, motore RDP
+   (collegato a un xrdp locale) e rimozione. Gira anche ogni lunedì: se
    diventa rosso, il problema lo vedono gli utenti.
+
+Le pull request che toccano programma o pacchetti costruiscono gli stessi
+pacchetti universali e li installano su ogni distribuzione supportata, dove
+girano anche alcuni test dei sorgenti con il GTK e il Python di quella
+distribuzione (`packaging/ci-install-test.sh`).
+
+**FreeRDP inclusa.** La versione sta in `packaging/build-freerdp.sh`, con il suo
+SHA-256. Quando FreeRDP pubblica una correzione di sicurezza: aggiorna
+versione e SHA-256 (quello del file `.sha256` accanto all'archivio sulla pagina
+della release di FreeRDP) e pubblica una nuova versione di FedTermHub.
 
 `.copr/Makefile` permette in alternativa di costruire su
 [Copr](https://copr.fedorainfracloud.org) con il metodo "Make SRPM".

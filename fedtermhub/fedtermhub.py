@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Crash
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-FedTermHub - gestore integrato di sessioni remote per Fedora Workstation.
+FedTermHub - gestore integrato di sessioni remote per Linux (Fedora, RHEL, Debian, Ubuntu, openSUSE…).
 
 Novita' della serie 0.9 (lo storico di ogni rilascio e' nel %changelog di fedtermhub.spec):
 - clipboard RDP bidirezionale anche per i FILE: copiando file dentro la sessione
@@ -88,15 +88,17 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 try:
     from .i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
     from .i18n import detect_language as i18n_detect, original, tr, trn
+    from . import distro
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
     from i18n import detect_language as i18n_detect, original, tr, trn
+    import distro  # type: ignore[no-redef]
 
 # La versione si scrive solo qui (e in fedtermhub.spec e nel metainfo): tests/test_versions.py
 # controlla che coincidano. Sta in cima perche' il doctor la stampa anche quando GTK non si carica.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.9.11"
+APP_VERSION = "0.9.12"
 
 RAW_ARGV = sys.argv[:]
 DOCTOR_MODE = "--doctor" in RAW_ARGV or "--doctor-strict" in RAW_ARGV
@@ -122,13 +124,14 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
     print("=" * len(title))
     print(tr("Python: {v}  ({executable})").format(v=sys.version.split()[0], executable=sys.executable))
     print(tr("Sistema: {platform}").format(platform=platform.platform()))
+    print(tr("Distribuzione: {name} (pacchetti: {family})").format(name=distro.pretty_name(), family=distro.family()))
     print(tr("Desktop: XDG_SESSION_TYPE={get}  XDG_CURRENT_DESKTOP={get2}  GDK_BACKEND={get3}").format(get=os.environ.get('XDG_SESSION_TYPE', '-'), get2=os.environ.get('XDG_CURRENT_DESKTOP', '-'), get3=os.environ.get('GDK_BACKEND', '-')))
     print(tr("Display: DISPLAY={get}  WAYLAND_DISPLAY={get2}").format(get=os.environ.get('DISPLAY', '-'), get2=os.environ.get('WAYLAND_DISPLAY', '-')))
     print(tr("Safe mode: {v}").format(v='ON' if SAFE_MODE else 'OFF'))
     print()
     if import_error is not None:
         print(tr("GTK/VTE import: ERRORE - {import_error}").format(import_error=import_error))
-        print(tr("Installa le dipendenze Fedora: sudo dnf install python3-gobject gtk3 vte291"))
+        print(tr("Installa le dipendenze: {command}").format(command=distro.install_command("python3-gobject", "gtk3", "vte291")))
     else:
         print(tr("GTK/VTE import: OK"))
     checks = [
@@ -145,7 +148,7 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
         ("ip", "iproute"),
         ("ss", "iproute"),
         ("getent", "glibc-common"),
-        ("nmcli", tr("NetworkManager")),
+        ("nmcli", "NetworkManager"),
         ("sshd", "openssh-server"),
         ("vsftpd", "vsftpd"),
         ("in.tftpd", "tftp-server"),
@@ -167,10 +170,11 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
     print(tr("Binari esterni:"))
     for binary, pkg in checks:
         path = shutil.which(binary)
-        print(f"  {binary:<10} {'OK ' + path if path else tr('MANCANTE  (pacchetto: {pkg})').format(pkg=pkg)}")
+        print(f"  {binary:<10} {'OK ' + path if path else tr('MANCANTE  (pacchetto: {pkg})').format(pkg=distro.package_name(pkg) or '-')}")
     print()
     print(tr("Backend RDP nativo:"))
     native_status_fn = globals().get("native_backend_status")
+    native_ok = False
     if native_status_fn:
         try:
             native_ok, native_detail = native_status_fn()
@@ -188,12 +192,14 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
     print(tr("  rendering Cairo: {v}").format(v='OK' if cairo_ok else tr('MANCANTE (python3-cairo)')))
     core_ok = core_ok and bool(native_status_fn) and bool(native_ok) and memfd_ok and cairo_ok
     pkg = shutil.which("pkg-config")
-    if pkg:
+    # Le librerie di sviluppo servono solo a chi compila il motore dai sorgenti (install.sh): con i
+    # pacchetti il motore e' gia' compilato e la riga confonderebbe.
+    if pkg and not native_ok:
         probe = subprocess.run(
             [pkg, "--exists", "freerdp3", "freerdp-client3", "winpr3"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
         )
-        print(tr("  librerie di sviluppo: {v}").format(v='OK' if probe.returncode == 0 else tr('MANCANTI (freerdp-devel libwinpr-devel)')))
+        print(tr("  librerie di sviluppo: {v}").format(v='OK' if probe.returncode == 0 else tr('MANCANTI ({packages})').format(packages=distro.package_name("freerdp-devel") or "freerdp-devel")))
 
     try:
         __import__("winrm")
@@ -243,7 +249,7 @@ except Exception as exc:  # pragma: no cover - dipendenza runtime
         raise SystemExit(0 if doctor_ok or not DOCTOR_STRICT else 1)
     print(tr("FedTermHub: impossibile caricare GTK/VTE."), file=sys.stderr)
     print(tr("Errore: {exc}").format(exc=exc), file=sys.stderr)
-    print(tr("Su Fedora installa: sudo dnf install python3-gobject gtk3 vte291"), file=sys.stderr)
+    print(tr("Installa le dipendenze: {command}").format(command=distro.install_command("python3-gobject", "gtk3", "vte291")), file=sys.stderr)
     raise SystemExit(2)
 
 NATIVE_RDP_IMPORT_ERROR: Optional[BaseException] = None
@@ -6436,7 +6442,7 @@ class SessionDialog(Gtk.Dialog):
 
         # Locale
         page, grid = self.protocol_page(tr("Terminale locale"), tr("Apre la shell locale predefinita dentro una nuova tab."))
-        local_info = Gtk.Label(label=tr("Nessun host, utente o password richiesti. Usa questa sessione come terminale Fedora locale."), xalign=0)
+        local_info = Gtk.Label(label=tr("Nessun host, utente o password richiesti. Usa questa sessione come terminale locale."), xalign=0)
         local_info.set_line_wrap(True)
         grid.attach(local_info, 0, 0, 2, 1)
         self.stack.add_named(page, "local")
@@ -6529,8 +6535,8 @@ class SessionDialog(Gtk.Dialog):
             "vnc": tr("VNC: TigerVNC normalmente richiede la password nella sua finestra; il Password Manager resta utile per ricordarla."),
             "sftp": tr("SFTP: apre il client sftp nel terminale. Password automatica solo se sshpass è disponibile."),
             "telnet": tr("Telnet: login e password si scrivono nel terminale, il collegamento non è cifrato. Ctrl+] e poi quit per uscire."),
-            "serial": tr("Seriale: scegli una porta rilevata oppure scrivila manualmente. Se non hai permessi, aggiungi l'utente al gruppo dialout/uucp a seconda della distro."),
-            "local": tr("Terminale locale: apre la shell predefinita di Fedora."),
+            "serial": tr("Seriale: scegli una porta rilevata oppure scrivila manualmente. Se non hai i permessi, aggiungi il tuo utente al gruppo {group}: sudo usermod -aG {group} $USER (poi esci e rientra).").format(group=distro.serial_group()),
+            "local": tr("Terminale locale: apre la shell predefinita del sistema."),
             "command": tr("Comando: utile per scorciatoie come ping, tail, journalctl o script ricorrenti."),
         }
         self.help_text.set_text(help_by_proto.get(proto, ""))
@@ -9618,7 +9624,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.status = Gtk.Label(label=tr("Pronto."), xalign=0)
         self.status.set_ellipsize(Pango.EllipsizeMode.END)
         footer.pack_start(self.status, True, True, 6)
-        version = Gtk.Label(label=tr("{APP_NAME} {APP_VERSION}  •  Fedora workstation tools").format(APP_NAME=APP_NAME, APP_VERSION=APP_VERSION) + (tr("  •  SAFE MODE") if SAFE_MODE else ""))
+        version = Gtk.Label(label=tr("{APP_NAME} {APP_VERSION}  •  Linux workstation tools").format(APP_NAME=APP_NAME, APP_VERSION=APP_VERSION) + (tr("  •  SAFE MODE") if SAFE_MODE else ""))
         version.get_style_context().add_class("footer-version")
         footer.pack_start(version, False, False, 8)
         root.pack_start(footer, False, False, 0)
@@ -9689,7 +9695,8 @@ class AppWindow(Gtk.ApplicationWindow):
             ("qemu-img", "qemu-img"),
         ]:
             path = shutil.which(binary)
-            lines.append(f"  {binary:<10} {'OK  ' + path if path else tr('MANCANTE') + '  sudo dnf install ' + pkg}")
+            hint = distro.install_command(pkg) or tr("non disponibile su questa distribuzione")
+            lines.append(f"  {binary:<10} {'OK  ' + path if path else tr('MANCANTE') + '  ' + hint}")
         lines.append("")
         lines.append(tr("Bridge focus X11: {v}").format(v='OK' if X11FocusBridge._load() else tr('NON DISPONIBILE')))
         lines.append("")
@@ -9885,7 +9892,7 @@ class AppWindow(Gtk.ApplicationWindow):
         outer.pack_start(title, False, False, 0)
         text = Gtk.Label(
             label=(
-                tr("Gestore integrato di terminali e connessioni remote per Fedora.\n\n"
+                tr("Gestore integrato di terminali e connessioni remote per Linux.\n\n"
                 "Funzioni: SSH, RDP integrato con focus tastiera, VNC, SFTP, seriale, Password Manager cifrato, tunnel SSH, split terminal e MultiExec.\n\n"
                 "Configurazione locale: ~/.config/fedtermhub")
             ),
@@ -10787,7 +10794,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if password:
             sshpass = shutil.which("sshpass")
             if not sshpass:
-                raise RuntimeError(tr("sshpass non installato: sudo dnf install sshpass"))
+                raise RuntimeError(tr("sshpass non installato: {command}").format(command=distro.install_command("sshpass")))
             argv = [sshpass, "-e"] + argv
             env["SSHPASS"] = password
         return argv, env
@@ -10824,7 +10831,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if password:
             sshpass = shutil.which("sshpass")
             if not sshpass:
-                raise RuntimeError(tr("sshpass non installato: sudo dnf install sshpass"))
+                raise RuntimeError(tr("sshpass non installato: {command}").format(command=distro.install_command("sshpass")))
             argv = [sshpass, "-e"] + argv
             env["SSHPASS"] = password
         return argv, env
@@ -12244,7 +12251,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if self.vault.unlocked:
             return True
         if not CRYPTO_AVAILABLE:
-            self.set_status(tr("python3-cryptography non installato. Installa: sudo dnf install python3-cryptography"))
+            self.set_status(tr("python3-cryptography non installato. Installa: {command}").format(command=distro.install_command("python3-cryptography")))
             return False
         creating = not self.vault.exists()
         if creating and not create_if_missing:
@@ -13211,7 +13218,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 argv = [sshpass, "-e"] + argv
                 env["SSHPASS"] = password
             else:
-                self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: sudo dnf install sshpass"))
+                self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: {command}").format(command=distro.install_command("sshpass")))
         if sess.port:
             argv += ["-p", sess.port]
         target = sess.host
@@ -13230,7 +13237,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self.report_session_error(
                 tr("Client Telnet non installato"),
                 tr("Per le sessioni Telnet serve il client telnet."),
-                tr("Installa: sudo dnf install telnet"),
+                tr("Installa: {command}").format(command=distro.install_command("telnet")),
             )
             return
         # "--" come per ssh: un host che comincia con "-" non diventa un'opzione.
@@ -13470,7 +13477,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self.report_session_error(
                 tr("Gestione sessioni Windows non disponibile"),
                 tr("Il modulo grafico WinRM non è stato caricato."),
-                tr("{v}\nSu Fedora: sudo dnf install python3-winrm").format(v=WINDOWS_SESSIONS_IMPORT_ERROR or tr('Installa python3-winrm')),
+                tr("{v}\nInstalla: {command}").format(v=WINDOWS_SESSIONS_IMPORT_ERROR or tr('Modulo python3-winrm mancante'), command=distro.install_command("python3-winrm")),
             )
             return
         try:
@@ -13765,13 +13772,24 @@ class AppWindow(Gtk.ApplicationWindow):
                         )
                         GLib.idle_add(tab.request_start)
                 return False
-            self.report_session_error(
-                tr("Backend RDP nativo non disponibile"),
-                native_detail,
-                tr("Reinstalla FedTermHub per ricompilare il componente nativo. "
-                "Puoi selezionare manualmente la modalità legacy solo per diagnosi."),
-            )
-            return False
+            # Motore nativo assente o rotto (pacchetto fedtermhub-rdp tolto a mano, installazione dai
+            # sorgenti non completata). In una sessione X11 si ripiega su xfreerdp incorporato invece
+            # di fermarsi; altrimenti si dice come rimetterlo.
+            legacy_binary = shutil.which("xfreerdp3") or shutil.which("xfreerdp")
+            if legacy_binary and is_x11_display():
+                self.show_notification(
+                    tr("Motore RDP nativo non installato: uso xfreerdp in modalità compatibile."), "warning", 5200
+                )
+                requested_rdp_mode = "legacy"
+            else:
+                install = distro.install_command("fedtermhub-rdp")
+                self.report_session_error(
+                    tr("Backend RDP nativo non disponibile"),
+                    native_detail,
+                    (tr("Installa il motore RDP nativo: {command}").format(command=install) if install
+                     else tr("Compila il motore RDP nativo dai sorgenti di FedTermHub con ./install.sh.")),
+                )
+                return False
         if requested_rdp_mode == "native" and NativeRdpTab is None:
             self.report_session_error(
                 tr("Modulo RDP nativo non caricato"),
@@ -13785,7 +13803,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self.report_session_error(
                 tr("FreeRDP non trovato"),
                 tr("RDP integrato richiede xfreerdp o xfreerdp3."),
-                tr("Installa: sudo dnf install freerdp xorg-x11-server-Xwayland"),
+                tr("Installa: {command}").format(command=distro.install_command("freerdp", "xorg-x11-server-Xwayland")),
             )
             return False
 
@@ -13929,7 +13947,7 @@ class AppWindow(Gtk.ApplicationWindow):
             return
         binary = shutil.which("vncviewer")
         if not binary:
-            self.set_status(tr("TigerVNC client non trovato. Installa: sudo dnf install tigervnc"))
+            self.set_status(tr("TigerVNC client non trovato. Installa: {command}").format(command=distro.install_command("tigervnc")))
             return
         _user, _domain, password = self.effective_identity(sess)
         target = vnc_target(sess.host, sess.port)
@@ -13961,7 +13979,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 prefix = [sshpass, "-e"]
                 env["SSHPASS"] = password
             else:
-                self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: sudo dnf install sshpass"))
+                self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: {command}").format(command=distro.install_command("sshpass")))
         target = sess.host if not user else f"{user}@{sess.host}"
         argv = prefix + [sftp_binary] + self.ssh_session_options()
         jump_spec = self.proxy_jump_spec(sess)

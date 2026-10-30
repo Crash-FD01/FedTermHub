@@ -20,8 +20,10 @@ from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple
 try:
     from .i18n import tr, trn
+    from . import distro
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import tr, trn
+    import distro  # type: ignore[no-redef]
 
 import gi
 
@@ -968,12 +970,12 @@ class NativeRdpTab(Gtk.Box):
         except Exception:
             pass
         self._append_log(
-            tr("[FedTermHub] Per incollare i FILE su Linux serve wl-clipboard (Wayland) oppure xclip (X11): installane uno con 'sudo dnf install wl-clipboard'. Percorsi: {plain}\n").format(plain=plain)
+            tr("[FedTermHub] Per incollare i FILE su Linux serve wl-clipboard (Wayland) oppure xclip (X11): installane uno con '{command}'. Percorsi: {plain}\n").format(command=distro.install_command("wl-clipboard"), plain=plain)
         )
         self._show_drop_toast(
             tr("Per incollare i file serve wl-clipboard: installalo con\n"
-            "sudo dnf install wl-clipboard\n"
-            "(intanto negli appunti trovi i percorsi come testo)."),
+            "{command}\n"
+            "(intanto negli appunti trovi i percorsi come testo).").format(command=distro.install_command("wl-clipboard")),
             seconds=12,
         )
 

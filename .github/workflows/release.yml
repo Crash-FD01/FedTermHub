@@ -5,12 +5,15 @@ name: Rilascio
 # Parte in tre modi: dal tag di versione (v0.9.09), dal workflow «Pubblicazione automatica» quando
 # su main arriva una versione nuova senza tag, oppure a mano (Actions → Rilascio → Run workflow).
 # Per il tag:
-#   1. costruisce RPM e pacchetto sorgente su Fedora 43, la versione supportata piu' vecchia, cosi'
-#      il pacchetto si installa anche sulle successive;
-#   2. firma i pacchetti con la chiave del progetto (secret FEDTERMHUB_GPG_PRIVATE_KEY, creato da
+#   1. costruisce gli RPM per Fedora (e il pacchetto sorgente) su Fedora 43, la versione supportata
+#      piu' vecchia, cosi' si installano anche sulle successive; x86_64 e aarch64;
+#   2. costruisce i pacchetti per le altre distribuzioni (packages.yml): .deb per Debian, Ubuntu e
+#      Mint, .rpm per RHEL/Alma/Rocky e openSUSE, con il motore RDP e la sua FreeRDP 3;
+#   3. firma i pacchetti con la chiave del progetto (secret FEDTERMHUB_GPG_PRIVATE_KEY, creato da
 #      packaging/github-setup.sh);
-#   3. pubblica la release con i pacchetti e SHA256SUMS firmato;
-#   4. aggiorna il repository dnf e il sito su GitHub Pages.
+#   4. pubblica la release con i pacchetti e SHA256SUMS firmato;
+#   5. aggiorna i repository (dnf per Fedora, dnf/zypper per RHEL e openSUSE, APT) e il sito su
+#      GitHub Pages.
 # Il tag deve corrispondere a Version dello spec, altrimenti il rilascio si ferma.
 on:
   push:
@@ -41,8 +44,15 @@ env:
 
 jobs:
   build:
-    name: Pacchetti RPM
-    runs-on: ubuntu-24.04
+    name: Pacchetti Fedora ${{ matrix.arch }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     container: fedora:43
     steps:
       - uses: actions/checkout@v7
@@ -70,8 +80,12 @@ jobs:
               -czf ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz .
           set -o pipefail
           rpmbuild -ba fedtermhub.spec 2>&1 | tee /tmp/rpmbuild.log
-          find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} dist/ \;
-          cp ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz dist/
+          find ~/rpmbuild/RPMS -name '*.rpm' -exec cp {} dist/ \;
+          # Sorgenti una volta sola: sono uguali per le due architetture.
+          if [ "${{ matrix.arch }}" = x86_64 ]; then
+            find ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} dist/ \;
+            cp ~/rpmbuild/SOURCES/fedtermhub-${VERSION}.tar.gz dist/
+          fi
           ls -l dist
 
       - name: Riepilogo dell'errore di build
@@ -83,14 +97,21 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: pacchetti
+          name: fedora-${{ matrix.arch }}
           path: dist/*
           if-no-files-found: error
           retention-days: 7
 
+  universal:
+    name: Altre distribuzioni
+    uses: ./.github/workflows/packages.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+      test: false
+
   publish:
     name: Pubblica release, repository e sito
-    needs: build
+    needs: [build, universal]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -106,13 +127,14 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: pacchetti
+          pattern: '{fedora,universali}-*'
           path: pkgs
+          merge-multiple: true
 
       - name: Strumenti
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q rpm createrepo-c
+          sudo apt-get install -y -q rpm createrepo-c apt-utils dpkg-dev
 
       - name: Chiave di firma
         env:
@@ -145,14 +167,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd pkgs
-          sha256sum -- *.rpm *.tar.gz > SHA256SUMS
+          sha256sum -- *.rpm *.deb *.tar.gz > SHA256SUMS
           gpg --batch --yes --local-user "$GPG_KEY_ID" --armor --detach-sign SHA256SUMS
-          notes="Installa o aggiorna: $SITE_URL — con il repository aggiunto, gli aggiornamenti arrivano con sudo dnf upgrade."
+          notes="Installa o aggiorna: $SITE_URL — un comando per Debian, Ubuntu, Mint, Fedora, RHEL/Alma/Rocky e openSUSE; con il repository aggiunto, gli aggiornamenti arrivano con apt, dnf o zypper."
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$TAG" -R "$GITHUB_REPOSITORY" -- *.rpm *.tar.gz SHA256SUMS SHA256SUMS.asc --clobber
+            gh release upload "$TAG" -R "$GITHUB_REPOSITORY" -- *.rpm *.deb *.tar.gz SHA256SUMS SHA256SUMS.asc --clobber
           else
             gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag --latest --title "FedTermHub ${TAG#v}" \
-              --notes "$notes" --generate-notes -- *.rpm *.tar.gz SHA256SUMS SHA256SUMS.asc
+              --notes "$notes" --generate-notes -- *.rpm *.deb *.tar.gz SHA256SUMS SHA256SUMS.asc
           fi
 
       - uses: actions/configure-pages@v6

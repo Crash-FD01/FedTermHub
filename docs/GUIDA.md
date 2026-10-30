@@ -21,16 +21,27 @@
 
 ### Con un comando (consigliato)
 
-Su **Fedora 43 o più recente** (x86_64) apri un terminale e incolla:
+Apri un terminale e incolla:
 
 ```bash
 curl -fsSL https://crash-fd01.github.io/FedTermHub/setup.sh | sudo sh
 ```
 
-Lo script aggiunge il repository firmato di FedTermHub e installa il pacchetto.
-Da lì gli aggiornamenti arrivano con `sudo dnf upgrade` (e con GNOME Software o
-Discover), insieme a quelli del sistema. Leggilo pure prima di eseguirlo: fa
-solo quello che c'è scritto.
+Funziona su:
+
+| Famiglia | Versioni | Gestore |
+|---|---|---|
+| Debian | 12, 13 e successive | apt |
+| Ubuntu e derivate (Linux Mint, Pop!_OS, Zorin, elementary…) | Ubuntu 22.04+, Mint 21+ | apt |
+| Fedora | 43 e successive, anche Silverblue, Kinoite e Bazzite | dnf, rpm-ostree |
+| RHEL, AlmaLinux, Rocky Linux, CentOS Stream | 9 e 10 | dnf |
+| openSUSE | Tumbleweed, Leap 16 | zypper |
+
+su x86_64 e ARM64 (aarch64). Lo script aggiunge il repository firmato di
+FedTermHub e installa il pacchetto; da lì gli aggiornamenti arrivano insieme a
+quelli del sistema (`sudo apt upgrade`, `sudo dnf upgrade`, `sudo zypper update`
+o il centro aggiornamenti del desktop). Leggilo pure prima di eseguirlo: fa solo
+quello che c'è scritto.
 
 Per toglierlo, insieme al repository:
 
@@ -40,7 +51,28 @@ curl -fsSL https://crash-fd01.github.io/FedTermHub/setup.sh | sudo sh -s -- --re
 
 Le tue sessioni restano in `~/.config/fedtermhub`.
 
+**Il motore RDP.** Fuori da Fedora il desktop remoto arriva con il pacchetto
+`fedtermhub-rdp`, che porta con sé la sua copia di FreeRDP 3 in
+`/usr/libexec/fedtermhub/lib`: Ubuntu 22.04, Mint 21 e RHEL 9 non hanno
+FreeRDP 3, e le altre distribuzioni ne hanno versioni diverse. Così il desktop
+remoto funziona allo stesso modo ovunque e la FreeRDP del sistema (quella di
+`xfreerdp`) non viene toccata. Gli aggiornamenti di sicurezza di FreeRDP
+arrivano con le versioni di FedTermHub. Su Fedora si usa la FreeRDP della
+distribuzione.
+
 ### A mano
+
+Debian, Ubuntu, Mint:
+
+```bash
+sudo install -d -m 755 /etc/apt/keyrings
+sudo curl -fsSL https://crash-fd01.github.io/FedTermHub/fedtermhub.asc -o /etc/apt/keyrings/fedtermhub.asc
+echo "deb [signed-by=/etc/apt/keyrings/fedtermhub.asc] https://crash-fd01.github.io/FedTermHub/apt ./" \
+  | sudo tee /etc/apt/sources.list.d/fedtermhub.list
+sudo apt update && sudo apt install fedtermhub
+```
+
+Fedora:
 
 ```bash
 sudo rpm --import https://crash-fd01.github.io/FedTermHub/fedtermhub.asc
@@ -51,40 +83,59 @@ sudo dnf install fedtermhub
 Sui sistemi immutabili (Silverblue, Kinoite, Bazzite): come sopra, poi
 `rpm-ostree install fedtermhub` e riavvia.
 
+RHEL, AlmaLinux, Rocky: come Fedora, ma con il file
+`https://crash-fd01.github.io/FedTermHub/fedtermhub-universal.repo`.
+
+openSUSE:
+
+```bash
+sudo rpm --import https://crash-fd01.github.io/FedTermHub/fedtermhub.asc
+sudo zypper addrepo --refresh https://crash-fd01.github.io/FedTermHub/fedtermhub-universal.repo
+sudo zypper install fedtermhub
+```
+
 ### Dalle release
 
-Ogni [release](https://github.com/Crash-FD01/FedTermHub/releases) contiene gli RPM,
-il tarball dei sorgenti e il file `SHA256SUMS` firmato. Installa con
-`sudo dnf install ./fedtermhub-*.rpm` (senza repository non ricevi gli
-aggiornamenti automatici).
+Ogni [release](https://github.com/Crash-FD01/FedTermHub/releases) contiene i
+pacchetti (`.deb`, `.rpm` per Fedora con `.fcNN` nel nome, `.rpm` per RHEL e
+openSUSE), il tarball dei sorgenti e il file `SHA256SUMS` firmato. Servono
+sempre due pacchetti fuori da Fedora: `fedtermhub` e `fedtermhub-rdp` della tua
+architettura. Senza repository non ricevi gli aggiornamenti automatici.
 
 ### Dai sorgenti
 
-Per altre distribuzioni, o per provare una versione in sviluppo:
+Per Arch, Manjaro, EndeavourOS e le distribuzioni senza pacchetti, o per
+provare una versione in sviluppo:
 
 ```bash
 git clone https://github.com/Crash-FD01/FedTermHub.git
 cd FedTermHub
-bash COMPILA-RPM.sh     # Fedora: costruisce e installa un RPM
-# oppure
-bash install.sh         # installa nella cartella utente, senza pacchetto
+./install.sh            # installa nella cartella utente, senza pacchetto
 ```
 
-`install.sh` usa `dnf` per le dipendenze; su altre distribuzioni lancialo con
-`--no-deps` dopo aver installato a mano GTK 3, VTE 2.91, PyGObject,
-python3-cryptography, python3-defusedxml e FreeRDP 3 con i file di sviluppo.
-Per toglierlo: `bash uninstall.sh`.
+`install.sh` riconosce la distribuzione e installa le dipendenze con `pacman`,
+`apt`, `dnf` o `zypper`. Il motore RDP viene compilato contro la FreeRDP 3 del
+sistema quando c'è (Arch, Fedora, Debian 13, Ubuntu 24.04, Tumbleweed);
+altrimenti `install.sh` ne compila una copia (qualche minuto) e la mette accanto
+al motore. Opzioni: `--with-servers` e `--with-lab` per i server degli
+Strumenti di rete e per il laboratorio, `--no-deps` se le dipendenze le hai già,
+`--bundled-freerdp` per usare comunque la copia compilata. Per toglierlo:
+`./uninstall.sh`.
+
+Su Fedora puoi anche costruire e installare un RPM: `bash COMPILA-RPM.sh`.
 
 ### Requisiti
 
+- Python 3.9 o più recente con PyGObject
 - GTK 3 e VTE 2.91 (0.76 o più recente per gli appunti OSC 52)
-- Python 3 con PyGObject
-- FreeRDP 3 (libfreerdp3) per il desktop remoto nativo
+- FreeRDP 3 per il desktop remoto nativo (inclusa nei pacchetti fuori da Fedora)
 - OpenSSH client per SSH e SFTP
 - Facoltativi, attivano le funzioni corrispondenti: `wl-clipboard` o `xclip`
   (incollare su Linux i file copiati in una sessione RDP), `nmap`, `tcpdump`,
   `sshpass`, `tigervnc`, `python3-pyserial`, `python3-winrm`, libvirt e
-  `virt-install` (laboratorio). Il pacchetto li propone come `Recommends`.
+  `virt-install` (laboratorio). I pacchetti li propongono come «consigliati»;
+  quando ne manca uno, FedTermHub mostra il comando per installarlo sulla tua
+  distribuzione.
 
 ## Primi passi
 
@@ -197,7 +248,7 @@ Se il motore nativo non è disponibile, FedTermHub ripiega su `xfreerdp`.
   un numero da 100 in su è una porta (`5901`).
 - **Telnet**: per switch, router, UPS e apparati che non hanno SSH. Crea una
   sessione Telnet oppure scrivi `telnet:host` (o `telnet:host:porta`) nella
-  connessione rapida. Usa il client `telnet` di Fedora; il traffico non è
+  connessione rapida. Usa il client `telnet` del sistema; il traffico non è
   cifrato. Per uscire: `Ctrl+]` e poi `quit`.
 - **Seriale**: indica il dispositivo (`/dev/ttyUSB0`) e la velocità. Serve
   `python3-pyserial` e l'appartenenza al gruppo `dialout`.
@@ -273,6 +324,12 @@ Dal menu **Rete**:
 Le operazioni che richiedono privilegi chiedono l'autorizzazione con Polkit
 **una volta sola** per ogni azione (prima, applicare più cartelle FTP la
 chiedeva per ogni comando).
+
+I server si adattano alla distribuzione: nomi dei pacchetti e dei servizi
+(`sshd` su Fedora, `ssh` su Debian e Ubuntu), cartella TFTP (`/var/lib/tftpboot`
+su Fedora e RHEL, `/srv/tftp` su Debian e Ubuntu, `/srv/tftpboot` su openSUSE) e
+firewall (`firewalld`, oppure `ufw` su Ubuntu e Mint). Debian e Ubuntu non hanno
+un server Telnet avviato da systemd: lì la voce è disattivata.
 
 ## Laboratorio Linux usa e getta
 

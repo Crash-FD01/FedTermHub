@@ -27,8 +27,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 try:
     from .i18n import tr, trn
+    from . import distro
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import tr, trn
+    import distro  # type: ignore[no-redef]
 
 import gi
 
@@ -658,7 +660,7 @@ class EphemeralLabDialog(Gtk.Dialog):
         else:
             text = tr("Supporto non pronto: ") + support.detail
             if support.missing:
-                text += tr("\nInstalla: sudo dnf install libvirt-daemon-kvm virt-install virt-viewer qemu-img")
+                text += "\n" + tr("Installa: {command}").format(command=distro.install_command("libvirt-daemon-kvm", "virt-install", "virt-viewer", "qemu-img"))
         self.support_label.set_text(text)
         self.start_button.set_sensitive(support.ready)
         return False

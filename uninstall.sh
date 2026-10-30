@@ -2,7 +2,7 @@
 set -euo pipefail
 rm -rf "${HOME}/.local/share/fedtermhub"
 rm -f "${HOME}/.local/bin/fedtermhub"
-rm -rf "${HOME}/.local/libexec/fedtermhub"
+rm -rf "${HOME}/.local/libexec/fedtermhub"  # motore RDP e, se compilata, la sua FreeRDP
 rm -f "${HOME}/.local/share/applications/fedtermhub.desktop"
 rm -f "${HOME}/.local/share/applications/io.github.crash_fd01.fedtermhub.desktop"
 rm -f "${HOME}/.local/share/icons/hicolor/scalable/apps/fedtermhub.svg"

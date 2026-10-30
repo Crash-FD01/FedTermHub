@@ -24,15 +24,16 @@ import threading
 import time
 import tempfile
 import uuid
-from defusedxml import ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 try:
     from .i18n import tr, trn
+    from . import distro
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import tr, trn
+    import distro  # type: ignore[no-redef]
 
 import gi
 
@@ -85,7 +86,7 @@ def _run_privileged_script(lines: Sequence[str], timeout: int = 180) -> subproce
     pkexec chiede la password a ogni chiamata: applicare tre cartelle FTP ne chiedeva una decina di
     fila. Le righe sono gia' comandi di shell quotati (shlex.join) o costrutti di controllo.
     """
-    script = tr("set -e\n") + "\n".join(lines) + "\n"
+    script = "set -e\n" + "\n".join(lines) + "\n"
     return _run(_privileged_command(["sh", "-c", script]), timeout=timeout)
 
 
@@ -294,15 +295,51 @@ class ToolPage(Gtk.Box):
         dialog.destroy()
 
 
+try:
+    from defusedxml import ElementTree as ET
+except ImportError:  # RHEL 9 e altre distribuzioni senza python3-defusedxml nei repository di base
+    import xml.etree.ElementTree as _StdlibET
+
+    class ET:  # type: ignore[no-redef]
+        """L'output XML di nmap senza defusedxml. Come defusedxml rifiuta le entita' (l'attacco
+        possibile contro xml.etree e' la loro espansione); il DOCTYPE vuoto che nmap scrive sempre
+        («<!DOCTYPE nmaprun>») viene tolto, qualunque altra DTD rifiutata."""
+
+        ParseError = _StdlibET.ParseError
+
+        @staticmethod
+        def fromstring(text: str):  # noqa: ANN205
+            text = text.replace("<!DOCTYPE nmaprun>", "", 1)
+            if "<!DOCTYPE" in text or "<!ENTITY" in text:
+                raise _StdlibET.ParseError("DTD o entita' non ammesse nell'output di nmap")
+            return _StdlibET.fromstring(text)
+
+
 @dataclass
 class ServiceDefinition:
+    """Un servizio di sistema. Pacchetto e unita' systemd cambiano con la distribuzione (distro.py)."""
+
     name: str
-    unit: str
+    key: str
     description: str
     port: str
-    package: str
+    package: str  # nome Fedora: distro.package_names() lo traduce per Debian, openSUSE, Arch
     firewall_services: Tuple[str, ...]
+    ports: Tuple[str, ...] = ()
     insecure: bool = False
+
+    @property
+    def unit(self) -> Optional[str]:
+        return distro.service_unit(self.key)
+
+    @property
+    def packages(self) -> List[str]:
+        return distro.package_names(self.package)
+
+    @property
+    def available(self) -> bool:
+        """Esiste come pacchetto con un'unita' systemd su questa distribuzione."""
+        return bool(self.unit and self.packages)
 
 
 class NetworkRuntime:
@@ -386,45 +423,50 @@ class ServicesPage(ToolPage):
     SERVICES = [
         ServiceDefinition(
             tr("SSH / SFTP"),
-            "sshd.service",
+            "ssh",
             tr("Shell sicura e trasferimento file SFTP"),
             "22/tcp",
             "openssh-server",
             ("ssh",),
+            ("22/tcp",),
         ),
         ServiceDefinition(
             "FTP",
-            "vsftpd.service",
+            "ftp",
             tr("Server FTP per utenti locali"),
             "21/tcp",
             "vsftpd",
             ("ftp",),
+            ("21/tcp",),
         ),
         ServiceDefinition(
             "TFTP",
-            "tftp.socket",
+            "tftp",
             tr("Trasferimenti semplici, PXE e apparati di rete"),
             "69/udp",
             "tftp-server",
             ("tftp",),
+            ("69/udp",),
             insecure=True,
         ),
         ServiceDefinition(
             tr("Telnet"),
-            "telnet.socket",
+            "telnet",
             tr("Accesso remoto legacy senza cifratura"),
             "23/tcp",
             "telnet-server",
             ("telnet",),
+            ("23/tcp",),
             insecure=True,
         ),
         ServiceDefinition(
             "NFS",
-            "nfs-server.service",
+            "nfs",
             tr("Condivisione cartelle per sistemi Linux/Unix"),
             "2049/tcp+udp",
             "nfs-utils",
             ("nfs", "mountd", "rpc-bind"),
+            ("2049/tcp", "2049/udp", "111", "20048"),
         ),
     ]
 
@@ -492,11 +534,11 @@ class ServicesPage(ToolPage):
         viewport.add(service_list)
 
         icon_map = {
-            "sshd.service": "network-server-symbolic",
-            "vsftpd.service": "folder-remote-symbolic",
-            "tftp.socket": "network-transmit-receive-symbolic",
-            "telnet.socket": "utilities-terminal-symbolic",
-            "nfs-server.service": "folder-publicshare-symbolic",
+            "ssh": "network-server-symbolic",
+            "ftp": "folder-remote-symbolic",
+            "tftp": "network-transmit-receive-symbolic",
+            "telnet": "utilities-terminal-symbolic",
+            "nfs": "folder-publicshare-symbolic",
         }
         for service in self.SERVICES:
             frame = self.card()
@@ -505,7 +547,7 @@ class ServicesPage(ToolPage):
             frame.add(body)
 
             header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=9)
-            image = Gtk.Image.new_from_icon_name(icon_map.get(service.unit, "network-server-symbolic"), Gtk.IconSize.BUTTON)
+            image = Gtk.Image.new_from_icon_name(icon_map.get(service.key, "network-server-symbolic"), Gtk.IconSize.BUTTON)
             image.set_pixel_size(24)
             header.pack_start(image, False, False, 0)
             titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
@@ -520,11 +562,14 @@ class ServicesPage(ToolPage):
 
             package_badge = Gtk.Label(label=tr("Controllo…"))
             package_badge.get_style_context().add_class("service-badge")
-            package_badge.set_tooltip_text(tr("Pacchetto Fedora: {package}").format(package=service.package))
-            self.package_labels[service.unit] = package_badge
+            package_badge.set_tooltip_text(
+                tr("Pacchetto: {package}").format(package=" ".join(service.packages)) if service.packages
+                else tr("Non disponibile come servizio su {distro}").format(distro=distro.pretty_name())
+            )
+            self.package_labels[service.key] = package_badge
             state_badge = Gtk.Label(label=tr("Controllo…"))
             state_badge.get_style_context().add_class("service-badge")
-            self.status_labels[service.unit] = state_badge
+            self.status_labels[service.key] = state_badge
             header.pack_start(package_badge, False, False, 0)
             header.pack_start(state_badge, False, False, 0)
             if service.insecure:
@@ -552,8 +597,8 @@ class ServicesPage(ToolPage):
                 actions.add(button)
                 action_map[action] = button
                 if action == "install":
-                    self.install_buttons[service.unit] = button
-            self.service_action_buttons[service.unit] = action_map
+                    self.install_buttons[service.key] = button
+            self.service_action_buttons[service.key] = action_map
             body.pack_start(actions, False, False, 0)
             service_list.pack_start(frame, False, False, 0)
 
@@ -563,7 +608,7 @@ class ServicesPage(ToolPage):
         tftp_card.get_style_context().add_class("service-card")
         tftp_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, margin=10)
         tftp_card.add(tftp_box)
-        tftp_text = Gtk.Label(label=tr("Directory TFTP: /var/lib/tftpboot"), xalign=0)
+        tftp_text = Gtk.Label(label=tr("Directory TFTP: {path}").format(path=distro.tftp_root()), xalign=0)
         tftp_text.set_line_wrap(True)
         tftp_box.pack_start(tftp_text, True, True, 0)
         prepare = self.button(tr("Prepara"), "folder-new-symbolic")
@@ -1017,14 +1062,11 @@ class ServicesPage(ToolPage):
                 pass
             self._status_timer = 0
 
-    def _package_installed(self, package: str) -> bool:
-        # Senza rpm (avvio dai sorgenti su una distribuzione non RPM) l'intera
-        # finestra Strumenti di rete non si apriva: FileNotFoundError non era
-        # gestito. Un pacchetto che non si puo' verificare si considera assente.
-        try:
-            return _run(["rpm", "-q", package], timeout=5).returncode == 0
-        except (OSError, subprocess.SubprocessError):
-            return False
+    @staticmethod
+    def _package_installed(packages: List[str]) -> bool:
+        # rpm -q, dpkg-query o pacman -Q secondo la distribuzione. Un pacchetto che non si puo'
+        # verificare (o che li' non esiste) si considera assente.
+        return bool(packages) and all(distro.package_installed(name) for name in packages)
 
     def refresh_status(self, recheck_packages: bool = False) -> bool:
         """Aggiorna lo stato dei servizi senza bloccare l'interfaccia.
@@ -1042,17 +1084,17 @@ class ServicesPage(ToolPage):
         def worker() -> Dict[str, Tuple[bool, bool]]:
             result: Dict[str, Tuple[bool, bool]] = {}
             for service in self.SERVICES:
-                installed = cached.get(service.package)
+                installed = cached.get(service.key)
                 if installed is None or recheck_packages:
-                    installed = self._package_installed(service.package)
+                    installed = service.available and self._package_installed(service.packages)
                 active = False
-                if installed:
+                if installed and service.unit:
                     try:
                         proc = _run(["systemctl", "is-active", service.unit], timeout=4)
                         active = proc.returncode == 0 and proc.stdout.strip() == "active"
                     except (OSError, subprocess.SubprocessError):
                         active = False
-                result[service.unit] = (installed, active)
+                result[service.key] = (installed, active)
             return result
 
         def done(result: object, error: Optional[BaseException]) -> None:
@@ -1060,20 +1102,29 @@ class ServicesPage(ToolPage):
             if error or not isinstance(result, dict):
                 return
             self._installed_cache = {
-                service.package: result[service.unit][0] for service in self.SERVICES if service.unit in result
+                service.key: result[service.key][0] for service in self.SERVICES if service.key in result
             }
             for service in self.SERVICES:
-                installed, active = result.get(service.unit, (False, False))
+                installed, active = result.get(service.key, (False, False))
                 self._show_service_state(service, installed, active)
 
         _async(worker, done)
         return True
 
     def _show_service_state(self, service: ServiceDefinition, installed: bool, active: bool) -> None:
-        package_label = self.package_labels.get(service.unit)
-        state_label = self.status_labels.get(service.unit)
-        actions = self.service_action_buttons.get(service.unit, {})
-        install_button = self.install_buttons.get(service.unit)
+        package_label = self.package_labels.get(service.key)
+        state_label = self.status_labels.get(service.key)
+        actions = self.service_action_buttons.get(service.key, {})
+        install_button = self.install_buttons.get(service.key)
+        if not service.available:
+            # Per esempio il server telnet su Debian e Ubuntu: non c'e' un pacchetto con un'unita' systemd.
+            if package_label:
+                package_label.set_markup(tr('<span foreground="#8792a2">● Non disponibile</span>'))
+            if state_label:
+                state_label.set_text(distro.pretty_name())
+            for button in actions.values():
+                button.set_sensitive(False)
+            return
         if package_label:
             if installed:
                 package_label.set_markup(tr('<span foreground="#39c879" weight="bold">● Installato</span>'))
@@ -1082,7 +1133,7 @@ class ServicesPage(ToolPage):
                 package_label.set_markup(tr('<span foreground="#e8a84a" weight="bold">● Non installato</span>'))
         if install_button:
             install_button.set_sensitive(not installed)
-            install_button.set_tooltip_text(tr("Pacchetto già installato") if installed else tr("Installa {package}").format(package=service.package))
+            install_button.set_tooltip_text(tr("Pacchetto già installato") if installed else tr("Installa {package}").format(package=" ".join(service.packages)))
         for action_name, button in actions.items():
             if action_name != "install":
                 button.set_sensitive(installed)
@@ -1137,18 +1188,18 @@ class ServicesPage(ToolPage):
     def on_service_action(self, _button: Gtk.Button, service: ServiceDefinition, action: str) -> None:
         if not self._confirm_insecure(service, action):
             return
+        if not service.available:
+            return
         if action == "install":
-            commands = [_privileged_command(["dnf", "install", "-y", service.package])]
+            commands = [_privileged_command(distro.install_argv(service.packages))]
         elif action == "firewall":
-            if not _command_exists("firewall-cmd"):
-                self.message(self.parent, tr("Firewalld non disponibile"), tr("Installa e avvia firewalld per gestire le regole dall'interfaccia."), True)
+            rules = distro.firewall_open_commands(service.ports, service.firewall_services)
+            if not rules:
+                self.message(self.parent, tr("Nessun firewall gestibile"), tr("FedTermHub apre le porte con firewalld o con ufw: installane uno, oppure apri a mano le porte {ports}.").format(ports=", ".join(service.ports)), True)
                 return
             # Una sola autorizzazione per tutte le regole e il reload.
-            lines = [
-                shlex.join(["firewall-cmd", "--permanent", f"--add-service={firewall_service}"])
-                for firewall_service in service.firewall_services
-            ] + [shlex.join(["firewall-cmd", "--reload"])]
-            commands = [_privileged_command(["sh", "-c", tr("set -e\n") + "\n".join(lines)])]
+            lines = [shlex.join(rule) for rule in rules]
+            commands = [_privileged_command(["sh", "-c", "set -e\n" + "\n".join(lines)])]
         else:
             verb = "enable" if action == "enable" else action
             args = ["systemctl", verb]
@@ -1157,7 +1208,7 @@ class ServicesPage(ToolPage):
             args.append(service.unit)
             commands = [_privileged_command(args)]
 
-        self.status_labels[service.unit].set_text(tr("Operazione in corso…"))
+        self.status_labels[service.key].set_text(tr("Operazione in corso…"))
 
         def worker() -> str:
             messages = []
@@ -1178,15 +1229,16 @@ class ServicesPage(ToolPage):
 
     def prepare_tftp_directory(self, _button: Gtk.Button) -> None:
         def worker() -> str:
-            proc = _run(_privileged_command(["install", "-d", "-m", "0755", "/var/lib/tftpboot"]), timeout=90)
+            root = distro.tftp_root()
+            proc = _run(_privileged_command(["install", "-d", "-m", "0755", root]), timeout=90)
             if proc.returncode != 0:
-                raise RuntimeError(proc.stderr.strip() or tr("Impossibile preparare /var/lib/tftpboot"))
-            return tr("/var/lib/tftpboot pronta.")
+                raise RuntimeError(proc.stderr.strip() or tr("Impossibile preparare {path}").format(path=root))
+            return tr("{path} pronta.").format(path=root)
 
         _async(worker, lambda result, error: self.message(self.parent, tr("Directory TFTP"), str(error or result), bool(error)))
 
     def open_tftp_directory(self, _button: Gtk.Button) -> None:
-        path = Path("/var/lib/tftpboot")
+        path = Path(distro.tftp_root())
         if not path.exists():
             self.message(self.parent, tr("Directory TFTP assente"), tr("Premi prima Prepara cartella."), True)
             return
@@ -1320,7 +1372,7 @@ class ServicesPage(ToolPage):
     def _create_vnc_password_file(self, password: str) -> Path:
         binary = shutil.which("vncpasswd")
         if not binary:
-            raise RuntimeError(tr("vncpasswd non trovato. Installa tigervnc-server-common."))
+            raise RuntimeError(tr("vncpasswd non trovato. Installa: {command}").format(command=distro.install_command("tigervnc-server-common")))
         proc = subprocess.run([binary, "-f"], input=(password + "\n").encode("utf-8"), capture_output=True, timeout=15, check=False)
         if proc.returncode != 0 or not proc.stdout:
             raise RuntimeError(proc.stderr.decode("utf-8", errors="replace").strip() or tr("Creazione password VNC fallita"))
@@ -1350,7 +1402,13 @@ class ServicesPage(ToolPage):
             binary = shutil.which("x0vncserver")
             package = "tigervnc-x11-server"
         if not binary:
-            self.message(self.parent, tr("Server VNC non installato"), tr("Installa il pacchetto {package}.").format(package=package), True)
+            command = distro.install_command(package)
+            self.message(
+                self.parent, tr("Server VNC non installato"),
+                tr("Installa: {command}").format(command=command) if command
+                else tr("{distro} non ha un pacchetto con il server VNC per questa sessione grafica.").format(distro=distro.pretty_name()),
+                True,
+            )
             return
         try:
             password_file = self._create_vnc_password_file(password)
@@ -1406,19 +1464,18 @@ class ServicesPage(ToolPage):
         self.refresh_status()
 
     def open_vnc_firewall(self, _button: Gtk.Button) -> None:
-        if not _command_exists("firewall-cmd"):
-            self.message(self.parent, tr("Firewalld non disponibile"), tr("Installa e avvia firewalld."), True)
-            return
         port = int(self.vnc_port.get_value())
+        rules = distro.firewall_open_commands([f"{port}/tcp"])
+        if not rules:
+            self.message(self.parent, tr("Nessun firewall gestibile"), tr("FedTermHub apre le porte con firewalld o con ufw: installane uno, oppure apri a mano le porte {ports}.").format(ports=f"{port}/tcp"), True)
+            return
+        tool = distro.firewall_tool()
 
         def worker() -> str:
-            proc = _run_privileged_script([
-                shlex.join(["firewall-cmd", "--permanent", f"--add-port={port}/tcp"]),
-                shlex.join(["firewall-cmd", "--reload"]),
-            ])
+            proc = _run_privileged_script([shlex.join(rule) for rule in rules])
             if proc.returncode != 0:
                 raise RuntimeError(_privileged_error(proc))
-            return tr("Porta {port}/tcp aperta in firewalld.").format(port=port)
+            return tr("Porta {port}/tcp aperta in {tool}.").format(port=port, tool=tool)
 
         _async(worker, lambda result, error: self.message(self.parent, tr("Firewall VNC"), str(error or result), bool(error)))
 
