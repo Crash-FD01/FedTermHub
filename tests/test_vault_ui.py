@@ -161,8 +161,17 @@ def check_manager(app, window) -> None:
     reopened.unlock("master-di-prova")
     assert {c.name: c.group for c in reopened.credentials}["Administrator Rossi"] == "Studio Rossi", "gruppi non salvati"
 
-    dialog.select_credential(rossi_admin.id)
-    pump()
+    opened_editor = []
+    original_editor_run = app.CredentialDialog.run
+    app.CredentialDialog.run = lambda self: (opened_editor.append(1), Gtk.ResponseType.CANCEL)[1]
+    try:
+        dialog.select_credential(rossi_admin.id)
+        pump()
+        dialog._rows[rossi_admin.id].emit("activate")
+        pump()
+    finally:
+        app.CredentialDialog.run = original_editor_run
+    assert not opened_editor, "scegliere una credenziale non deve aprire la modifica"
     assert dialog.stack.get_visible_child_name() == "detail"
     assert dialog.d_title.get_text() == "Administrator Rossi"
     assert dialog.d_password.get_text() == "•" * 12, "la password si vede solo chiedendolo"

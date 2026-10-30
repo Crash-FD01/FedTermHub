@@ -93,6 +93,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.9.10" date="2026-10-30">
+      <description>
+        <p>Telnet sessions. Network tools reviewed and tested live: packet capture no longer keeps the CPU busy after finishing, FTP shares work for normal users with a single authorisation, the port scanner keeps the port it found.</p>
+        <p xml:lang="it">Sessioni Telnet. Strumenti di rete rivisti e provati dal vivo: la cattura pacchetti non tiene più occupata la CPU dopo la fine, le condivisioni FTP funzionano per gli utenti normali con una sola autorizzazione, il port scanner conserva la porta trovata.</p>
+      </description>
+    </release>
     <release version="0.9.09" date="2026-10-30">
       <description>
         <p>Full review: fixes a command injection through imported session files, VNC ports, IPv6 quick connect, terminal tabs that stayed open after exit, and folders collapsing after every change. MultiExec lets you choose the target tabs.</p>

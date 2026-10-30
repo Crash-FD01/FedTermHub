@@ -124,7 +124,7 @@ def check_option_injection(app, window) -> None:
     original_open = window.open_session
     window.open_session = lambda sess: opened.append((sess.protocol, sess.host, sess.port, sess.user))
     try:
-        for text in ("root@[fe80::1]:2200", "rdp:srv01:3390", "vnc:kvm:5901", "admin@web01"):
+        for text in ("root@[fe80::1]:2200", "rdp:srv01:3390", "vnc:kvm:5901", "admin@web01", "telnet:sw-core", "telnet:10.0.0.1:2323"):
             window.quick.set_text(text)
             window.on_quick_connect()
         window.quick.set_text("-oProxyCommand=x")
@@ -136,7 +136,33 @@ def check_option_injection(app, window) -> None:
         ("rdp", "srv01", "3390", ""),
         ("vnc", "kvm", "5901", ""),
         ("ssh", "web01", "22", "admin"),
+        ("telnet", "sw-core", "23", ""),
+        ("telnet", "10.0.0.1", "2323", ""),
     ], opened
+
+    # Telnet: "--" prima dell'host, scheda che si chiude con un'uscita normale.
+    original_which = app.shutil.which
+    app.shutil.which = lambda name: "/usr/bin/telnet" if name == "telnet" else original_which(name)
+    window.add_terminal_tab = lambda title, argv, **kw: captured.update(argv=argv, kw=kw)
+    try:
+        window.open_telnet(app.Session(name="sw", protocol="telnet", host="sw-core", port="23"))
+    finally:
+        app.shutil.which = original_which
+        window.add_terminal_tab = original
+    assert captured["argv"] == ["/usr/bin/telnet", "--", "sw-core", "23"], captured["argv"]
+    assert captured["kw"]["close_on_exit"] == "on_success"
+    assert "host" in app.session_problem(app.Session(name="t", protocol="telnet", host=""))
+
+    dialog = app.SessionDialog(window, app.Session(name="Nuova Telnet", protocol="telnet", port="23"))
+    dialog.telnet_host.set_text("ups01")
+    saved = dialog.get_session()
+    dialog.destroy()
+    assert (saved.protocol, saved.host, saved.port) == ("telnet", "ups01", "23")
+
+    from connection_diagnostics import normalize_port  # noqa: PLC0415
+
+    assert normalize_port("vnc", "1") == 5901, "display 1 = porta 5901, non la porta 1"
+    assert normalize_port("vnc", "5901") == 5901 and normalize_port("telnet", "") == 23
     print("  ssh/sftp/tunnel con '--', sessioni importate non valide rifiutate, connessione rapida")
 
 

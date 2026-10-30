@@ -26,6 +26,7 @@ DEFAULT_PORTS: Dict[str, int] = {
     "ssh": 22,
     "sftp": 22,
     "vnc": 5900,
+    "telnet": 23,
 }
 
 STATUS_LABELS = {
@@ -94,7 +95,7 @@ class DiagnosticReport:
                     lines.append(f"    {detail_line}")
         if self.recommendation:
             lines += ["", "Suggerimento:", self.recommendation]
-        lines += ["", "Il rapporto non contiene password o segreti del vault."]
+        lines += ["", "Il rapporto non contiene password o altri segreti."]
         return "\n".join(lines).rstrip() + "\n"
 
 
@@ -103,6 +104,9 @@ def normalize_port(protocol: str, value: object) -> int:
     if text:
         if text.isdigit():
             number = int(text)
+            # VNC: un numero piccolo e' il display (1 = porta 5901), come in vncviewer.
+            if str(protocol or "").lower() == "vnc" and number < 100:
+                return 5900 + number
             if 1 <= number <= 65535:
                 return number
         return 0
@@ -407,6 +411,7 @@ def _overall_recommendation(steps: Sequence[DiagnosticStep], target: DiagnosticT
             "ssh": "SSH",
             "sftp": "SSH/SFTP",
             "vnc": "VNC",
+            "telnet": "Telnet",
         }.get(target.protocol, "servizio remoto")
         return (
             f"Il percorso di rete funziona, ma {service} non ascolta sulla porta {target.port}. "
