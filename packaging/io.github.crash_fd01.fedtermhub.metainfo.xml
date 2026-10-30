@@ -93,6 +93,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.9.09" date="2026-10-30">
+      <description>
+        <p>Full review: fixes a command injection through imported session files, VNC ports, IPv6 quick connect, terminal tabs that stayed open after exit, and folders collapsing after every change. MultiExec lets you choose the target tabs.</p>
+        <p xml:lang="it">Revisione completa: corregge un'esecuzione di comandi tramite file di sessioni importati, le porte VNC, la connessione rapida IPv6, le schede terminale che restavano aperte dopo exit e le cartelle che si richiudevano a ogni modifica. MultiExec permette di scegliere le schede.</p>
+      </description>
+    </release>
     <release version="0.9.08" date="2026-10-29">
       <description>
         <p>Redesigned password manager: credentials grouped by client, details and copy buttons side by side, which sessions use each credential, password generator, change of master password. A wrong master password no longer closes the prompt.</p>

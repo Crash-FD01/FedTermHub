@@ -71,13 +71,13 @@ def main() -> int:
         home_menu = window._build_session_context_menu(selected)
         home_labels = menu_labels(home_menu)
         expected_present = {
-            "Apri", "Apri tutte le sessioni", "Nuova sessione", "Nuova cartella",
-            "Esporta Home Session", "Importa Home Session", "Dettagli",
+            "Espandi o comprimi", "Apri tutte le sessioni", "Nuova sessione", "Nuova cartella",
+            "Esporta tutte le sessioni", "Importa sessioni qui",
+            "Sostituisci tutte le sessioni con un file", "Dettagli",
         }
         assert expected_present.issubset(set(home_labels)), home_labels
         forbidden = {
-            "Modifica", "Duplica", "Sposta", "Colore cartella", "Esporta selezione",
-            "Importa qui", "Elimina",
+            "Modifica", "Duplica", "Sposta", "Colore cartella", "Esporta la selezione", "Elimina",
         }
         assert forbidden.isdisjoint(set(home_labels)), home_labels
 
