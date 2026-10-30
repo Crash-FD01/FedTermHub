@@ -25,6 +25,10 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
+try:
+    from .i18n import tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr, trn
 
 import gi
 
@@ -75,7 +79,7 @@ class LabError(RuntimeError):
 def require_binary(name: str) -> str:
     path = shutil.which(name)
     if not path:
-        raise LabError(f"Componente richiesto non trovato: {name}")
+        raise LabError(tr("Componente richiesto non trovato: {name}").format(name=name))
     return path
 
 
@@ -98,11 +102,11 @@ def inspect_lab_support() -> LabSupport:
     missing = tuple(binary for binary in required if not shutil.which(binary))
     warnings: List[str] = []
     if not Path("/dev/kvm").exists():
-        warnings.append("/dev/kvm non presente: la virtualizzazione hardware potrebbe essere disabilitata nel BIOS/UEFI.")
+        warnings.append(tr("/dev/kvm non presente: la virtualizzazione hardware potrebbe essere disabilitata nel BIOS/UEFI."))
     elif not os.access("/dev/kvm", os.R_OK | os.W_OK):
-        warnings.append("L'utente non ha accesso a /dev/kvm: la VM potrebbe non partire o usare emulazione lenta.")
+        warnings.append(tr("L'utente non ha accesso a /dev/kvm: la VM potrebbe non partire o usare emulazione lenta."))
     if missing:
-        detail = "Mancano: " + ", ".join(missing)
+        detail = tr("Mancano: ") + ", ".join(missing)
         return LabSupport(False, missing, tuple(warnings), detail)
     try:
         probe = subprocess.run(
@@ -114,10 +118,10 @@ def inspect_lab_support() -> LabSupport:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return LabSupport(False, (), tuple(warnings), f"Libvirt sessione non raggiungibile: {exc}")
+        return LabSupport(False, (), tuple(warnings), tr("Libvirt sessione non raggiungibile: {exc}").format(exc=exc))
     if probe.returncode != 0:
-        return LabSupport(False, (), tuple(warnings), (probe.stderr or probe.stdout or "Errore libvirt").strip()[-700:])
-    return LabSupport(True, (), tuple(warnings), "QEMU/KVM, libvirt, virt-install e console grafica disponibili.")
+        return LabSupport(False, (), tuple(warnings), (probe.stderr or probe.stdout or tr("Errore libvirt")).strip()[-700:])
+    return LabSupport(True, (), tuple(warnings), tr("QEMU/KVM, libvirt, virt-install e console grafica disponibili."))
 
 
 def detect_image_format(image: Path) -> str:
@@ -131,15 +135,15 @@ def detect_image_format(image: Path) -> str:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise LabError(f"Impossibile analizzare l'immagine: {exc}") from exc
+        raise LabError(tr("Impossibile analizzare l'immagine: {exc}").format(exc=exc)) from exc
     if result.returncode != 0:
-        raise LabError((result.stderr or "qemu-img info non riuscito").strip()[-700:])
+        raise LabError((result.stderr or tr("qemu-img info non riuscito")).strip()[-700:])
     try:
         value = str(json.loads(result.stdout).get("format") or "").strip()
     except (ValueError, TypeError) as exc:
-        raise LabError("Formato immagine non riconosciuto.") from exc
+        raise LabError(tr("Formato immagine non riconosciuto.")) from exc
     if not re.fullmatch(r"[A-Za-z0-9_.+-]+", value):
-        raise LabError("Formato immagine non sicuro o non riconosciuto.")
+        raise LabError(tr("Formato immagine non sicuro o non riconosciuto."))
     return value
 
 
@@ -154,23 +158,7 @@ def create_cloud_init_files(runtime_dir: Path, config: LabConfig) -> Tuple[Path,
     if not username or not re.match(r"^[a-z_]", username):
         username = "fedlab"
     content = (
-        "#cloud-config\n"
-        f"hostname: {hostname}\n"
-        "manage_etc_hosts: true\n"
-        "ssh_pwauth: true\n"
-        "users:\n"
-        f"  - name: {username}\n"
-        "    sudo: ALL=(ALL) NOPASSWD:ALL\n"
-        "    shell: /bin/bash\n"
-        "    lock_passwd: false\n"
-        "chpasswd:\n"
-        "  expire: false\n"
-        "  users:\n"
-        f"    - name: {username}\n"
-        f"      password: \"{password}\"\n"
-        "      type: text\n"
-        "package_update: false\n"
-        "final_message: 'FedTermHub Lab pronto'\n"
+        tr("#cloud-config\nhostname: {hostname}\nmanage_etc_hosts: true\nssh_pwauth: true\nusers:\n  - name: {username}\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    shell: /bin/bash\n    lock_passwd: false\nchpasswd:\n  expire: false\n  users:\n    - name: {username}\n      password: \"{password}\"\n      type: text\npackage_update: false\nfinal_message: 'FedTermHub Lab pronto'\n").format(hostname=hostname, username=username, password=password)
     )
     user_data.write_text(content, encoding="utf-8")
     meta_data.write_text(f"instance-id: {uuid.uuid4()}\nlocal-hostname: {hostname}\n", encoding="utf-8")
@@ -273,11 +261,11 @@ class EphemeralLabController:
                     raise LabError(support.detail)
                 image = config.base_image.expanduser().resolve()
                 if not image.is_file():
-                    raise LabError("Seleziona un'immagine cloud QCOW2 o RAW valida.")
+                    raise LabError(tr("Seleziona un'immagine cloud QCOW2 o RAW valida."))
                 if config.memory_mb < 768 or config.memory_mb > 32768:
-                    raise LabError("La RAM deve essere compresa tra 768 MB e 32768 MB.")
+                    raise LabError(tr("La RAM deve essere compresa tra 768 MB e 32768 MB."))
                 if config.vcpus < 1 or config.vcpus > 16:
-                    raise LabError("Il numero di CPU deve essere compreso tra 1 e 16.")
+                    raise LabError(tr("Il numero di CPU deve essere compreso tra 1 e 16."))
 
                 identifier = uuid.uuid4().hex
                 domain_name = safe_domain_name(config.name)
@@ -288,7 +276,7 @@ class EphemeralLabController:
                 with self._lock:
                     self.instances[identifier] = instance
 
-                emit("Creo il disco temporaneo…")
+                emit(tr("Creo il disco temporaneo…"))
                 base_format = detect_image_format(image)
                 overlay_result = subprocess.run(
                     [require_binary("qemu-img"), "create", "-f", "qcow2", "-F", base_format, "-b", str(image), str(overlay)],
@@ -299,11 +287,11 @@ class EphemeralLabController:
                     check=False,
                 )
                 if overlay_result.returncode != 0:
-                    raise LabError((overlay_result.stderr or overlay_result.stdout or "Creazione overlay fallita").strip()[-900:])
+                    raise LabError((overlay_result.stderr or overlay_result.stdout or tr("Creazione overlay fallita")).strip()[-900:])
                 os.chmod(overlay, 0o600)
                 user_data, meta_data = create_cloud_init_files(runtime_dir, config)
 
-                emit("Avvio la VM transitoria…")
+                emit(tr("Avvio la VM transitoria…"))
                 command = build_virt_install_command(
                     config, domain_name, overlay, user_data, meta_data, require_binary("virt-install")
                 )
@@ -316,10 +304,10 @@ class EphemeralLabController:
                     check=False,
                 )
                 if started.returncode != 0:
-                    raise LabError((started.stderr or started.stdout or "virt-install non riuscito").strip()[-1200:])
+                    raise LabError((started.stderr or started.stdout or tr("virt-install non riuscito")).strip()[-1200:])
 
                 instance.state = "running"
-                emit("Apro la console grafica…")
+                emit(tr("Apro la console grafica…"))
                 viewer = subprocess.Popen(
                     build_virt_viewer_command(
                         config.connection_uri, domain_name, require_binary("virt-viewer")
@@ -333,7 +321,7 @@ class EphemeralLabController:
                     start_new_session=True,
                 )
                 instance.viewer = viewer
-                GLib.idle_add(completed, True, "Laboratorio avviato. Chiudendo la console verrà distrutto.", instance)
+                GLib.idle_add(completed, True, tr("Laboratorio avviato. Chiudendo la console verrà distrutto."), instance)
                 self._watch_viewer(instance)
                 return
             except Exception as exc:
@@ -372,7 +360,7 @@ class EphemeralLabController:
                 # quindi un fallimento immediato può manifestarsi minuti dopo.
                 if not instance.cleanup_started and isinstance(code, int) and code > 0:
                     reason = stderr_text.strip()[-800:] or (
-                        f"virt-viewer è uscito con codice {code} senza aprire la console."
+                        tr("virt-viewer è uscito con codice {code} senza aprire la console.").format(code=code)
                     )
             self.destroy(instance.identifier, wait=True)
             if reason and self.on_viewer_error is not None:
@@ -384,7 +372,7 @@ class EphemeralLabController:
         with self._lock:
             instance = self.instances.get(identifier)
         if instance is None or instance.state != "running":
-            raise LabError("Il laboratorio non è più in esecuzione.")
+            raise LabError(tr("Il laboratorio non è più in esecuzione."))
         if instance.viewer is not None and instance.viewer.poll() is None:
             return
         instance.viewer = subprocess.Popen(
@@ -458,7 +446,7 @@ class EphemeralLabDialog(Gtk.Dialog):
     """Finestra guidata e compatta per creare laboratori Linux temporanei."""
 
     def __init__(self, parent: Gtk.Window, controller: EphemeralLabController) -> None:
-        super().__init__(title="Lab temporaneo Linux", transient_for=parent, flags=0)
+        super().__init__(title=tr("Lab temporaneo Linux"), transient_for=parent, flags=0)
         self.parent_window = parent
         self.controller = controller
         self.set_modal(False)
@@ -470,7 +458,7 @@ class EphemeralLabDialog(Gtk.Dialog):
         self._window_group.add_window(self)
         self.set_default_size(760, 620)
         self.set_resizable(True)
-        self.add_button("Chiudi", Gtk.ResponseType.CLOSE)
+        self.add_button(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         self.connect("response", lambda dialog, response: dialog.hide() if response == Gtk.ResponseType.CLOSE else None)
         self.connect("delete-event", lambda dialog, _event: (dialog.hide(), True)[1])
 
@@ -482,10 +470,10 @@ class EphemeralLabDialog(Gtk.Dialog):
         icon.set_pixel_size(42)
         header.pack_start(icon, False, False, 0)
         text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        title = Gtk.Label(label="Macchina Linux usa e getta", xalign=0)
+        title = Gtk.Label(label=tr("Macchina Linux usa e getta"), xalign=0)
         title.get_style_context().add_class("dialog-heading")
         subtitle = Gtk.Label(
-            label="L'immagine base resta intatta. Chiudendo la console, VM e modifiche vengono eliminate.",
+            label=tr("L'immagine base resta intatta. Chiudendo la console, VM e modifiche vengono eliminate."),
             xalign=0,
         )
         subtitle.set_line_wrap(True)
@@ -495,7 +483,7 @@ class EphemeralLabDialog(Gtk.Dialog):
         header.pack_start(text_box, True, True, 0)
         root.pack_start(header, False, False, 0)
 
-        self.support_label = Gtk.Label(label="Controllo supporto…", xalign=0)
+        self.support_label = Gtk.Label(label=tr("Controllo supporto…"), xalign=0)
         self.support_label.set_line_wrap(True)
         self.support_label.get_style_context().add_class("notification-banner")
         root.pack_start(self.support_label, False, False, 0)
@@ -505,33 +493,33 @@ class EphemeralLabDialog(Gtk.Dialog):
         root.pack_start(form, False, False, 0)
 
         self.name_entry = Gtk.Entry()
-        self.name_entry.set_text("Linux test")
-        form.attach(Gtk.Label(label="Nome", xalign=0), 0, 0, 1, 1)
+        self.name_entry.set_text(tr("Linux test"))
+        form.attach(Gtk.Label(label=tr("Nome"), xalign=0), 0, 0, 1, 1)
         form.attach(self.name_entry, 1, 0, 1, 1)
 
-        self.image_chooser = Gtk.FileChooserButton(title="Seleziona immagine Linux", action=Gtk.FileChooserAction.OPEN)
+        self.image_chooser = Gtk.FileChooserButton(title=tr("Seleziona immagine Linux"), action=Gtk.FileChooserAction.OPEN)
         image_filter = Gtk.FileFilter()
-        image_filter.set_name("Immagini virtuali")
+        image_filter.set_name(tr("Immagini virtuali"))
         for pattern in ("*.qcow2", "*.qcow", "*.img", "*.raw"):
             image_filter.add_pattern(pattern)
         self.image_chooser.add_filter(image_filter)
-        form.attach(Gtk.Label(label="Immagine cloud", xalign=0), 0, 1, 1, 1)
+        form.attach(Gtk.Label(label=tr("Immagine cloud"), xalign=0), 0, 1, 1, 1)
         form.attach(self.image_chooser, 1, 1, 1, 1)
 
         self.preset_combo = Gtk.ComboBoxText()
-        self.preset_combo.append("minimal", "Minimo — 1 CPU, 1 GiB")
-        self.preset_combo.append("standard", "Standard — 2 CPU, 2 GiB")
-        self.preset_combo.append("desktop", "Desktop — 2 CPU, 4 GiB")
+        self.preset_combo.append("minimal", tr("Minimo — 1 CPU, 1 GiB"))
+        self.preset_combo.append("standard", tr("Standard — 2 CPU, 2 GiB"))
+        self.preset_combo.append("desktop", tr("Desktop — 2 CPU, 4 GiB"))
         self.preset_combo.set_active_id("standard")
         self.preset_combo.connect("changed", self._preset_changed)
-        form.attach(Gtk.Label(label="Profilo", xalign=0), 0, 2, 1, 1)
+        form.attach(Gtk.Label(label=tr("Profilo"), xalign=0), 0, 2, 1, 1)
         form.attach(self.preset_combo, 1, 2, 1, 1)
 
         self.network_combo = Gtk.ComboBoxText()
-        self.network_combo.append("isolated", "Isolata — nessun accesso di rete")
-        self.network_combo.append("user", "Internet NAT — rete user-mode")
+        self.network_combo.append("isolated", tr("Isolata — nessun accesso di rete"))
+        self.network_combo.append("user", tr("Internet NAT — rete user-mode"))
         self.network_combo.set_active_id("isolated")
-        form.attach(Gtk.Label(label="Rete", xalign=0), 0, 3, 1, 1)
+        form.attach(Gtk.Label(label=tr("Rete"), xalign=0), 0, 3, 1, 1)
         form.attach(self.network_combo, 1, 3, 1, 1)
 
         credentials = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -540,31 +528,31 @@ class EphemeralLabDialog(Gtk.Dialog):
         self.password_entry = Gtk.Entry()
         self.password_entry.set_visibility(False)
         self.password_entry.set_text(generate_password())
-        reveal = Gtk.ToggleButton(label="Mostra")
+        reveal = Gtk.ToggleButton(label=tr("Mostra"))
         reveal.connect("toggled", lambda button: self.password_entry.set_visibility(button.get_active()))
-        credentials.pack_start(Gtk.Label(label="Utente"), False, False, 0)
+        credentials.pack_start(Gtk.Label(label=tr("Utente")), False, False, 0)
         credentials.pack_start(self.username_entry, False, False, 0)
-        credentials.pack_start(Gtk.Label(label="Password temporanea"), False, False, 0)
+        credentials.pack_start(Gtk.Label(label=tr("Password temporanea")), False, False, 0)
         credentials.pack_start(self.password_entry, True, True, 0)
         credentials.pack_start(reveal, False, False, 0)
-        form.attach(Gtk.Label(label="Accesso", xalign=0), 0, 4, 1, 1)
+        form.attach(Gtk.Label(label=tr("Accesso"), xalign=0), 0, 4, 1, 1)
         form.attach(credentials, 1, 4, 1, 1)
 
-        advanced = Gtk.Expander(label="Risorse avanzate")
+        advanced = Gtk.Expander(label=tr("Risorse avanzate"))
         resources = Gtk.Grid(column_spacing=10, row_spacing=8, margin=8)
         self.cpu_spin = Gtk.SpinButton.new_with_range(1, 16, 1)
         self.cpu_spin.set_value(2)
         self.ram_spin = Gtk.SpinButton.new_with_range(768, 32768, 256)
         self.ram_spin.set_value(2048)
-        resources.attach(Gtk.Label(label="CPU virtuali", xalign=0), 0, 0, 1, 1)
+        resources.attach(Gtk.Label(label=tr("CPU virtuali"), xalign=0), 0, 0, 1, 1)
         resources.attach(self.cpu_spin, 1, 0, 1, 1)
-        resources.attach(Gtk.Label(label="RAM (MB)", xalign=0), 0, 1, 1, 1)
+        resources.attach(Gtk.Label(label=tr("RAM (MB)"), xalign=0), 0, 1, 1, 1)
         resources.attach(self.ram_spin, 1, 1, 1, 1)
         advanced.add(resources)
         root.pack_start(advanced, False, False, 0)
 
         note = Gtk.Label(
-            label="La modalità isolata è consigliata. Questo laboratorio non è una sandbox per analizzare malware.",
+            label=tr("La modalità isolata è consigliata. Questo laboratorio non è una sandbox per analizzare malware."),
             xalign=0,
         )
         note.set_line_wrap(True)
@@ -575,9 +563,9 @@ class EphemeralLabDialog(Gtk.Dialog):
         self.status_label = Gtk.Label(label="", xalign=0)
         self.status_label.set_ellipsize(Pango.EllipsizeMode.END)
         action_row.pack_start(self.status_label, True, True, 0)
-        self.check_button = Gtk.Button.new_with_mnemonic("_Ricontrolla supporto")
+        self.check_button = Gtk.Button.new_with_mnemonic(tr("_Ricontrolla supporto"))
         self.check_button.connect("clicked", lambda *_: self.refresh_support())
-        self.start_button = Gtk.Button.new_with_mnemonic("_Avvia laboratorio")
+        self.start_button = Gtk.Button.new_with_mnemonic(tr("_Avvia laboratorio"))
         self.start_button.get_style_context().add_class("suggested-action")
         self.start_button.connect("clicked", self.on_start_clicked)
         action_row.pack_start(self.check_button, False, False, 0)
@@ -586,13 +574,13 @@ class EphemeralLabDialog(Gtk.Dialog):
 
         separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
         root.pack_start(separator, False, False, 0)
-        active_header = Gtk.Label(label="Laboratori attivi", xalign=0)
+        active_header = Gtk.Label(label=tr("Laboratori attivi"), xalign=0)
         active_header.get_style_context().add_class("dialog-heading")
         root.pack_start(active_header, False, False, 0)
 
         self.instance_store = Gtk.ListStore(str, str, str, str)
         self.instance_view = Gtk.TreeView(model=self.instance_store)
-        for title_text, column_index in (("Nome", 0), ("Stato", 1), ("Rete", 2)):
+        for title_text, column_index in ((tr("Nome"), 0), (tr("Stato"), 1), (tr("Rete"), 2)):
             renderer = Gtk.CellRendererText()
             renderer.set_property("ellipsize", Pango.EllipsizeMode.END)
             column = Gtk.TreeViewColumn(title_text, renderer, text=column_index)
@@ -605,9 +593,9 @@ class EphemeralLabDialog(Gtk.Dialog):
         root.pack_start(active_scroll, True, True, 0)
 
         instance_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
-        self.console_button = Gtk.Button.new_with_mnemonic("Apri _console")
+        self.console_button = Gtk.Button.new_with_mnemonic(tr("Apri _console"))
         self.console_button.connect("clicked", self.on_open_console)
-        self.stop_button = Gtk.Button.new_with_mnemonic("_Termina ed elimina")
+        self.stop_button = Gtk.Button.new_with_mnemonic(tr("_Termina ed elimina"))
         self.stop_button.get_style_context().add_class("destructive-action")
         self.stop_button.connect("clicked", self.on_stop_selected)
         instance_actions.pack_end(self.stop_button, False, False, 0)
@@ -625,13 +613,10 @@ class EphemeralLabDialog(Gtk.Dialog):
         """La console non si è aperta: la VM è già stata distrutta, qui si
         spiega all'utente il motivo invece di lasciare un laboratorio fantasma
         nell'elenco."""
-        self.status_label.set_text("Console non aperta: laboratorio eliminato.")
+        self.status_label.set_text(tr("Console non aperta: laboratorio eliminato."))
         self.refresh_instances()
         self._show_error(
-            f"Impossibile aprire la console di «{instance.config.name}».\n\n"
-            f"{reason}\n\n"
-            "La macchina temporanea è stata eliminata per non lasciarla attiva "
-            "e irraggiungibile."
+            tr("Impossibile aprire la console di «{name}».\n\n{reason}\n\nLa macchina temporanea è stata eliminata per non lasciarla attiva e irraggiungibile.").format(name=instance.config.name, reason=reason)
         )
 
     def _on_destroy(self, _widget: Gtk.Widget) -> None:
@@ -657,7 +642,7 @@ class EphemeralLabDialog(Gtk.Dialog):
         self.ram_spin.set_value(ram)
 
     def refresh_support(self) -> None:
-        self.support_label.set_text("Controllo supporto virtualizzazione…")
+        self.support_label.set_text(tr("Controllo supporto virtualizzazione…"))
         self.start_button.set_sensitive(False)
 
         def worker() -> None:
@@ -669,11 +654,11 @@ class EphemeralLabDialog(Gtk.Dialog):
         if support.ready:
             text = "✓ " + support.detail
             if support.warnings:
-                text += "\nAttenzione: " + " ".join(support.warnings)
+                text += tr("\nAttenzione: ") + " ".join(support.warnings)
         else:
-            text = "Supporto non pronto: " + support.detail
+            text = tr("Supporto non pronto: ") + support.detail
             if support.missing:
-                text += "\nInstalla: sudo dnf install libvirt-daemon-kvm virt-install virt-viewer qemu-img"
+                text += tr("\nInstalla: sudo dnf install libvirt-daemon-kvm virt-install virt-viewer qemu-img")
         self.support_label.set_text(text)
         self.start_button.set_sensitive(support.ready)
         return False
@@ -687,7 +672,7 @@ class EphemeralLabDialog(Gtk.Dialog):
         self.instance_store.clear()
         select_path = None
         for index, instance in enumerate(self.controller.list_instances()):
-            network = "Isolata" if instance.config.network == "isolated" else "Internet NAT"
+            network = tr("Isolata") if instance.config.network == "isolated" else tr("Internet NAT")
             self.instance_store.append([instance.config.name, instance.state, network, instance.identifier])
             if instance.identifier == selected:
                 select_path = Gtk.TreePath.new_from_indices([index])
@@ -701,10 +686,10 @@ class EphemeralLabDialog(Gtk.Dialog):
     def on_start_clicked(self, _button: Gtk.Button) -> None:
         filename = self.image_chooser.get_filename()
         if not filename:
-            self._show_error("Seleziona un'immagine cloud Linux in formato QCOW2, RAW o IMG.")
+            self._show_error(tr("Seleziona un'immagine cloud Linux in formato QCOW2, RAW o IMG."))
             return
         config = LabConfig(
-            name=self.name_entry.get_text().strip() or "Linux test",
+            name=self.name_entry.get_text().strip() or tr("Linux test"),
             base_image=Path(filename),
             memory_mb=int(self.ram_spin.get_value()),
             vcpus=int(self.cpu_spin.get_value()),
@@ -713,7 +698,7 @@ class EphemeralLabDialog(Gtk.Dialog):
             password=self.password_entry.get_text() or generate_password(),
         )
         self.start_button.set_sensitive(False)
-        self.status_label.set_text("Preparazione laboratorio…")
+        self.status_label.set_text(tr("Preparazione laboratorio…"))
 
         def completed(ok: bool, message: str, _instance: Optional[LabInstance]) -> bool:
             self.start_button.set_sensitive(True)
@@ -745,15 +730,15 @@ class EphemeralLabDialog(Gtk.Dialog):
             flags=0,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.NONE,
-            text="Terminare il laboratorio?",
+            text=tr("Terminare il laboratorio?"),
         )
-        dialog.format_secondary_text("La VM e tutte le modifiche nel disco temporaneo verranno eliminate definitivamente.")
-        dialog.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Termina ed elimina", Gtk.ResponseType.OK)
+        dialog.format_secondary_text(tr("La VM e tutte le modifiche nel disco temporaneo verranno eliminate definitivamente."))
+        dialog.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Termina ed elimina"), Gtk.ResponseType.OK)
         response = dialog.run()
         dialog.destroy()
         if response == Gtk.ResponseType.OK:
             self.controller.destroy(identifier)
-            self.status_label.set_text("Arresto e pulizia in corso…")
+            self.status_label.set_text(tr("Arresto e pulizia in corso…"))
 
     def _show_error(self, message: str) -> None:
         dialog = Gtk.MessageDialog(
@@ -761,7 +746,7 @@ class EphemeralLabDialog(Gtk.Dialog):
             flags=0,
             message_type=Gtk.MessageType.ERROR,
             buttons=Gtk.ButtonsType.CLOSE,
-            text="Lab temporaneo",
+            text=tr("Lab temporaneo"),
         )
         dialog.format_secondary_text(message)
         dialog.run()

@@ -13,6 +13,10 @@ import json
 import threading
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
+try:
+    from .i18n import tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr, trn
 
 import gi
 
@@ -140,10 +144,10 @@ class WindowsSessionsDialog(Gtk.Dialog):
         password: Optional[str],
         status_callback: Optional[Callable[[str], None]] = None,
     ) -> None:
-        super().__init__(title="Gestisci sessioni Windows", transient_for=parent, modal=False)
+        super().__init__(title=tr("Gestisci sessioni Windows"), transient_for=parent, modal=False)
         self.set_default_size(930, 600)
         self.set_resizable(True)
-        self.add_button("Chiudi", Gtk.ResponseType.CLOSE)
+        self.add_button(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         self.connect("response", lambda dialog, _response: dialog.destroy())
 
         self.password = password or ""
@@ -151,15 +155,15 @@ class WindowsSessionsDialog(Gtk.Dialog):
         self.busy = False
 
         self.host_entry = Gtk.Entry(text=host)
-        self.host_entry.set_placeholder_text("PC o server Windows")
+        self.host_entry.set_placeholder_text(tr("PC o server Windows"))
         self.port_spin = Gtk.SpinButton.new_with_range(1, 65535, 1)
         self.port_spin.set_value(5985)
         self.https_check = Gtk.CheckButton(label="HTTPS")
         self.https_check.connect("toggled", self._on_https_toggled)
-        self.ignore_cert_check = Gtk.CheckButton(label="Ignora certificato non attendibile")
+        self.ignore_cert_check = Gtk.CheckButton(label=tr("Ignora certificato non attendibile"))
         self.ignore_cert_check.set_active(False)
         self.ignore_cert_check.set_tooltip_text(
-            "Abilita solo per un listener HTTPS interno con certificato self-signed verificato."
+            tr("Abilita solo per un listener HTTPS interno con certificato self-signed verificato.")
         )
 
         self.user_entry = Gtk.Entry(text=username)
@@ -168,20 +172,20 @@ class WindowsSessionsDialog(Gtk.Dialog):
         self.password_entry.set_text(self.password)
         self.password_entry.set_visibility(False)
         self.password_entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
-        self.password_entry.set_placeholder_text("Password WinRM / amministratore")
+        self.password_entry.set_placeholder_text(tr("Password WinRM / amministratore"))
         self.password_entry.set_icon_from_icon_name(
             Gtk.EntryIconPosition.SECONDARY, "view-reveal-symbolic"
         )
         self.password_entry.set_icon_tooltip_text(
-            Gtk.EntryIconPosition.SECONDARY, "Mostra o nascondi la password"
+            Gtk.EntryIconPosition.SECONDARY, tr("Mostra o nascondi la password")
         )
         self.password_entry.connect("icon-press", self._toggle_password_visibility)
         self.transport_combo = Gtk.ComboBoxText()
         for key, label in (
-            ("ntlm", "NTLM / dominio"),
-            ("kerberos", "Kerberos"),
-            ("credssp", "CredSSP"),
-            ("basic", "Basic (solo HTTPS)"),
+            ("ntlm", tr("NTLM / dominio")),
+            ("kerberos", tr("Kerberos")),
+            ("credssp", tr("CredSSP")),
+            ("basic", tr("Basic (solo HTTPS)")),
         ):
             self.transport_combo.append(key, label)
         self.transport_combo.set_active_id("ntlm")
@@ -190,7 +194,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
         self.tree = Gtk.TreeView(model=self.store)
         self.tree.set_headers_visible(True)
         self.tree.get_selection().set_mode(Gtk.SelectionMode.SINGLE)
-        for index, title in enumerate(("ID", "Utente", "Stato", "Sessione", "Client", "Dominio")):
+        for index, title in enumerate(("ID", tr("Utente"), tr("Stato"), tr("Sessione"), tr("Client"), tr("Dominio"))):
             renderer = Gtk.CellRendererText()
             if index == 0:
                 renderer.set_property("xalign", 1.0)
@@ -200,7 +204,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
             self.tree.append_column(column)
 
         self.spinner = Gtk.Spinner()
-        self.status_label = Gtk.Label(label="WinRM non è necessario per RDP: serve solo per amministrare le sessioni.", xalign=0)
+        self.status_label = Gtk.Label(label=tr("WinRM non è necessario per RDP: serve solo per amministrare le sessioni."), xalign=0)
         self.status_label.set_line_wrap(True)
 
         self._build_ui()
@@ -208,9 +212,9 @@ class WindowsSessionsDialog(Gtk.Dialog):
         self.spinner.hide()
 
         if winrm is None:
-            self._set_status("Modulo WinRM mancante. Installa: sudo dnf install python3-winrm", error=True)
+            self._set_status(tr("Modulo WinRM mancante. Installa: sudo dnf install python3-winrm"), error=True)
         elif not self.password:
-            self._set_status("Password non disponibile: sblocca il Password Manager o inseriscila nella sessione RDP.", error=True)
+            self._set_status(tr("Password non disponibile: sblocca il Password Manager o inseriscila nella sessione RDP."), error=True)
         else:
             GLib.idle_add(self.refresh)
 
@@ -223,11 +227,11 @@ class WindowsSessionsDialog(Gtk.Dialog):
         icon = Gtk.Image.new_from_icon_name("computer-symbolic", Gtk.IconSize.DIALOG)
         intro.pack_start(icon, False, False, 0)
         intro_text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-        title = Gtk.Label(label="Sessioni Remote Desktop sul server", xalign=0)
+        title = Gtk.Label(label=tr("Sessioni Remote Desktop sul server"), xalign=0)
         title.get_style_context().add_class("panel-title")
         desc = Gtk.Label(
-            label=("Visualizza le sessioni Windows e scegli un'azione amministrativa. "
-                   "Disconnetti conserva programmi e documenti; Logoff e Reset possono perdere dati non salvati."),
+            label=(tr("Visualizza le sessioni Windows e scegli un'azione amministrativa. "
+                   "Disconnetti conserva programmi e documenti; Logoff e Reset possono perdere dati non salvati.")),
             xalign=0,
         )
         desc.set_line_wrap(True)
@@ -240,12 +244,12 @@ class WindowsSessionsDialog(Gtk.Dialog):
         grid.get_style_context().add_class("settings-card")
         grid.set_border_width(12)
         labels = (
-            ("Host", self.host_entry),
-            ("Porta WinRM", self.port_spin),
-            ("Utente", self.user_entry),
-            ("Dominio", self.domain_entry),
-            ("Password", self.password_entry),
-            ("Autenticazione", self.transport_combo),
+            (tr("Host"), self.host_entry),
+            (tr("Porta WinRM"), self.port_spin),
+            (tr("Utente"), self.user_entry),
+            (tr("Dominio"), self.domain_entry),
+            (tr("Password"), self.password_entry),
+            (tr("Autenticazione"), self.transport_combo),
         )
         for row, (text, widget) in enumerate(labels):
             label = Gtk.Label(label=text, xalign=0)
@@ -266,11 +270,11 @@ class WindowsSessionsDialog(Gtk.Dialog):
         root.pack_start(scroll, True, True, 0)
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self.refresh_button = self._action_button("Aggiorna", "view-refresh-symbolic", lambda _b: self.refresh())
-        self.message_button = self._action_button("Invia messaggio", "mail-message-new-symbolic", self._on_message)
-        self.disconnect_button = self._action_button("Disconnetti", "network-offline-symbolic", self._on_disconnect)
-        self.logoff_button = self._action_button("Logoff", "system-log-out-symbolic", self._on_logoff)
-        self.reset_button = self._action_button("Reset forzato", "edit-delete-symbolic", self._on_reset)
+        self.refresh_button = self._action_button(tr("Aggiorna"), "view-refresh-symbolic", lambda _b: self.refresh())
+        self.message_button = self._action_button(tr("Invia messaggio"), "mail-message-new-symbolic", self._on_message)
+        self.disconnect_button = self._action_button(tr("Disconnetti"), "network-offline-symbolic", self._on_disconnect)
+        self.logoff_button = self._action_button(tr("Logoff"), "system-log-out-symbolic", self._on_logoff)
+        self.reset_button = self._action_button(tr("Reset forzato"), "edit-delete-symbolic", self._on_reset)
         for button in (self.refresh_button, self.message_button, self.disconnect_button, self.logoff_button, self.reset_button):
             actions.pack_start(button, False, False, 0)
         actions.pack_end(self.spinner, False, False, 0)
@@ -326,7 +330,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
     def _endpoint_and_auth(self) -> Tuple[str, str, Tuple[str, str], str]:
         host = self.host_entry.get_text().strip()
         if not host:
-            raise ValueError("Host Windows mancante")
+            raise ValueError(tr("Host Windows mancante"))
         scheme = "https" if self.https_check.get_active() else "http"
         port = int(self.port_spin.get_value())
         endpoint = f"{scheme}://{host}:{port}/wsman"
@@ -335,17 +339,17 @@ class WindowsSessionsDialog(Gtk.Dialog):
         auth_user = f"{domain}\\{user}" if domain and "\\" not in user and "@" not in user else user
         password = self.password_entry.get_text()
         if not auth_user or not password:
-            raise ValueError("Utente o password WinRM mancanti")
+            raise ValueError(tr("Utente o password WinRM mancanti"))
         transport = self.transport_combo.get_active_id() or "ntlm"
         if transport == "basic" and scheme != "https":
-            raise ValueError("L'autenticazione Basic è consentita soltanto con WinRM HTTPS")
+            raise ValueError(tr("L'autenticazione Basic è consentita soltanto con WinRM HTTPS"))
         validation = "ignore" if self.ignore_cert_check.get_active() else "validate"
         return endpoint, transport, (auth_user, password), validation
 
     @staticmethod
     def _new_session(config):  # noqa: ANN001, ANN205
         if winrm is None:
-            raise RuntimeError("python3-winrm non installato")
+            raise RuntimeError(tr("python3-winrm non installato"))
         endpoint, transport, auth, validation = config
         return winrm.Session(
             endpoint,
@@ -380,7 +384,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
 
     def _async_error(self, message: str) -> bool:
         self._set_busy(False)
-        self._set_status(f"Operazione WinRM fallita: {message}", error=True)
+        self._set_status(tr("Operazione WinRM fallita: {message}").format(message=message), error=True)
         return False
 
     def _async_done(self, result: object, done: Callable[[object], None]) -> bool:
@@ -390,7 +394,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
 
     def refresh(self) -> bool:
         if winrm is None:
-            self._set_status("Modulo WinRM mancante. Installa: sudo dnf install python3-winrm", error=True)
+            self._set_status(tr("Modulo WinRM mancante. Installa: sudo dnf install python3-winrm"), error=True)
             return False
         try:
             config = self._endpoint_and_auth()
@@ -402,7 +406,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
             response = self._new_session(config).run_ps(WTS_ENUM_SCRIPT)
             if response.status_code != 0:
                 err = self._decode(response.std_err) or self._decode(response.std_out)
-                raise RuntimeError(err or f"PowerShell exit code {response.status_code}")
+                raise RuntimeError(err or tr("PowerShell exit code {status_code}").format(status_code=response.status_code))
             text = self._decode(response.std_out)
             if not text:
                 return []
@@ -428,15 +432,15 @@ class WindowsSessionsDialog(Gtk.Dialog):
             for row in rows:
                 if isinstance(row, WindowsSessionRow):
                     self.store.append([row.session_id, row.identity, row.state, row.station, row.client or "—", row.domain or "—"])
-            self._set_status(f"{len(rows)} sessioni rilevate su {self.host_entry.get_text().strip()}.")
+            self._set_status(tr("{n_rows} sessioni rilevate su {strip}.").format(n_rows=len(rows), strip=self.host_entry.get_text().strip()))
 
-        self._run_async("Lettura sessioni Windows in corso…", worker, done)
+        self._run_async(tr("Lettura sessioni Windows in corso…"), worker, done)
         return False
 
     def _selected(self) -> Optional[Tuple[int, str, str]]:
         model, tree_iter = self.tree.get_selection().get_selected()
         if tree_iter is None:
-            self._set_status("Seleziona prima una sessione Windows.", error=True)
+            self._set_status(tr("Seleziona prima una sessione Windows."), error=True)
             return None
         return int(model[tree_iter][0]), str(model[tree_iter][1]), str(model[tree_iter][2])
 
@@ -449,13 +453,13 @@ class WindowsSessionsDialog(Gtk.Dialog):
             text=title,
         )
         dialog.format_secondary_text(text)
-        dialog.add_button("Annulla", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Conferma", Gtk.ResponseType.OK)
+        dialog.add_button(tr("Annulla"), Gtk.ResponseType.CANCEL)
+        dialog.add_button(tr("Conferma"), Gtk.ResponseType.OK)
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.OK
 
-    def _run_session_command(self, command: str, session_id: int, args: Optional[List[str]] = None, success: str = "Operazione completata") -> None:
+    def _run_session_command(self, command: str, session_id: int, args: Optional[List[str]] = None, success: str = tr("Operazione completata")) -> None:
         params = [str(session_id)] + list(args or [])
         try:
             config = self._endpoint_and_auth()
@@ -468,22 +472,22 @@ class WindowsSessionsDialog(Gtk.Dialog):
             out = self._decode(response.std_out)
             err = self._decode(response.std_err)
             if response.status_code != 0:
-                raise RuntimeError(err or out or f"{command}: exit code {response.status_code}")
+                raise RuntimeError(err or out or tr("{command}: exit code {status_code}").format(command=command, status_code=response.status_code))
             return out
 
         def done(_result: object) -> None:
             self._set_status(success)
             GLib.timeout_add(450, self.refresh)
 
-        self._run_async(f"Esecuzione {command}…", worker, done)
+        self._run_async(tr("Esecuzione {command}…").format(command=command), worker, done)
 
     def _on_disconnect(self, _button: Gtk.Button) -> None:
         selected = self._selected()
         if not selected:
             return
         session_id, user, _state = selected
-        if self._confirm("Disconnettere la sessione?", f"{user} (ID {session_id}) resterà aperta con programmi e documenti in esecuzione."):
-            self._run_session_command("tsdiscon.exe", session_id, success=f"Sessione {session_id} disconnessa.")
+        if self._confirm(tr("Disconnettere la sessione?"), tr("{user} (ID {session_id}) resterà aperta con programmi e documenti in esecuzione.").format(user=user, session_id=session_id)):
+            self._run_session_command("tsdiscon.exe", session_id, success=tr("Sessione {session_id} disconnessa.").format(session_id=session_id))
 
     def _on_logoff(self, _button: Gtk.Button) -> None:
         selected = self._selected()
@@ -491,11 +495,11 @@ class WindowsSessionsDialog(Gtk.Dialog):
             return
         session_id, user, _state = selected
         if self._confirm(
-            "Eseguire il logoff?",
-            f"La sessione {user} (ID {session_id}) verrà chiusa. Le modifiche non salvate possono andare perse.",
+            tr("Eseguire il logoff?"),
+            tr("La sessione {user} (ID {session_id}) verrà chiusa. Le modifiche non salvate possono andare perse.").format(user=user, session_id=session_id),
             destructive=True,
         ):
-            self._run_session_command("logoff.exe", session_id, success=f"Logoff della sessione {session_id} richiesto.")
+            self._run_session_command("logoff.exe", session_id, success=tr("Logoff della sessione {session_id} richiesto.").format(session_id=session_id))
 
     def _on_reset(self, _button: Gtk.Button) -> None:
         selected = self._selected()
@@ -503,27 +507,27 @@ class WindowsSessionsDialog(Gtk.Dialog):
             return
         session_id, user, _state = selected
         if self._confirm(
-            "Reset forzato della sessione?",
-            f"Usa questa azione solo per una sessione bloccata. {user} (ID {session_id}) perderà eventuali dati non salvati.",
+            tr("Reset forzato della sessione?"),
+            tr("Usa questa azione solo per una sessione bloccata. {user} (ID {session_id}) perderà eventuali dati non salvati.").format(user=user, session_id=session_id),
             destructive=True,
         ):
-            self._run_session_command("rwinsta.exe", session_id, success=f"Reset della sessione {session_id} richiesto.")
+            self._run_session_command("rwinsta.exe", session_id, success=tr("Reset della sessione {session_id} richiesto.").format(session_id=session_id))
 
     def _on_message(self, _button: Gtk.Button) -> None:
         selected = self._selected()
         if not selected:
             return
         session_id, user, _state = selected
-        dialog = Gtk.Dialog(title="Invia messaggio alla sessione", transient_for=self, modal=True)
-        dialog.add_button("Annulla", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Invia", Gtk.ResponseType.OK)
+        dialog = Gtk.Dialog(title=tr("Invia messaggio alla sessione"), transient_for=self, modal=True)
+        dialog.add_button(tr("Annulla"), Gtk.ResponseType.CANCEL)
+        dialog.add_button(tr("Invia"), Gtk.ResponseType.OK)
         entry = Gtk.Entry()
-        entry.set_placeholder_text(f"Messaggio per {user}")
+        entry.set_placeholder_text(tr("Messaggio per {user}").format(user=user))
         entry.set_activates_default(True)
         dialog.set_default_response(Gtk.ResponseType.OK)
         box = dialog.get_content_area()
         box.set_border_width(14)
-        box.pack_start(Gtk.Label(label=f"Sessione {session_id} — {user}", xalign=0), False, False, 0)
+        box.pack_start(Gtk.Label(label=tr("Sessione {session_id} — {user}").format(session_id=session_id, user=user), xalign=0), False, False, 0)
         box.pack_start(entry, False, False, 8)
         dialog.show_all()
         response = dialog.run()
@@ -536,7 +540,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
         sanitized = message.replace('"', "'").replace("\r", " ").replace("\n", " ").strip()
         if not sanitized:
             return
-        self._run_session_command("msg.exe", session_id, [sanitized], success=f"Messaggio inviato alla sessione {session_id}.")
+        self._run_session_command("msg.exe", session_id, [sanitized], success=tr("Messaggio inviato alla sessione {session_id}.").format(session_id=session_id))
 
     def destroy(self) -> None:  # type: ignore[override]
         self.password = ""

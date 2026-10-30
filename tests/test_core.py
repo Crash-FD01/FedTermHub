@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import re
 import os
 import stat
 import sys
@@ -18,8 +19,13 @@ def mode(path: Path) -> int:
     return stat.S_IMODE(path.stat().st_mode)
 
 
+def _without_tr(text: str) -> str:
+    """Il sorgente senza gli involucri tr("..."): i controlli qui sotto cercano il testo italiano."""
+    return re.sub(r'\btr\(("(?:[^"\\\n]|\\.)*")\)', r"\1", text)
+
+
 def verify_ui_source_invariants() -> None:
-    source = (PROJECT_ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8")
+    source = _without_tr((PROJECT_ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8"))
     assert "def make_theme_toggle_button" in source
     assert "ribbon.pack_end(self.make_theme_toggle_button()" in source
     assert '("Tema scuro", lambda *_: self.set_theme_from_menu("dark"))' not in source
@@ -50,7 +56,7 @@ def verify_ui_source_invariants() -> None:
     detached_block = source.split("class RdpDetachedWindow", 1)[1].split("class AppWindow", 1)[0]
     assert "self._window_group = Gtk.WindowGroup()" in detached_block
     assert "self._window_group.add_window(self)" in detached_block
-    lab_source = (PROJECT_ROOT / "fedtermhub" / "ephemeral_lab.py").read_text(encoding="utf-8")
+    lab_source = _without_tr((PROJECT_ROOT / "fedtermhub" / "ephemeral_lab.py").read_text(encoding="utf-8"))
     lab_dialog_block = lab_source.split("class EphemeralLabDialog", 1)[1]
     assert "self._window_group = Gtk.WindowGroup()" in lab_dialog_block
     assert "self._window_group.add_window(self)" in lab_dialog_block
@@ -74,13 +80,13 @@ def verify_ui_source_invariants() -> None:
     assert "Home Session è una radice applicativa protetta" in source
     assert "self.store.is_home_path(path)" in source
     assert 'button.set_sensitive(has_selection and not home_selected)' in source
-    diagnostic_source = (PROJECT_ROOT / "fedtermhub" / "connection_diagnostics.py").read_text(encoding="utf-8")
+    diagnostic_source = _without_tr((PROJECT_ROOT / "fedtermhub" / "connection_diagnostics.py").read_text(encoding="utf-8"))
     assert "def run_connection_diagnostics" in diagnostic_source
     assert '"dns", "Risoluzione DNS"' in diagnostic_source
     assert '"route", "Instradamento"' in diagnostic_source
     assert '"vpn", "VPN"' in diagnostic_source
     assert '"tcp", "Porta TCP"' in diagnostic_source
-    native_source = (PROJECT_ROOT / "fedtermhub" / "native_rdp.py").read_text(encoding="utf-8")
+    native_source = _without_tr((PROJECT_ROOT / "fedtermhub" / "native_rdp.py").read_text(encoding="utf-8"))
     assert 'autostart_on_map: bool = True' in native_source
     assert 'self.preferred_monitor = str(preferred_monitor or "current")' in native_source
     # 3.16.3: il renderer riusa staging e buffer di visualizzazione invece di
@@ -119,7 +125,7 @@ def verify_ui_source_invariants() -> None:
     # solo il workspace immersivo a livello di finestra.
     assert 'def set_terminal_fullscreen(' in source
     assert 'self.terminal.set_colors(fg, bg, [])' not in source
-    terminal_source = (PROJECT_ROOT / "fedtermhub" / "terminal_panel.py").read_text(encoding="utf-8")
+    terminal_source = _without_tr((PROJECT_ROOT / "fedtermhub" / "terminal_panel.py").read_text(encoding="utf-8"))
     assert 'TERMINAL_PALETTE' in terminal_source
     assert 'class TerminalPane' in terminal_source
     assert 'class TerminalWorkspace' in terminal_source
@@ -160,6 +166,7 @@ def main() -> int:
     verify_ui_source_invariants()
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
+        os.environ["FEDTERMHUB_LANGUAGE"] = "it"  # i test controllano i testi italiani
         os.environ["XDG_CONFIG_HOME"] = str(root / ".config")
         os.environ["XDG_CACHE_HOME"] = str(root / ".cache")
         sys.path.insert(0, str(PROJECT_ROOT / "fedtermhub"))

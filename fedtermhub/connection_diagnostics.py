@@ -19,6 +19,10 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
+try:
+    from .i18n import tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr, trn
 
 
 DEFAULT_PORTS: Dict[str, int] = {
@@ -31,8 +35,8 @@ DEFAULT_PORTS: Dict[str, int] = {
 
 STATUS_LABELS = {
     "ok": "OK",
-    "warning": "ATTENZIONE",
-    "error": "ERRORE",
+    "warning": tr("ATTENZIONE"),
+    "error": tr("ERRORE"),
     "info": "INFO",
 }
 
@@ -48,7 +52,7 @@ class DiagnosticTarget:
 
     @property
     def endpoint(self) -> str:
-        port_label = str(self.port) if self.port > 0 else "porta non valida"
+        port_label = str(self.port) if self.port > 0 else tr("porta non valida")
         if ":" in self.host and not self.host.startswith("["):
             return f"[{self.host}]:{port_label}"
         return f"{self.host}:{port_label}"
@@ -61,6 +65,9 @@ class DiagnosticStep:
     status: str
     summary: str
     details: str = ""
+    # Motivo leggibile dal codice ("refused", "timeout"...): il riepilogo e' tradotto e non va
+    # confrontato con parole italiane.
+    reason: str = ""
 
 
 @dataclass
@@ -78,13 +85,13 @@ class DiagnosticReport:
 
     def to_text(self) -> str:
         lines = [
-            "FedTermHub - Diagnostica connessione",
+            tr("FedTermHub - Diagnostica connessione"),
             "====================================",
-            f"Sessione: {self.target.name or '-'}",
-            f"Protocollo: {self.target.protocol.upper()}",
-            f"Destinazione: {self.target.endpoint}",
-            f"Eseguita: {self.started_at}",
-            f"Durata: {self.elapsed_ms} ms",
+            tr("Sessione: {v}").format(v=self.target.name or '-'),
+            tr("Protocollo: {upper}").format(upper=self.target.protocol.upper()),
+            tr("Destinazione: {endpoint}").format(endpoint=self.target.endpoint),
+            tr("Eseguita: {started_at}").format(started_at=self.started_at),
+            tr("Durata: {elapsed_ms} ms").format(elapsed_ms=self.elapsed_ms),
             "",
         ]
         for item in self.steps:
@@ -94,8 +101,8 @@ class DiagnosticReport:
                 for detail_line in item.details.strip().splitlines():
                     lines.append(f"    {detail_line}")
         if self.recommendation:
-            lines += ["", "Suggerimento:", self.recommendation]
-        lines += ["", "Il rapporto non contiene password o altri segreti."]
+            lines += ["", tr("Suggerimento:"), self.recommendation]
+        lines += ["", tr("Il rapporto non contiene password o altri segreti.")]
         return "\n".join(lines).rstrip() + "\n"
 
 
@@ -119,7 +126,7 @@ def make_target(name: str, protocol: str, host: str, port: object = "") -> Diagn
     if clean_host.startswith("[") and clean_host.endswith("]"):
         clean_host = clean_host[1:-1]
     return DiagnosticTarget(
-        name=str(name or clean_host or "Sessione"),
+        name=str(name or clean_host or tr("Sessione")),
         protocol=proto,
         host=clean_host,
         port=normalize_port(proto, port),
@@ -141,7 +148,7 @@ def _run_command(argv: Sequence[str], timeout: float = 4.0) -> Tuple[int, str, s
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
         stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
-        return 124, stdout.strip(), (stderr.strip() or "comando scaduto")
+        return 124, stdout.strip(), (stderr.strip() or tr("comando scaduto"))
     except OSError as exc:
         return 127, "", str(exc)
 
@@ -175,8 +182,8 @@ def _resolve_host(host: str, timeout: float) -> Tuple[List[str], Optional[str]]:
         if addresses:
             return addresses, None
         if rc == 124:
-            return [], "timeout durante la risoluzione del nome"
-        return [], stderr or stdout or "nome non trovato dalla configurazione NSS"
+            return [], tr("timeout durante la risoluzione del nome")
+        return [], stderr or stdout or tr("nome non trovato dalla configurazione NSS")
 
     # Fallback per ambienti minimali diversi da Fedora.
     try:
@@ -191,7 +198,7 @@ def _resolve_host(host: str, timeout: float) -> Tuple[List[str], Optional[str]]:
         address = str(sockaddr[0])
         if address not in addresses:
             addresses.append(address)
-    return addresses, None if addresses else "nessun indirizzo restituito"
+    return addresses, None if addresses else tr("nessun indirizzo restituito")
 
 
 def _route_for(address: str, timeout: float) -> Tuple[DiagnosticStep, Dict[str, object]]:
@@ -199,9 +206,9 @@ def _route_for(address: str, timeout: float) -> Tuple[DiagnosticStep, Dict[str, 
     if not ip_binary:
         return (
             DiagnosticStep(
-                "route", "Instradamento", "warning",
-                "Comando ip non disponibile",
-                "Installa il pacchetto iproute per ottenere interfaccia, gateway e indirizzo sorgente.",
+                "route", tr("Instradamento"), "warning",
+                tr("Comando ip non disponibile"),
+                tr("Installa il pacchetto iproute per ottenere interfaccia, gateway e indirizzo sorgente."),
             ),
             {},
         )
@@ -218,19 +225,19 @@ def _route_for(address: str, timeout: float) -> Tuple[DiagnosticStep, Dict[str, 
                 route_type = str(row.get("type", "unicast") or "unicast")
                 if route_type in {"unreachable", "blackhole", "prohibit", "throw"}:
                     return DiagnosticStep(
-                        "route", "Instradamento", "error", f"Route {route_type}", stdout
+                        "route", tr("Instradamento"), "error", tr("Route {route_type}").format(route_type=route_type), stdout
                     ), row
-                summary = f"via {dev or 'interfaccia non indicata'}"
+                summary = tr("via {v}").format(v=dev or tr('interfaccia non indicata'))
                 if gateway:
-                    summary += f", gateway {gateway}"
+                    summary += tr(", gateway {gateway}").format(gateway=gateway)
                 details = []
                 if source:
-                    details.append(f"Indirizzo sorgente: {source}")
+                    details.append(tr("Indirizzo sorgente: {source}").format(source=source))
                 table = row.get("table")
                 if table not in (None, "", 254):
-                    details.append(f"Tabella di routing: {table}")
+                    details.append(tr("Tabella di routing: {table}").format(table=table))
                 return DiagnosticStep(
-                    "route", "Instradamento", "ok", summary, "\n".join(details)
+                    "route", tr("Instradamento"), "ok", summary, "\n".join(details)
                 ), row
         except (ValueError, TypeError, KeyError):
             pass
@@ -238,21 +245,21 @@ def _route_for(address: str, timeout: float) -> Tuple[DiagnosticStep, Dict[str, 
     # Compatibilità con versioni/iproute che non espongono JSON.
     rc, stdout, stderr = _run_command([ip_binary, "route", "get", address], timeout)
     low = f"{stdout}\n{stderr}".lower()
-    if rc != 0 or any(word in low for word in ("unreachable", "prohibit", "blackhole", "network is unreachable")):
+    if rc != 0 or any(word in low for word in ("unreachable", "prohibit", "blackhole", tr("network is unreachable"))):
         return DiagnosticStep(
-            "route", "Instradamento", "error", "Nessuna route utilizzabile",
-            stderr or stdout or "ip route get non ha restituito un percorso.",
+            "route", tr("Instradamento"), "error", tr("Nessuna route utilizzabile"),
+            stderr or stdout or tr("ip route get non ha restituito un percorso."),
         ), {}
     tokens = stdout.split()
     dev = tokens[tokens.index("dev") + 1] if "dev" in tokens and tokens.index("dev") + 1 < len(tokens) else ""
     gateway = tokens[tokens.index("via") + 1] if "via" in tokens and tokens.index("via") + 1 < len(tokens) else ""
     source = tokens[tokens.index("src") + 1] if "src" in tokens and tokens.index("src") + 1 < len(tokens) else ""
-    summary = f"via {dev or 'interfaccia non indicata'}"
+    summary = tr("via {v}").format(v=dev or tr('interfaccia non indicata'))
     if gateway:
-        summary += f", gateway {gateway}"
+        summary += tr(", gateway {gateway}").format(gateway=gateway)
     return DiagnosticStep(
-        "route", "Instradamento", "ok" if stdout else "warning", summary,
-        f"Indirizzo sorgente: {source}" if source else stdout,
+        "route", tr("Instradamento"), "ok" if stdout else "warning", summary,
+        tr("Indirizzo sorgente: {source}").format(source=source) if source else stdout,
     ), {"dev": dev, "gateway": gateway, "prefsrc": source}
 
 
@@ -295,19 +302,19 @@ def _active_vpn(timeout: float) -> DiagnosticStep:
 
     if active:
         return DiagnosticStep(
-            "vpn", "VPN", "ok", f"Attiva: {', '.join(active)}", "\n".join(details)
+            "vpn", "VPN", "ok", tr("Attiva: {join_active}").format(join_active=', '.join(active)), "\n".join(details)
         )
     return DiagnosticStep(
-        "vpn", "VPN", "info", "Nessuna VPN attiva rilevata",
-        "Non è necessariamente un errore: dipende dalla rete richiesta dalla sessione.",
+        "vpn", "VPN", "info", tr("Nessuna VPN attiva rilevata"),
+        tr("Non è necessariamente un errore: dipende dalla rete richiesta dalla sessione."),
     )
 
 
 def _tcp_probe(addresses: Sequence[str], port: int, timeout: float, protocol: str) -> DiagnosticStep:
     if port <= 0:
         return DiagnosticStep(
-            "tcp", "Porta TCP", "error", "Porta non valida",
-            "Imposta una porta compresa tra 1 e 65535 nella sessione.",
+            "tcp", tr("Porta TCP"), "error", tr("Porta non valida"),
+            tr("Imposta una porta compresa tra 1 e 65535 nella sessione."),
         )
 
     attempts: List[str] = []
@@ -327,24 +334,24 @@ def _tcp_probe(addresses: Sequence[str], port: int, timeout: float, protocol: st
                     banner = sock.recv(160).decode("utf-8", errors="replace").strip()
                 except (socket.timeout, OSError):
                     banner = ""
-            details = f"Indirizzo: {address}\nTempo apertura TCP: {elapsed_ms} ms"
+            details = tr("Indirizzo: {address}\nTempo apertura TCP: {elapsed_ms} ms").format(address=address, elapsed_ms=elapsed_ms)
             if banner:
                 safe_banner = "".join(ch for ch in banner if ch.isprintable())[:140]
-                details += f"\nBanner: {safe_banner}"
+                details += tr("\nBanner: {safe_banner}").format(safe_banner=safe_banner)
             return DiagnosticStep(
-                "tcp", "Porta TCP", "ok", f"{port} raggiungibile in {elapsed_ms} ms", details
+                "tcp", tr("Porta TCP"), "ok", tr("{port} raggiungibile in {elapsed_ms} ms").format(port=port, elapsed_ms=elapsed_ms), details
             )
         except ConnectionRefusedError as exc:
             elapsed_ms = int((time.monotonic() - started) * 1000)
-            attempts.append(f"{address}: rifiutata dopo {elapsed_ms} ms")
+            attempts.append(tr("{address}: rifiutata dopo {elapsed_ms} ms").format(address=address, elapsed_ms=elapsed_ms))
             best_failure = ("refused", address, str(exc))
         except socket.timeout as exc:
-            attempts.append(f"{address}: timeout dopo {int(timeout * 1000)} ms")
+            attempts.append(tr("{address}: timeout dopo {int} ms").format(address=address, int=int(timeout * 1000)))
             if best_failure is None:
                 best_failure = ("timeout", address, str(exc) or "timed out")
         except OSError as exc:
             elapsed_ms = int((time.monotonic() - started) * 1000)
-            attempts.append(f"{address}: {exc} dopo {elapsed_ms} ms")
+            attempts.append(tr("{address}: {exc} dopo {elapsed_ms} ms").format(address=address, exc=exc, elapsed_ms=elapsed_ms))
             kind = "unreachable" if exc.errno in {
                 errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ENETDOWN, errno.EHOSTDOWN,
             } else "other"
@@ -356,26 +363,27 @@ def _tcp_probe(addresses: Sequence[str], port: int, timeout: float, protocol: st
             except OSError:
                 pass
 
-    details = "\n".join(attempts) or "Nessun indirizzo provato."
+    details = "\n".join(attempts) or tr("Nessun indirizzo provato.")
     if not best_failure:
-        return DiagnosticStep("tcp", "Porta TCP", "error", "Controllo non eseguito", details)
+        return DiagnosticStep("tcp", tr("Porta TCP"), "error", tr("Controllo non eseguito"), details)
     kind, _address, error_text = best_failure
     if kind == "refused":
         return DiagnosticStep(
-            "tcp", "Porta TCP", "error", f"Porta {port} rifiutata",
-            details + "\nL'host risponde, ma il servizio non accetta connessioni sulla porta indicata.",
+            "tcp", tr("Porta TCP"), "error", tr("Porta {port} rifiutata").format(port=port),
+            details + tr("\nL'host risponde, ma il servizio non accetta connessioni sulla porta indicata."),
+            reason="refused",
         )
     if kind == "timeout":
         return DiagnosticStep(
-            "tcp", "Porta TCP", "error", f"Timeout sulla porta {port}",
-            details + "\nPossibili cause: VPN assente, firewall DROP, NAT o host spento.",
+            "tcp", tr("Porta TCP"), "error", tr("Timeout sulla porta {port}").format(port=port),
+            details + tr("\nPossibili cause: VPN assente, firewall DROP, NAT o host spento."),
         )
     if kind == "unreachable":
         return DiagnosticStep(
-            "tcp", "Porta TCP", "error", "Rete o host non raggiungibile", details
+            "tcp", tr("Porta TCP"), "error", tr("Rete o host non raggiungibile"), details
         )
     return DiagnosticStep(
-        "tcp", "Porta TCP", "error", f"Connessione non riuscita: {error_text}", details
+        "tcp", tr("Porta TCP"), "error", tr("Connessione non riuscita: {error_text}").format(error_text=error_text), details
     )
 
 
@@ -387,49 +395,48 @@ def _overall_recommendation(steps: Sequence[DiagnosticStep], target: DiagnosticT
     vpn = by_key.get("vpn")
 
     if not target.host:
-        return "Compila il nome host o l'indirizzo IP della sessione.", "error"
+        return tr("Compila il nome host o l'indirizzo IP della sessione."), "error"
     if dns and dns.status == "error":
         return (
-            "Verifica il nome host e i DNS configurati. Se il nome è interno, collega prima la VPN "
-            "o usa il DNS aziendale corretto.",
+            tr("Verifica il nome host e i DNS configurati. Se il nome è interno, collega prima la VPN "
+            "o usa il DNS aziendale corretto."),
             "error",
         )
     if tcp and tcp.status == "ok":
         return (
-            "La connettività TCP è corretta. Se la sessione continua a fallire, verifica credenziali, dominio, "
-            "certificato e autorizzazioni del servizio remoto.",
+            tr("La connettività TCP è corretta. Se la sessione continua a fallire, verifica credenziali, dominio, "
+            "certificato e autorizzazioni del servizio remoto."),
             "ok",
         )
     if route and route.status == "error":
         extra = ""
         if vpn and vpn.status != "ok":
-            extra = " Non risulta attiva alcuna VPN: collegala se la destinazione è aziendale."
-        return "Manca un percorso di rete verso la destinazione. Controlla routing e gateway." + extra, "error"
-    if tcp and "rifiutata" in tcp.summary.lower():
+            extra = tr(" Non risulta attiva alcuna VPN: collegala se la destinazione è aziendale.")
+        return tr("Manca un percorso di rete verso la destinazione. Controlla routing e gateway.") + extra, "error"
+    if tcp and tcp.reason == "refused":
         service = {
-            "rdp": "Desktop remoto",
+            "rdp": tr("Desktop remoto"),
             "ssh": "SSH",
             "sftp": "SSH/SFTP",
             "vnc": "VNC",
-            "telnet": "Telnet",
-        }.get(target.protocol, "servizio remoto")
+            "telnet": tr("Telnet"),
+        }.get(target.protocol, tr("servizio remoto"))
         return (
-            f"Il percorso di rete funziona, ma {service} non ascolta sulla porta {target.port}. "
-            "Controlla servizio, porta configurata e regole firewall REJECT.",
+            tr("Il percorso di rete funziona, ma {service} non ascolta sulla porta {port}. Controlla servizio, porta configurata e regole firewall REJECT.").format(service=service, port=target.port),
             "error",
         )
     if tcp and "timeout" in tcp.summary.lower():
         extra = ""
         if vpn and vpn.status != "ok":
-            extra = " Se la rete è privata, collega prima la VPN."
+            extra = tr(" Se la rete è privata, collega prima la VPN.")
         return (
-            "Il tentativo TCP non riceve risposta. Controlla host acceso, VPN, NAT e firewall che potrebbe scartare i pacchetti."
+            tr("Il tentativo TCP non riceve risposta. Controlla host acceso, VPN, NAT e firewall che potrebbe scartare i pacchetti.")
             + extra,
             "error",
         )
     if tcp and tcp.status == "error":
-        return "Controlla connettività, routing, firewall e stato del servizio remoto.", "error"
-    return "Controlla i risultati evidenziati prima di riprovare la sessione.", "warning"
+        return tr("Controlla connettività, routing, firewall e stato del servizio remoto."), "error"
+    return tr("Controlla i risultati evidenziati prima di riprovare la sessione."), "warning"
 
 
 def run_connection_diagnostics(target: DiagnosticTarget, timeout: float = 4.0) -> DiagnosticReport:
@@ -438,7 +445,7 @@ def run_connection_diagnostics(target: DiagnosticTarget, timeout: float = 4.0) -
     steps: List[DiagnosticStep] = []
 
     if not target.host:
-        steps.append(DiagnosticStep("target", "Destinazione", "error", "Host mancante"))
+        steps.append(DiagnosticStep("target", tr("Destinazione"), "error", tr("Host mancante")))
         recommendation, outcome = _overall_recommendation(steps, target)
         return DiagnosticReport(
             target=target,
@@ -461,13 +468,13 @@ def run_connection_diagnostics(target: DiagnosticTarget, timeout: float = 4.0) -
         if len(addresses) > 4:
             summary += f" (+{len(addresses) - 4})"
         steps.append(DiagnosticStep(
-            "dns", "Risoluzione DNS", "info" if literal else "ok",
-            "Indirizzo IP fornito direttamente" if literal else summary,
+            "dns", tr("Risoluzione DNS"), "info" if literal else "ok",
+            tr("Indirizzo IP fornito direttamente") if literal else summary,
             "\n".join(addresses) if literal else "",
         ))
     else:
         steps.append(DiagnosticStep(
-            "dns", "Risoluzione DNS", "error", "Nome non risolto", resolve_error or "Errore sconosciuto"
+            "dns", tr("Risoluzione DNS"), "error", tr("Nome non risolto"), resolve_error or tr("Errore sconosciuto")
         ))
 
     route_data: Dict[str, object] = {}
@@ -479,7 +486,7 @@ def run_connection_diagnostics(target: DiagnosticTarget, timeout: float = 4.0) -
             if candidate_step.status != "error":
                 route_step, route_data = candidate_step, candidate_data
                 if address != addresses[0]:
-                    route_step.details = (route_step.details + "\n" if route_step.details else "") + f"Indirizzo instradato: {address}"
+                    route_step.details = (route_step.details + "\n" if route_step.details else "") + tr("Indirizzo instradato: {address}").format(address=address)
                 break
             route_errors.append(f"{address}: {candidate_step.summary}")
             route_step, route_data = candidate_step, candidate_data
@@ -489,15 +496,15 @@ def run_connection_diagnostics(target: DiagnosticTarget, timeout: float = 4.0) -
             steps.append(route_step)
     else:
         steps.append(DiagnosticStep(
-            "route", "Instradamento", "warning", "Non verificabile senza un indirizzo risolto"
+            "route", tr("Instradamento"), "warning", tr("Non verificabile senza un indirizzo risolto")
         ))
 
     vpn_step = _active_vpn(timeout)
     if route_data.get("dev") and str(route_data.get("dev", "")).lower().startswith(("tun", "tap", "wg", "ppp")):
         if vpn_step.status != "ok":
             vpn_step = DiagnosticStep(
-                "vpn", "VPN", "ok", f"Traffico instradato su {route_data.get('dev')}",
-                "Rilevata dal percorso di routing della destinazione.",
+                "vpn", "VPN", "ok", tr("Traffico instradato su {get}").format(get=route_data.get('dev')),
+                tr("Rilevata dal percorso di routing della destinazione."),
             )
     steps.append(vpn_step)
 
@@ -505,7 +512,7 @@ def run_connection_diagnostics(target: DiagnosticTarget, timeout: float = 4.0) -
         steps.append(_tcp_probe(addresses, target.port, timeout, target.protocol))
     else:
         steps.append(DiagnosticStep(
-            "tcp", "Porta TCP", "warning", "Non verificabile senza risoluzione DNS"
+            "tcp", tr("Porta TCP"), "warning", tr("Non verificabile senza risoluzione DNS")
         ))
 
     recommendation, outcome = _overall_recommendation(steps, target)

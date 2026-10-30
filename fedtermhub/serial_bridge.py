@@ -16,6 +16,11 @@ import tty
 from typing import Optional
 
 try:
+    from .i18n import tr
+except ImportError:  # avviato come script dal terminale della sessione seriale
+    from i18n import tr
+
+try:
     import serial
 except ImportError:  # pragma: no cover - dipendenza runtime
     serial = None
@@ -31,7 +36,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if serial is None:
-        print("python3-pyserial non installato. Su Fedora: sudo dnf install python3-pyserial", file=sys.stderr)
+        print(tr("python3-pyserial non installato. Su Fedora: sudo dnf install python3-pyserial"), file=sys.stderr)
         return 2
 
     baud = int(args.baud)
@@ -60,8 +65,8 @@ def main() -> int:
             write_timeout=1,
         )
     except Exception as exc:  # noqa: BLE001
-        print(f"Errore apertura seriale {args.device}: {exc}", file=sys.stderr)
-        print("Suggerimento: controlla permessi con: ls -l " + args.device, file=sys.stderr)
+        print(tr("Errore apertura seriale {device}: {exc}").format(device=args.device, exc=exc), file=sys.stderr)
+        print(tr("Suggerimento: controlla i permessi con: ls -l {device}").format(device=args.device), file=sys.stderr)
         return 1
 
     old_attrs: Optional[list] = None
@@ -82,7 +87,7 @@ def main() -> int:
                     os.write(stdout_fd, data)
             except Exception as exc:  # noqa: BLE001
                 try:
-                    os.write(stdout_fd, f"\r\n[Errore lettura seriale: {exc}]\r\n".encode())
+                    os.write(stdout_fd, ("\r\n[" + tr("Errore lettura seriale: {exc}").format(exc=exc) + "]\r\n").encode())
                 except OSError:
                     pass
                 stop.set()
@@ -95,9 +100,10 @@ def main() -> int:
         os.write(
             stdout_fd,
             (
-                f"Connesso a {args.device} @ {baud} "
-                f"{bytesize}{args.parity}{args.stopbits}. "
-                "Premi Ctrl+] per uscire.\r\n"
+                tr("Connesso a {device} @ {baud} {framing}. Premi Ctrl+] per uscire.").format(
+                    device=args.device, baud=baud, framing=f"{bytesize}{args.parity}{args.stopbits}"
+                )
+                + "\r\n"
             ).encode(),
         )
         while not stop.is_set():
@@ -125,7 +131,7 @@ def main() -> int:
             pass
         if old_attrs is not None:
             termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
-        print("\r\nSeriale chiusa.")
+        print("\r\n" + tr("Seriale chiusa."))
 
     return 0
 

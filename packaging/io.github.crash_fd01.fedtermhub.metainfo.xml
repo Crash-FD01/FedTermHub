@@ -42,6 +42,8 @@
       <li xml:lang="it">Gestore di tunnel SSH, diagnostica di rete e console seriale</li>
       <li>Disposable Linux lab built on libvirt, with transient QCOW2 overlays</li>
       <li xml:lang="it">Laboratorio Linux usa e getta basato su libvirt, con overlay QCOW2 transienti</li>
+      <li>English and Italian interface, following the system language</li>
+      <li xml:lang="it">Interfaccia in italiano e in inglese, secondo la lingua del sistema</li>
     </ul>
   </description>
 
@@ -93,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.9.11" date="2026-10-30">
+      <description>
+        <p>English interface. FedTermHub follows the system language (Italian or English) and the language can be chosen in Settings. The serial console, the diagnostics report and the doctor output are translated too.</p>
+        <p xml:lang="it">Interfaccia in inglese. FedTermHub segue la lingua del sistema (italiano o inglese) e la lingua si può scegliere nelle Impostazioni. Sono tradotti anche la console seriale, il rapporto di diagnostica e l'output del doctor.</p>
+      </description>
+    </release>
     <release version="0.9.10" date="2026-10-30">
       <description>
         <p>Telnet sessions. Network tools reviewed and tested live: packet capture no longer keeps the CPU busy after finishing, FTP shares work for normal users with a single authorisation, the port scanner keeps the port it found.</p>

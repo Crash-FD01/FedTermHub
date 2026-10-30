@@ -19,6 +19,8 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gtk  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# I test controllano i testi originali in italiano, qualunque sia la lingua del sistema.
+os.environ["FEDTERMHUB_LANGUAGE"] = "it"
 sys.path.insert(0, str(PROJECT_ROOT / "fedtermhub"))
 
 

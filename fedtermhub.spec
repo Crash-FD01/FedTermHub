@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.9.10
+Version:        0.9.11
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -128,6 +128,7 @@ xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
 xvfb-run -a /usr/bin/python3 tests/test_vault_ui.py
 xvfb-run -a /usr/bin/python3 tests/test_revisione.py
 xvfb-run -a /usr/bin/python3 tests/test_network_tools.py
+xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt
@@ -140,6 +141,14 @@ xvfb-run -a /usr/bin/python3 tests/test_network_tools.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Fri Oct 30 2026 Crash-FD01 - 1:0.9.11-1
+- Lingua inglese: tutta l'interfaccia e' tradotta (finestre, menu, messaggi, diagnostica, console seriale, output del doctor). Con "Automatica" FedTermHub segue la lingua del sistema: italiano per it_*, inglese per il resto; si sceglie a mano in Impostazioni > Interfaccia > Lingua e vale dal riavvio. FEDTERMHUB_LANGUAGE=it|en la forza per una sola esecuzione
+- Traduzioni in fedtermhub/locale/en.po (formato gettext, si modifica con Poedit); tools/i18n_update.py aggiorna il catalogo quando cambiano i testi
+- Testi con singolare e plurale scritti per intero invece di attaccare le desinenze ("element{o,i}"), che non si potevano tradurre
+- I pulsanti della barra delle sessioni sono riconosciuti da una chiave fissa e non dall'etichetta, che ora cambia con la lingua
+- Il file .desktop ha nome e descrizione in inglese, con la versione italiana per i sistemi in italiano
+- Test: tests/test_i18n.py controlla il catalogo (aggiornato, stessi segnaposto {nome} e stessi mnemonici dell'italiano), la scelta della lingua e l'avvio vero in inglese; tests/test_theme_parity.py cerca i mnemonici in conflitto anche nelle etichette inglesi; gli altri test fissano l'italiano qualunque sia la lingua del sistema
+
 * Fri Oct 30 2026 Crash-FD01 - 1:0.9.10-1
 - Password Manager: cliccare su una credenziale apriva subito la modifica (Gtk.ListBox attiva la riga con un clic singolo). Ora la seleziona e basta; si modifica con il pulsante Modifica
 - Telnet: nuovo tipo di sessione (Nuova Telnet), connessione rapida telnet:host[:porta], voce Connessione Telnet nel menu Rete, diagnostica di connessione; usa il client telnet di Fedora (ora tra i Recommends) con "--" prima dell'host

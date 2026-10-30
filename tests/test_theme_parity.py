@@ -112,23 +112,26 @@ def _fogli(src: str) -> tuple[str, str]:
     return scuro, chiaro
 
 
-def _errori_mnemonici(src: str) -> list[str]:
+def _errori_mnemonici(src: str, catalogo: dict[str, str] | None = None, lingua: str = "it") -> list[str]:
     """Due mnemonici uguali nella stessa finestra: uno dei due non risponde.
 
     Il confronto e' per classe contenitrice, non per file: finestre diverse
-    possono benissimo riusare la stessa lettera.
+    possono benissimo riusare la stessa lettera. Con un catalogo il controllo
+    vale per le etichette tradotte: in inglese le lettere cambiano.
     """
+    catalogo = catalogo or {}
     import ast
     from collections import Counter, defaultdict
 
     classi = [(n.lineno, n.end_lineno, n.name)
               for n in ast.walk(ast.parse(src)) if isinstance(n, ast.ClassDef)]
     per_classe: dict[str, list[str]] = defaultdict(list)
-    for m in re.finditer(r'new_with_mnemonic\("([^"]+)"\)', src):
+    # Con o senza tr(): new_with_mnemonic("_Salva") e new_with_mnemonic(tr("_Salva")).
+    for m in re.finditer(r'new_with_mnemonic\((?:tr\()?"([^"]+)"\)?\)', src):
         riga = src[:m.start()].count("\n") + 1
         dentro = sorted((c for c in classi if c[0] <= riga <= c[1]),
                         key=lambda c: c[1] - c[0])
-        lettera = re.search(r"_(\w)", m.group(1))
+        lettera = re.search(r"_(\w)", catalogo.get(m.group(1)) or m.group(1))
         if dentro and lettera:
             per_classe[dentro[0][2]].append(lettera.group(1).lower())
 
@@ -136,7 +139,7 @@ def _errori_mnemonici(src: str) -> list[str]:
     for cls, lettere in sorted(per_classe.items()):
         doppie = sorted(k for k, v in Counter(lettere).items() if v > 1)
         if doppie:
-            fuori.append(f"Mnemonici in conflitto in {cls}: "
+            fuori.append(f"Mnemonici in conflitto in {cls} ({lingua}): "
                          + ", ".join("Alt+" + d.upper() for d in doppie))
     return fuori
 
@@ -205,6 +208,10 @@ def main() -> int:
                           f"{sfondo} = {r:.2f}:1 (minimo {SOGLIA})")
 
     errori.extend(_errori_mnemonici(src))
+    sys.path.insert(0, str(SORGENTE.parent))
+    from i18n import LOCALE_DIR, parse_po  # noqa: PLC0415
+    for po in sorted(LOCALE_DIR.glob("*.po")):
+        errori.extend(_errori_mnemonici(src, parse_po(po), po.stem))
     errori.extend(_errori_tooltip())
 
     if errori:

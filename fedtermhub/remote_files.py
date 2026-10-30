@@ -19,6 +19,10 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple
+try:
+    from .i18n import tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr, trn
 
 import gi
 
@@ -74,7 +78,7 @@ class SftpCommandError(RuntimeError):
 def sftp_quote(value: str) -> str:
     """Quota un argomento per il linguaggio batch di OpenSSH sftp."""
     if "\x00" in value or "\n" in value or "\r" in value:
-        raise ValueError("Il percorso remoto contiene caratteri non validi.")
+        raise ValueError(tr("Il percorso remoto contiene caratteri non validi."))
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
@@ -99,21 +103,21 @@ def format_size(value: int) -> str:
 
 
 def friendly_sftp_error(error: str) -> str:
-    text = (error or "Errore SFTP non specificato").strip()
+    text = (error or tr("Errore SFTP non specificato")).strip()
     lowered = text.casefold()
     if "permission denied" in lowered or "authentication" in lowered or "/dev/tty" in lowered:
         return (
-            "Autenticazione SFTP non disponibile. Completa l'accesso nel terminale SSH "
-            "oppure sblocca il Password Manager, quindi premi Aggiorna."
+            tr("Autenticazione SFTP non disponibile. Completa l'accesso nel terminale SSH "
+            "oppure sblocca il Password Manager, quindi premi Aggiorna.")
         )
     if "host key verification failed" in lowered:
-        return "Chiave host non accettata. Verifica la sessione SSH e riprova."
+        return tr("Chiave host non accettata. Verifica la sessione SSH e riprova.")
     if "could not resolve hostname" in lowered:
-        return "Nome host non risolto. Controlla DNS, VPN e configurazione della sessione."
+        return tr("Nome host non risolto. Controlla DNS, VPN e configurazione della sessione.")
     if "connection refused" in lowered:
-        return "Connessione SFTP rifiutata: controlla porta SSH e servizio sshd."
+        return tr("Connessione SFTP rifiutata: controlla porta SSH e servizio sshd.")
     if "timeout" in lowered or "timed out" in lowered:
-        return "Timeout SFTP: controlla rete, VPN, firewall e Jump Host."
+        return tr("Timeout SFTP: controlla rete, VPN, firewall e Jump Host.")
     return text[-700:]
 
 
@@ -130,7 +134,7 @@ def parse_sftp_long_listing(output: str, parent: str) -> List[RemoteEntry]:
         stripped = line.strip()
         if not stripped or stripped.startswith("sftp>"):
             continue
-        if stripped.startswith(("Connected to ", "Changing to: ", "Remote working directory:")):
+        if stripped.startswith((tr("Connected to "), tr("Changing to: "), tr("Remote working directory:"))):
             continue
         parts = stripped.split(maxsplit=8)
         if len(parts) < 9:
@@ -187,7 +191,7 @@ class SftpBatchClient:
     def _argv_and_env(self) -> tuple[List[str], dict[str, str]]:
         sftp_binary = shutil.which("sftp")
         if not sftp_binary:
-            raise SftpCommandError("Client SFTP non trovato. Installa openssh-clients.")
+            raise SftpCommandError(tr("Client SFTP non trovato. Installa openssh-clients."))
         argv: List[str] = [sftp_binary, "-q"]
         argv.extend(str(item) for item in self.connection.ssh_options)
         if self.connection.jump_spec:
@@ -205,7 +209,7 @@ class SftpBatchClient:
             sshpass = shutil.which("sshpass")
             if not sshpass:
                 raise SftpCommandError(
-                    "La sessione usa una password salvata, ma sshpass non è installato."
+                    tr("La sessione usa una password salvata, ma sshpass non è installato.")
                 )
             argv = [sshpass, "-e"] + argv
             env["SSHPASS"] = self.connection.password
@@ -226,17 +230,17 @@ class SftpBatchClient:
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise SftpCommandError("Timeout durante la connessione SFTP.") from exc
+            raise SftpCommandError(tr("Timeout durante la connessione SFTP.")) from exc
         except OSError as exc:
-            raise SftpCommandError(f"Impossibile avviare il client SFTP: {exc}") from exc
+            raise SftpCommandError(tr("Impossibile avviare il client SFTP: {exc}").format(exc=exc)) from exc
         combined = "\n".join(part for part in (completed.stderr, completed.stdout) if part).strip()
         failure_markers = (
-            "Permission denied", "No such file", "Couldn't", "Connection closed",
-            "Connection refused", "Host key verification failed", "Could not resolve hostname",
-            "subsystem request failed",
+            tr("Permission denied"), tr("No such file"), tr("Couldn't"), tr("Connection closed"),
+            tr("Connection refused"), tr("Host key verification failed"), tr("Could not resolve hostname"),
+            tr("subsystem request failed"),
         )
         if completed.returncode != 0 or any(marker in combined for marker in failure_markers):
-            detail = combined or "Errore SFTP non specificato"
+            detail = combined or tr("Errore SFTP non specificato")
             # Evita finestre smisurate e non espone la riga di comando.
             raise SftpCommandError(detail[-1200:])
         return completed.stdout
@@ -252,7 +256,7 @@ class SftpBatchClient:
 
     def listdir(self, path: str) -> List[RemoteEntry]:
         normalized = posixpath.normpath(path or "/")
-        output = self.run([f"ls -la {sftp_quote(normalized)}"])
+        output = self.run([tr("ls -la {sftp_quote}").format(sftp_quote=sftp_quote(normalized))])
         entries = parse_sftp_long_listing(output, normalized)
         if entries:
             return entries
@@ -262,13 +266,13 @@ class SftpBatchClient:
         # e poi chiediamo i dettagli in un unico batch. In questo modo l'albero
         # non rimane vuoto soltanto perché owner/gruppo/data hanno un formato
         # differente da GNU ls.
-        simple = self.run([f"ls -1 {sftp_quote(normalized)}"])
+        simple = self.run([tr("ls -1 {sftp_quote}").format(sftp_quote=sftp_quote(normalized))])
         names: List[str] = []
         for raw in simple.splitlines():
             item = raw.strip()
             if not item or item.startswith("sftp>"):
                 continue
-            if item.startswith(("Connected to ", "Changing to: ", "Remote working directory:")):
+            if item.startswith((tr("Connected to "), tr("Changing to: "), tr("Remote working directory:"))):
                 continue
             if item in {".", ".."}:
                 continue
@@ -279,7 +283,7 @@ class SftpBatchClient:
             return []
 
         detail_commands = [
-            f"ls -ld {sftp_quote(remote_join(normalized, name))}" for name in names
+            tr("ls -ld {sftp_quote}").format(sftp_quote=sftp_quote(remote_join(normalized, name))) for name in names
         ]
         try:
             detailed = parse_sftp_long_listing(self.run(detail_commands), normalized)
@@ -301,12 +305,12 @@ class SftpBatchClient:
 
     def download(self, remote_path: str, local_path: Path, recursive: bool = False) -> None:
         option = "-r " if recursive else ""
-        self.run([f"get {option}-p {sftp_quote(remote_path)} {sftp_quote(str(local_path))}"], timeout=3600)
+        self.run([tr("get {option}-p {sftp_quote} {sftp_quote2}").format(option=option, sftp_quote=sftp_quote(remote_path), sftp_quote2=sftp_quote(str(local_path)))], timeout=3600)
 
     def upload(self, local_path: Path, remote_directory: str) -> None:
         remote_path = remote_join(remote_directory, local_path.name)
         option = "-r " if local_path.is_dir() else ""
-        self.run([f"put {option}-p {sftp_quote(str(local_path))} {sftp_quote(remote_path)}"], timeout=3600)
+        self.run([tr("put {option}-p {sftp_quote} {sftp_quote2}").format(option=option, sftp_quote=sftp_quote(str(local_path)), sftp_quote2=sftp_quote(remote_path))], timeout=3600)
 
 
 class RemoteFilesSidebar(Gtk.Box):
@@ -350,7 +354,7 @@ class RemoteFilesSidebar(Gtk.Box):
         session_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         session_icon = Gtk.Image.new_from_icon_name("folder-remote-symbolic", Gtk.IconSize.MENU)
         session_row.pack_start(session_icon, False, False, 0)
-        self.session_label = Gtk.Label(label="Nessuna sessione SSH attiva", xalign=0)
+        self.session_label = Gtk.Label(label=tr("Nessuna sessione SSH attiva"), xalign=0)
         self.session_label.set_ellipsize(Pango.EllipsizeMode.END)
         self.session_label.get_style_context().add_class("remote-session-label")
         session_row.pack_start(self.session_label, True, True, 0)
@@ -358,13 +362,13 @@ class RemoteFilesSidebar(Gtk.Box):
 
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self.home_button = Gtk.Button.new_from_icon_name("go-home-symbolic", Gtk.IconSize.MENU)
-        self.home_button.set_tooltip_text("Torna alla cartella home remota")
+        self.home_button.set_tooltip_text(tr("Torna alla cartella home remota"))
         self.home_button.connect("clicked", lambda *_: self.load_root(self.home_path))
         self.up_button = Gtk.Button.new_from_icon_name("go-up-symbolic", Gtk.IconSize.MENU)
-        self.up_button.set_tooltip_text("Sali alla cartella superiore")
+        self.up_button.set_tooltip_text(tr("Sali alla cartella superiore"))
         self.up_button.connect("clicked", self.on_up_clicked)
         self.refresh_button = Gtk.Button.new_from_icon_name("view-refresh-symbolic", Gtk.IconSize.MENU)
-        self.refresh_button.set_tooltip_text("Rileggi la cartella corrente")
+        self.refresh_button.set_tooltip_text(tr("Rileggi la cartella corrente"))
         self.refresh_button.connect("clicked", lambda *_: self.refresh())
         # Interruttore dell'inseguimento: se stai navigando l'albero con le
         # mani, un cd nel terminale non deve spostartelo sotto il cursore.
@@ -373,8 +377,8 @@ class RemoteFilesSidebar(Gtk.Box):
             Gtk.Image.new_from_icon_name("mail-forward-symbolic", Gtk.IconSize.MENU)
         )
         self.follow_button.set_tooltip_text(
-            "Segui la cartella del terminale\n"
-            "Quando è attivo, l'albero si sposta insieme ai cd della shell."
+            tr("Segui la cartella del terminale\n"
+            "Quando è attivo, l'albero si sposta insieme ai cd della shell.")
         )
         self.follow_button.set_active(True)
         # Impostato dall'applicazione per persistere la scelta.
@@ -388,8 +392,8 @@ class RemoteFilesSidebar(Gtk.Box):
             Gtk.Image.new_from_icon_name("view-reveal-symbolic", Gtk.IconSize.MENU)
         )
         self.hidden_button.set_tooltip_text(
-            "Mostra i file nascosti (Ctrl+H)\n"
-            "I nomi che iniziano con un punto sono esclusi per impostazione predefinita."
+            tr("Mostra i file nascosti (Ctrl+H)\n"
+            "I nomi che iniziano con un punto sono esclusi per impostazione predefinita.")
         )
         self.hidden_button.set_active(False)
         self.hidden_button.connect("toggled", self._on_hidden_toggled)
@@ -404,10 +408,10 @@ class RemoteFilesSidebar(Gtk.Box):
         # sul server: filtra cio' che e' gia' stato letto, che e' quello che
         # serve quando una cartella ha centinaia di voci in una sidebar stretta.
         self.filter_entry = Gtk.SearchEntry()
-        self.filter_entry.set_placeholder_text("Filtra per nome…")
+        self.filter_entry.set_placeholder_text(tr("Filtra per nome…"))
         self.filter_entry.set_tooltip_text(
-            "Filtra le voci della cartella corrente.\n"
-            "Le cartelle restano visibili per poterci entrare."
+            tr("Filtra le voci della cartella corrente.\n"
+            "Le cartelle restano visibili per poterci entrare.")
         )
         self.filter_entry.connect("search-changed", self._on_filter_changed)
         header.pack_start(self.filter_entry, False, False, 0)
@@ -424,12 +428,12 @@ class RemoteFilesSidebar(Gtk.Box):
         header.pack_start(self.path_display, False, False, 0)
 
         transfer_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        self.download_button = Gtk.Button.new_with_mnemonic("_Scarica")
-        self.download_button.set_tooltip_text("Scarica il file o la cartella selezionata")
+        self.download_button = Gtk.Button.new_with_mnemonic(tr("_Scarica"))
+        self.download_button.set_tooltip_text(tr("Scarica il file o la cartella selezionata"))
         self.download_button.connect("clicked", self.on_download_clicked)
         self.download_button.get_style_context().add_class("secondary-action")
-        self.upload_labeled_button = Gtk.Button.new_with_mnemonic("_Carica qui")
-        self.upload_labeled_button.set_tooltip_text("Carica file o cartelle nella cartella corrente")
+        self.upload_labeled_button = Gtk.Button.new_with_mnemonic(tr("_Carica qui"))
+        self.upload_labeled_button.set_tooltip_text(tr("Carica file o cartelle nella cartella corrente"))
         self.upload_labeled_button.connect("clicked", self.on_upload_clicked)
         self.upload_labeled_button.get_style_context().add_class("secondary-action")
         transfer_bar.pack_start(self.download_button, True, True, 0)
@@ -466,14 +470,14 @@ class RemoteFilesSidebar(Gtk.Box):
         self.tree.connect("drag-leave", self.on_drag_leave)
         self.tree.connect("drag-data-received", self.on_drag_data_received)
         self.tree.set_tooltip_text(
-            "Espandi le cartelle oppure trascina qui file e cartelle locali per caricarli."
+            tr("Espandi le cartelle oppure trascina qui file e cartelle locali per caricarli.")
         )
 
         renderer_icon = Gtk.CellRendererPixbuf()
         renderer_icon.set_property("xpad", 4)
         renderer_text = Gtk.CellRendererText()
         renderer_text.set_property("ellipsize", Pango.EllipsizeMode.END)
-        column = Gtk.TreeViewColumn("File remoto")
+        column = Gtk.TreeViewColumn(tr("File remoto"))
         column.pack_start(renderer_icon, False)
         column.add_attribute(renderer_icon, "icon-name", self.COL_ICON)
         column.pack_start(renderer_text, True)
@@ -487,7 +491,7 @@ class RemoteFilesSidebar(Gtk.Box):
         scroll.add(self.tree)
         self.pack_start(scroll, True, True, 0)
 
-        self.status_label = Gtk.Label(label="Apri una sessione SSH per sfogliare i file remoti.", xalign=0)
+        self.status_label = Gtk.Label(label=tr("Apri una sessione SSH per sfogliare i file remoti."), xalign=0)
         self.status_label.set_line_wrap(True)
         self.status_label.set_margin_start(8)
         self.status_label.set_margin_end(8)
@@ -557,9 +561,9 @@ class RemoteFilesSidebar(Gtk.Box):
         self.connection_identity = ""
         self.home_path = "/"
         self.store.clear()
-        self.session_label.set_text("Nessuna sessione SSH attiva")
+        self.session_label.set_text(tr("Nessuna sessione SSH attiva"))
         self._set_current_path("")
-        self.status_label.set_text("Apri una sessione SSH per sfogliare i file remoti.")
+        self.status_label.set_text(tr("Apri una sessione SSH per sfogliare i file remoti."))
         self._set_controls_sensitive(False)
 
     def set_connection(self, connection: SftpConnection) -> None:
@@ -574,7 +578,7 @@ class RemoteFilesSidebar(Gtk.Box):
         self.store.clear()
         self.session_label.set_text(connection.label or connection.host)
         self._set_current_path("")
-        self.status_label.set_text("Connessione SFTP in corso…")
+        self.status_label.set_text(tr("Connessione SFTP in corso…"))
         self._set_controls_sensitive(False)
 
         def worker() -> None:
@@ -593,7 +597,7 @@ class RemoteFilesSidebar(Gtk.Box):
         if error:
             self.store.clear()
             self._set_current_path("")
-            self.status_label.set_text(f"SFTP non disponibile: {friendly_sftp_error(error)}")
+            self.status_label.set_text(tr("SFTP non disponibile: {friendly_sftp_error}").format(friendly_sftp_error=friendly_sftp_error(error)))
             self._set_controls_sensitive(True)
             return False
         self.home_path = home or "/"
@@ -636,11 +640,11 @@ class RemoteFilesSidebar(Gtk.Box):
         """
         visibili = sum(1 for e in entries if self.entry_is_visible(e))
         esclusi = len(entries) - visibili
-        testo = f"{visibili} element{'o' if visibili == 1 else 'i'}"
+        testo = trn("{visibili} elemento", "{visibili} elementi", visibili).format(visibili=visibili)
         if posizione:
-            testo += f" in {posizione}"
+            testo += tr(" in {posizione}").format(posizione=posizione)
         if esclusi:
-            testo += f" ({esclusi} non mostrat{'o' if esclusi == 1 else 'i'} dai filtri)"
+            testo += trn(" ({esclusi} non mostrato dai filtri)", " ({esclusi} non mostrati dai filtri)", esclusi).format(esclusi=esclusi)
         return testo
 
     def _append_entry(self, parent: Optional[Gtk.TreeIter], entry: RemoteEntry) -> Optional[Gtk.TreeIter]:
@@ -656,7 +660,7 @@ class RemoteFilesSidebar(Gtk.Box):
             [entry.name, entry.path, entry.kind, entry.detail, icon, not entry.is_directory, False],
         )
         if entry.is_directory:
-            self.store.append(tree_iter, ["Caricamento…", "", "placeholder", "", "content-loading-symbolic", True, False])
+            self.store.append(tree_iter, [tr("Caricamento…"), "", "placeholder", "", "content-loading-symbolic", True, False])
         return tree_iter
 
     def load_root(self, path: str, prefetched: Optional[List[RemoteEntry]] = None) -> None:
@@ -668,7 +672,7 @@ class RemoteFilesSidebar(Gtk.Box):
         if prefetched is not None:
             self._replace_root(generation, normalized, prefetched, "")
             return
-        self.status_label.set_text("Aggiornamento cartella remota…")
+        self.status_label.set_text(tr("Aggiornamento cartella remota…"))
 
         def worker() -> None:
             try:
@@ -683,7 +687,7 @@ class RemoteFilesSidebar(Gtk.Box):
         if generation != self._generation:
             return False
         if error:
-            self.status_label.set_text(f"Impossibile leggere {path}: {friendly_sftp_error(error)}")
+            self.status_label.set_text(tr("Impossibile leggere {path}: {friendly_sftp_error}").format(path=path, friendly_sftp_error=friendly_sftp_error(error)))
             return False
         self.store.clear()
         root_name = path if path == "/" else posixpath.basename(path) or path
@@ -733,7 +737,7 @@ class RemoteFilesSidebar(Gtk.Box):
             return
         if entry.kind == "directory":
             self._set_current_path(entry.path)
-            self.status_label.set_text(f"Cartella: {entry.name}")
+            self.status_label.set_text(tr("Cartella: {name}").format(name=entry.name))
         elif entry.kind == "placeholder":
             return
         else:
@@ -777,7 +781,7 @@ class RemoteFilesSidebar(Gtk.Box):
             Gdk.drag_status(context, 0, time_value)
             return False
         destination = self._destination_at_position(x, y)
-        self.status_label.set_text(f"Rilascia per caricare in {destination}")
+        self.status_label.set_text(tr("Rilascia per caricare in {destination}").format(destination=destination))
         # Evidenzia la riga sotto il puntatore come bersaglio del drop.
         hit = tree.get_dest_row_at_pos(int(x), int(y))
         if hit is not None:
@@ -839,7 +843,7 @@ class RemoteFilesSidebar(Gtk.Box):
                 if candidate.exists():
                     paths.append(candidate)
         if not paths:
-            self.status_label.set_text("Trascinamento non valido: usa file o cartelle locali.")
+            self.status_label.set_text(tr("Trascinamento non valido: usa file o cartelle locali."))
             Gtk.drag_finish(context, False, False, time_value)
             self._pending_drop_position = None
             return
@@ -937,7 +941,7 @@ class RemoteFilesSidebar(Gtk.Box):
         if error:
             self.store.append(
                 tree_iter,
-                ["Errore di lettura", "", "placeholder", friendly_sftp_error(error), "dialog-error-symbolic", True, False],
+                [tr("Errore di lettura"), "", "placeholder", friendly_sftp_error(error), "dialog-error-symbolic", True, False],
             )
             # Non segniamo la cartella come caricata: così "Aggiorna" può
             # ritentare la lettura invece di mostrare per sempre l'errore.
@@ -950,7 +954,7 @@ class RemoteFilesSidebar(Gtk.Box):
             # espansione "morto" e comunica lo stato.
             self.store.append(
                 tree_iter,
-                ["(vuota)", "", "placeholder", "Nessun elemento", "folder-symbolic", True, False],
+                [tr("(vuota)"), "", "placeholder", tr("Nessun elemento"), "folder-symbolic", True, False],
             )
         for entry in entries:
             self._append_entry(tree_iter, entry)
@@ -982,16 +986,16 @@ class RemoteFilesSidebar(Gtk.Box):
         if entry is not None:
             if entry.kind == "directory":
                 if tree_iter is not None:
-                    self._popup_item(menu, "Apri", lambda it=tree_iter: self.expand_to_directory(it))
-                self._popup_item(menu, "Entra (mostra solo questa)", lambda: self.load_root(entry.path))
+                    self._popup_item(menu, tr("Apri"), lambda it=tree_iter: self.expand_to_directory(it))
+                self._popup_item(menu, tr("Entra (mostra solo questa)"), lambda: self.load_root(entry.path))
                 menu.append(Gtk.SeparatorMenuItem())
-                self._popup_item(menu, "Scarica cartella…", self.on_download_clicked)
-                self._popup_item(menu, "Carica qui…", self.on_upload_clicked)
+                self._popup_item(menu, tr("Scarica cartella…"), self.on_download_clicked)
+                self._popup_item(menu, tr("Carica qui…"), self.on_upload_clicked)
             else:
-                self._popup_item(menu, "Scarica file…", self.on_download_clicked)
-            self._popup_item(menu, "Copia percorso", lambda: self.copy_path(entry.path))
+                self._popup_item(menu, tr("Scarica file…"), self.on_download_clicked)
+            self._popup_item(menu, tr("Copia percorso"), lambda: self.copy_path(entry.path))
             menu.append(Gtk.SeparatorMenuItem())
-        self._popup_item(menu, "Aggiorna", self.refresh, sensitive=self.client is not None)
+        self._popup_item(menu, tr("Aggiorna"), self.refresh, sensitive=self.client is not None)
         menu.show_all()
         menu.popup_at_pointer(event)
         return True
@@ -999,7 +1003,7 @@ class RemoteFilesSidebar(Gtk.Box):
     def copy_path(self, path: str) -> None:
         clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         clipboard.set_text(path, -1)
-        self.status_label.set_text("Percorso remoto copiato.")
+        self.status_label.set_text(tr("Percorso remoto copiato."))
 
     def on_download_clicked(self, *_args) -> None:
         entry = self.selected_entry()
@@ -1007,11 +1011,11 @@ class RemoteFilesSidebar(Gtk.Box):
             return
         is_directory = entry.kind == "directory"
         dialog = Gtk.FileChooserDialog(
-            title=("Scarica cartella remota" if is_directory else "Scarica file remoto"),
+            title=(tr("Scarica cartella remota") if is_directory else tr("Scarica file remoto")),
             transient_for=self.parent_window,
             action=(Gtk.FileChooserAction.SELECT_FOLDER if is_directory else Gtk.FileChooserAction.SAVE),
         )
-        dialog.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Scarica", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Scarica"), Gtk.ResponseType.OK)
         if not is_directory:
             dialog.set_current_name(entry.name)
             dialog.set_do_overwrite_confirmation(True)
@@ -1027,16 +1031,16 @@ class RemoteFilesSidebar(Gtk.Box):
         if is_directory:
             destination = destination / entry.name
             if destination.exists():
-                self.status_label.set_text(f"La destinazione esiste già: {destination}")
+                self.status_label.set_text(tr("La destinazione esiste già: {destination}").format(destination=destination))
                 return
-        self.status_label.set_text(f"Download di {entry.name}…")
+        self.status_label.set_text(tr("Download di {name}…").format(name=entry.name))
         generation = self._generation
         client = self.client
 
         def worker() -> None:
             try:
                 client.download(entry.path, destination, recursive=is_directory)
-                GLib.idle_add(self._operation_done, generation, f"Scaricato: {destination.name}", "")
+                GLib.idle_add(self._operation_done, generation, tr("Scaricato: {name}").format(name=destination.name), "")
             except Exception as exc:
                 GLib.idle_add(self._operation_done, generation, "", str(exc))
 
@@ -1047,11 +1051,11 @@ class RemoteFilesSidebar(Gtk.Box):
             return
         destination = self.selected_directory()
         dialog = Gtk.FileChooserDialog(
-            title=f"Carica in {destination}",
+            title=tr("Carica in {destination}").format(destination=destination),
             transient_for=self.parent_window,
             action=Gtk.FileChooserAction.OPEN,
         )
-        dialog.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Carica", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Carica"), Gtk.ResponseType.OK)
         dialog.set_select_multiple(True)
         try:
             if dialog.run() != Gtk.ResponseType.OK:
@@ -1068,10 +1072,10 @@ class RemoteFilesSidebar(Gtk.Box):
             return
         valid_paths = [Path(item) for item in paths if Path(item).exists()]
         if not valid_paths:
-            self.status_label.set_text("Nessun file locale valido da caricare.")
+            self.status_label.set_text(tr("Nessun file locale valido da caricare."))
             return
         self.status_label.set_text(
-            f"Caricamento di {len(valid_paths)} elemento/i in {destination}…"
+            tr("Caricamento di {n_valid_paths} elemento/i in {destination}…").format(n_valid_paths=len(valid_paths), destination=destination)
         )
         generation = self._generation
         client = self.client
@@ -1083,7 +1087,7 @@ class RemoteFilesSidebar(Gtk.Box):
                 GLib.idle_add(
                     self._operation_done,
                     generation,
-                    f"Caricamento completato: {len(valid_paths)} elemento/i",
+                    tr("Caricamento completato: {n_valid_paths} elemento/i").format(n_valid_paths=len(valid_paths)),
                     "",
                     destination,
                 )
@@ -1101,7 +1105,7 @@ class RemoteFilesSidebar(Gtk.Box):
     ) -> bool:
         if generation != self._generation:
             return False
-        self.status_label.set_text(f"Operazione SFTP fallita: {friendly_sftp_error(error)}" if error else message)
+        self.status_label.set_text(tr("Operazione SFTP fallita: {friendly_sftp_error}").format(friendly_sftp_error=friendly_sftp_error(error)) if error else message)
         if refresh_path and not error:
             # Dopo un caricamento si ricarica la vista corrente, senza saltare nella cartella di
             # destinazione (che con il trascinamento e' spesso una sottocartella).
