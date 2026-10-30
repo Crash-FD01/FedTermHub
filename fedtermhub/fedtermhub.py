@@ -85,12 +85,18 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+try:
+    from .i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
+    from .i18n import detect_language as i18n_detect, original, tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
+    from i18n import detect_language as i18n_detect, original, tr, trn
 
 # La versione si scrive solo qui (e in fedtermhub.spec e nel metainfo): tests/test_versions.py
 # controlla che coincidano. Sta in cima perche' il doctor la stampa anche quando GTK non si carica.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.9.10"
+APP_VERSION = "0.9.11"
 
 RAW_ARGV = sys.argv[:]
 DOCTOR_MODE = "--doctor" in RAW_ARGV or "--doctor-strict" in RAW_ARGV
@@ -111,20 +117,20 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
     negativo.
     """
     core_ok = import_error is None
-    title = f"{APP_NAME} doctor {APP_VERSION}"
+    title = tr("{APP_NAME} doctor {APP_VERSION}").format(APP_NAME=APP_NAME, APP_VERSION=APP_VERSION)
     print(title)
     print("=" * len(title))
-    print(f"Python: {sys.version.split()[0]}  ({sys.executable})")
-    print(f"Sistema: {platform.platform()}")
-    print(f"Desktop: XDG_SESSION_TYPE={os.environ.get('XDG_SESSION_TYPE', '-')}  XDG_CURRENT_DESKTOP={os.environ.get('XDG_CURRENT_DESKTOP', '-')}  GDK_BACKEND={os.environ.get('GDK_BACKEND', '-')}")
-    print(f"Display: DISPLAY={os.environ.get('DISPLAY', '-')}  WAYLAND_DISPLAY={os.environ.get('WAYLAND_DISPLAY', '-')}")
-    print(f"Safe mode: {'ON' if SAFE_MODE else 'OFF'}")
+    print(tr("Python: {v}  ({executable})").format(v=sys.version.split()[0], executable=sys.executable))
+    print(tr("Sistema: {platform}").format(platform=platform.platform()))
+    print(tr("Desktop: XDG_SESSION_TYPE={get}  XDG_CURRENT_DESKTOP={get2}  GDK_BACKEND={get3}").format(get=os.environ.get('XDG_SESSION_TYPE', '-'), get2=os.environ.get('XDG_CURRENT_DESKTOP', '-'), get3=os.environ.get('GDK_BACKEND', '-')))
+    print(tr("Display: DISPLAY={get}  WAYLAND_DISPLAY={get2}").format(get=os.environ.get('DISPLAY', '-'), get2=os.environ.get('WAYLAND_DISPLAY', '-')))
+    print(tr("Safe mode: {v}").format(v='ON' if SAFE_MODE else 'OFF'))
     print()
     if import_error is not None:
-        print(f"GTK/VTE import: ERRORE - {import_error}")
-        print("Installa le dipendenze Fedora: sudo dnf install python3-gobject gtk3 vte291")
+        print(tr("GTK/VTE import: ERRORE - {import_error}").format(import_error=import_error))
+        print(tr("Installa le dipendenze Fedora: sudo dnf install python3-gobject gtk3 vte291"))
     else:
-        print("GTK/VTE import: OK")
+        print(tr("GTK/VTE import: OK"))
     checks = [
         ("ssh", "openssh-clients"),
         ("sftp", "openssh-clients"),
@@ -139,7 +145,7 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
         ("ip", "iproute"),
         ("ss", "iproute"),
         ("getent", "glibc-common"),
-        ("nmcli", "NetworkManager"),
+        ("nmcli", tr("NetworkManager")),
         ("sshd", "openssh-server"),
         ("vsftpd", "vsftpd"),
         ("in.tftpd", "tftp-server"),
@@ -158,28 +164,28 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
         ("python3", "python3"),
     ]
     print()
-    print("Binari esterni:")
+    print(tr("Binari esterni:"))
     for binary, pkg in checks:
         path = shutil.which(binary)
-        print(f"  {binary:<10} {'OK ' + path if path else 'MANCANTE  (pacchetto: ' + pkg + ')'}")
+        print(f"  {binary:<10} {'OK ' + path if path else tr('MANCANTE  (pacchetto: {pkg})').format(pkg=pkg)}")
     print()
-    print("Backend RDP nativo:")
+    print(tr("Backend RDP nativo:"))
     native_status_fn = globals().get("native_backend_status")
     if native_status_fn:
         try:
             native_ok, native_detail = native_status_fn()
         except Exception as exc:
             native_ok, native_detail = False, str(exc)
-        print(f"  helper libfreerdp: {'OK' if native_ok else 'ERRORE'} ({native_detail})")
+        print(tr("  helper libfreerdp: {v} ({native_detail})").format(v='OK' if native_ok else tr('ERRORE'), native_detail=native_detail))
     else:
-        print(f"  modulo Python: ERRORE ({globals().get('NATIVE_RDP_IMPORT_ERROR', 'non caricato')})")
+        print(tr("  modulo Python: ERRORE ({get})").format(get=globals().get('NATIVE_RDP_IMPORT_ERROR', tr('non caricato'))))
     memfd_ok = hasattr(os, "memfd_create")
-    print(f"  memfd Linux: {'OK' if memfd_ok else 'MANCANTE'}")
+    print(tr("  memfd Linux: {v}").format(v='OK' if memfd_ok else tr('MANCANTE')))
     try:
         cairo_ok = __import__("cairo") is not None
     except Exception:
         cairo_ok = False
-    print(f"  rendering Cairo: {'OK' if cairo_ok else 'MANCANTE (python3-cairo)'}")
+    print(tr("  rendering Cairo: {v}").format(v='OK' if cairo_ok else tr('MANCANTE (python3-cairo)')))
     core_ok = core_ok and bool(native_status_fn) and bool(native_ok) and memfd_ok and cairo_ok
     pkg = shutil.which("pkg-config")
     if pkg:
@@ -187,26 +193,26 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
             [pkg, "--exists", "freerdp3", "freerdp-client3", "winpr3"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
         )
-        print(f"  librerie di sviluppo: {'OK' if probe.returncode == 0 else 'MANCANTI (freerdp-devel libwinpr-devel)'}")
+        print(tr("  librerie di sviluppo: {v}").format(v='OK' if probe.returncode == 0 else tr('MANCANTI (freerdp-devel libwinpr-devel)')))
 
     try:
         __import__("winrm")
         winrm_ok = True
     except Exception:
         winrm_ok = False
-    print(f"  gestione sessioni Windows/WinRM: {'OK' if winrm_ok else 'OPZIONALE MANCANTE (python3-winrm)'}")
+    print(tr("  gestione sessioni Windows/WinRM: {v}").format(v='OK' if winrm_ok else tr('OPZIONALE MANCANTE (python3-winrm)')))
 
     rdp_binary = shutil.which("xfreerdp3") or shutil.which("xfreerdp")
     print()
-    print("Fallback legacy xfreerdp/XEmbed:")
+    print(tr("Fallback legacy xfreerdp/XEmbed:"))
     if rdp_binary and "probe_freerdp" in globals():
         caps = probe_freerdp(rdp_binary)
-        print(f"  Client: {caps.version}")
-        print(f"  /parent-window: {'OK' if caps.parent_window else 'MANCANTE'}")
+        print(tr("  Client: {version}").format(version=caps.version))
+        print(tr("  /parent-window: {v}").format(v='OK' if caps.parent_window else tr('MANCANTE')))
     else:
-        print("  non disponibile; non necessario al backend nativo")
+        print(tr("  non disponibile; non necessario al backend nativo"))
     print()
-    print("Porte seriali rilevate:")
+    print(tr("Porte seriali rilevate:"))
     ports = []
     for pattern in ["/dev/ttyUSB*", "/dev/ttyACM*", "/dev/ttyS*", "/dev/serial/by-id/*"]:
         ports.extend(glob.glob(pattern))
@@ -214,9 +220,9 @@ def run_doctor_cli(import_error: Optional[BaseException] = None) -> bool:
         for port in sorted(set(ports))[:30]:
             print(f"  {port}")
     else:
-        print("  Nessuna porta seriale rilevata ora.")
+        print(tr("  Nessuna porta seriale rilevata ora."))
     print()
-    print("Suggerimento: se la grafica ha glitch, avvia con: fedtermhub --safe-mode")
+    print(tr("Suggerimento: se la grafica ha glitch, avvia con: fedtermhub --safe-mode"))
     return core_ok
 
 
@@ -235,9 +241,9 @@ except Exception as exc:  # pragma: no cover - dipendenza runtime
     if DOCTOR_MODE:
         doctor_ok = run_doctor_cli(exc)
         raise SystemExit(0 if doctor_ok or not DOCTOR_STRICT else 1)
-    print("FedTermHub: impossibile caricare GTK/VTE.", file=sys.stderr)
-    print(f"Errore: {exc}", file=sys.stderr)
-    print("Su Fedora installa: sudo dnf install python3-gobject gtk3 vte291", file=sys.stderr)
+    print(tr("FedTermHub: impossibile caricare GTK/VTE."), file=sys.stderr)
+    print(tr("Errore: {exc}").format(exc=exc), file=sys.stderr)
+    print(tr("Su Fedora installa: sudo dnf install python3-gobject gtk3 vte291"), file=sys.stderr)
     raise SystemExit(2)
 
 NATIVE_RDP_IMPORT_ERROR: Optional[BaseException] = None
@@ -297,7 +303,7 @@ try:
             run_connection_diagnostics,
         )
 except Exception as exc:  # pragma: no cover - modulo incluso nel pacchetto
-    print(f"FedTermHub: diagnostica connessione non disponibile: {exc}", file=sys.stderr)
+    print(tr("FedTermHub: diagnostica connessione non disponibile: {exc}").format(exc=exc), file=sys.stderr)
     DiagnosticReport = None  # type: ignore[assignment,misc]
     DiagnosticTarget = None  # type: ignore[assignment,misc]
     make_target = None  # type: ignore[assignment]
@@ -452,13 +458,13 @@ def normalize_rdp_drive_path(raw: str) -> str:
         return ""
     if any(ch in candidate for ch in (",", "\n", "\r")):
         raise ValueError(
-            "La cartella condivisa contiene caratteri non supportati (virgola o fine riga)."
+            tr("La cartella condivisa contiene caratteri non supportati (virgola o fine riga).")
         )
     expanded = Path(candidate).expanduser()
     if not expanded.exists():
-        raise ValueError(f"La cartella condivisa non esiste: {expanded}")
+        raise ValueError(tr("La cartella condivisa non esiste: {expanded}").format(expanded=expanded))
     if not expanded.is_dir():
-        raise ValueError(f"La cartella condivisa non è una cartella: {expanded}")
+        raise ValueError(tr("La cartella condivisa non è una cartella: {expanded}").format(expanded=expanded))
     return str(expanded)
 
 
@@ -554,7 +560,7 @@ def probe_freerdp(binary: str) -> FreeRdpCapabilities:
 def test_freerdp_args_fd(binary: str) -> Tuple[bool, str]:
     """Verifica davvero il trasporto /args-from:fd senza effettuare connessioni."""
     if not hasattr(os, "memfd_create"):
-        return False, "os.memfd_create non disponibile"
+        return False, tr("os.memfd_create non disponibile")
     fd: Optional[int] = None
     try:
         fd = os.memfd_create("fedtermhub-doctor-args", flags=0)
@@ -571,7 +577,7 @@ def test_freerdp_args_fd(binary: str) -> Tuple[bool, str]:
         )
         text = (proc.stdout or "") + "\n" + (proc.stderr or "")
         ok = "FreeRDP" in text and ("Usage:" in text or "Syntax:" in text)
-        return ok, "OK" if ok else f"uscita {proc.returncode}, help non riconosciuto"
+        return ok, "OK" if ok else tr("uscita {returncode}, help non riconosciuto").format(returncode=proc.returncode)
     except Exception as exc:
         return False, str(exc)
     finally:
@@ -659,12 +665,12 @@ def enumerate_monitors() -> List[MonitorDescriptor]:
                     is_primary = bool(is_primary or monitor == primary_monitor)
                 except Exception:
                     pass
-            title = f"Monitor {index + 1}" + (" (principale)" if is_primary else "")
+            title = tr("Monitor {v}").format(v=index + 1) + (tr(" (principale)") if is_primary else "")
             identity = " ".join(x for x in (manufacturer, model) if x != "sconosciuto")
             suffix = f" — {identity}" if identity else ""
             label = f"{title}{suffix} — {width}×{height}"
             if scale > 1:
-                label += f" — scala {scale}×"
+                label += tr(" — scala {scale}×").format(scale=scale)
             selector = make_monitor_selector(index, manufacturer, model, width, height, scale)
             result.append(
                 MonitorDescriptor(
@@ -1339,7 +1345,7 @@ class X11EmbedBridge:
 @dataclass
 class Credential:
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    name: str = "Nuova credenziale"
+    name: str = tr("Nuova credenziale")
     username: str = ""
     domain: str = ""
     password: str = ""
@@ -1352,7 +1358,7 @@ class Credential:
     def from_dict(cls, data: Dict[str, object]) -> "Credential":
         return cls(
             id=str(data.get("id", uuid.uuid4().hex)),
-            name=str(data.get("name", "Credenziale")),
+            name=str(data.get("name", tr("Credenziale"))),
             username=str(data.get("username", "")),
             domain=str(data.get("domain", "")),
             password=str(data.get("password", "")),
@@ -1430,7 +1436,7 @@ def password_strength(password: str) -> Tuple[int, str]:
         score = 3
     else:
         score = 4
-    return score, ("Molto debole", "Debole", "Discreta", "Buona", "Ottima")[score]
+    return score, (tr("Molto debole"), tr("Debole"), tr("Discreta"), tr("Buona"), tr("Ottima"))[score]
 
 
 class PasswordVault:
@@ -1448,7 +1454,7 @@ class PasswordVault:
     @staticmethod
     def derive_key(password: str, salt: bytes, iterations: int) -> bytes:
         if not CRYPTO_AVAILABLE or PBKDF2HMAC is None or hashes is None:
-            raise RuntimeError("python3-cryptography non disponibile")
+            raise RuntimeError(tr("python3-cryptography non disponibile"))
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -1459,7 +1465,7 @@ class PasswordVault:
 
     def create(self, master_password: str) -> None:
         if not master_password:
-            raise ValueError("Master password vuota non consentita.")
+            raise ValueError(tr("Master password vuota non consentita."))
         self._salt = secrets.token_bytes(16)
         self._iterations = KDF_ITERATIONS
         self._key = self.derive_key(master_password, self._salt, self._iterations)
@@ -1469,7 +1475,7 @@ class PasswordVault:
 
     def unlock(self, master_password: str) -> None:
         if not self.path.exists():
-            raise FileNotFoundError("Password Manager non ancora creato.")
+            raise FileNotFoundError(tr("Password Manager non ancora creato."))
         raw = json.loads(self.path.read_text(encoding="utf-8"))
         kdf = raw.get("kdf", {})
         cipher = raw.get("cipher", {})
@@ -1483,7 +1489,7 @@ class PasswordVault:
         data = json.loads(plain.decode("utf-8"))
         credentials = data.get("credentials", [])
         if not isinstance(credentials, list):
-            raise ValueError("Archivio delle password non valido.")
+            raise ValueError(tr("Archivio delle password non valido."))
         self.credentials = [Credential.from_dict(x) for x in credentials if isinstance(x, dict)]
         self._salt = salt
         self._iterations = iterations
@@ -1497,7 +1503,7 @@ class PasswordVault:
 
     def save(self) -> None:
         if not self.unlocked or self._key is None or self._salt is None:
-            raise RuntimeError("Password Manager bloccato.")
+            raise RuntimeError(tr("Password Manager bloccato."))
         ensure_private_config_dir()
         plain = json.dumps(
             {
@@ -1560,9 +1566,9 @@ class PasswordVault:
     def change_master_password(self, new_password: str) -> None:
         """Ricifra l'archivio con una nuova master password (salt nuovo, chiave nuova)."""
         if not self.unlocked:
-            raise RuntimeError("Password Manager bloccato.")
+            raise RuntimeError(tr("Password Manager bloccato."))
         if not new_password:
-            raise ValueError("Master password vuota non consentita.")
+            raise ValueError(tr("Master password vuota non consentita."))
         salt = secrets.token_bytes(16)
         key = self.derive_key(new_password, salt, KDF_ITERATIONS)
         previous = (self._salt, self._iterations, self._key)
@@ -1576,7 +1582,7 @@ class PasswordVault:
     @staticmethod
     def encrypt_credentials_payload(credentials: List[Credential], master_password: str) -> Dict[str, object]:
         if not master_password:
-            raise ValueError("Master password vuota non consentita.")
+            raise ValueError(tr("Master password vuota non consentita."))
         salt = secrets.token_bytes(16)
         iterations = KDF_ITERATIONS
         key = PasswordVault.derive_key(master_password, salt, iterations)
@@ -1593,7 +1599,7 @@ class PasswordVault:
         return {
             "version": APP_VERSION,
             "format": "FedTermHub encrypted credential export",
-            "warning": "Contiene credenziali cifrate. Serve la master password scelta in esportazione.",
+            "warning": tr("Contiene credenziali cifrate. Serve la master password scelta in esportazione."),
             "kdf": {"name": "PBKDF2-HMAC-SHA256", "iterations": iterations, "salt": b64e(salt)},
             "cipher": {"name": "AES-256-GCM", "nonce": b64e(nonce)},
             "payload": b64e(encrypted),
@@ -1602,11 +1608,11 @@ class PasswordVault:
     @staticmethod
     def decrypt_credentials_payload(raw: Dict[str, object], master_password: str) -> List[Credential]:
         if str(raw.get("format", "")) not in {"FedTermHub encrypted credential export", "FedTermHub encrypted credential vault"}:
-            raise ValueError("Formato export credenziali non riconosciuto.")
+            raise ValueError(tr("Formato export credenziali non riconosciuto."))
         kdf = raw.get("kdf", {})
         cipher = raw.get("cipher", {})
         if not isinstance(kdf, dict) or not isinstance(cipher, dict):
-            raise ValueError("File cifrato non valido.")
+            raise ValueError(tr("File cifrato non valido."))
         salt = b64d(str(kdf.get("salt", "")))
         iterations = int(kdf.get("iterations", KDF_ITERATIONS))
         nonce = b64d(str(cipher.get("nonce", "")))
@@ -1616,7 +1622,7 @@ class PasswordVault:
         data = json.loads(plain.decode("utf-8"))
         credentials = data.get("credentials", [])
         if not isinstance(credentials, list):
-            raise ValueError("Payload credenziali non valido.")
+            raise ValueError(tr("Payload credenziali non valido."))
         return [Credential.from_dict(x) for x in credentials if isinstance(x, dict)]
 
 
@@ -1630,6 +1636,7 @@ class AppSettings:
 
     theme: str = "dark"  # dark oppure light
     icon_theme: str = "auto"  # auto, Papirus-Dark, Papirus, Adwaita, hicolor
+    language: str = "auto"  # auto (lingua del sistema), it, en: vale dal riavvio
 
     # Layout
     sidebar_width: int = 238
@@ -1698,6 +1705,9 @@ class AppSettings:
             allowed_icons = {"auto", "Papirus-Dark", "Papirus", "Papirus-Light", "Adwaita", "hicolor"}
             if icon_theme not in allowed_icons:
                 icon_theme = "auto"
+            language = str(raw.get("language", "auto")).lower()
+            if language not in {"auto", *I18N_LANGUAGES}:
+                language = "auto"
 
             layout_version = cls._clamp(raw.get("ui_layout_version", 1), 1, 99, 1)
             sidebar_width = cls._clamp(raw.get("sidebar_width", 238), 190, 520, 238)
@@ -1717,6 +1727,7 @@ class AppSettings:
             return cls(
                 theme=theme,
                 icon_theme=icon_theme,
+                language=language,
                 sidebar_width=sidebar_width,
                 window_width=cls._clamp(raw.get("window_width", 1280), 960, 3000, 1280),
                 window_height=cls._clamp(raw.get("window_height", 800), 640, 2000, 800),
@@ -1765,6 +1776,7 @@ class AppSettings:
             "version": APP_VERSION,
             "theme": self.theme,
             "icon_theme": self.icon_theme,
+            "language": self.language,
             "sidebar_width": self.sidebar_width,
             "window_width": self.window_width,
             "window_height": self.window_height,
@@ -1963,7 +1975,7 @@ class Session:
     @classmethod
     def from_dict(cls, data: Dict[str, object]) -> "Session":
         return cls(
-            name=str(data.get("name", "Nuova sessione")),
+            name=str(data.get("name", tr("Nuova sessione"))),
             protocol=str(data.get("protocol", "ssh")).lower(),
             host=str(data.get("host", "")),
             port=str(data.get("port", "")),
@@ -2087,12 +2099,13 @@ class Session:
         }
 
 
-def _port_problem(value: str, label: str = "porta", allow_zero: bool = False) -> str:
+def _port_problem(value: str, label: str = "", allow_zero: bool = False) -> str:
+    label = label or tr("porta")
     value = (value or "").strip()
     if not value:
         return ""
     if not value.isdigit() or not ((0 if allow_zero else 1) <= int(value) <= 65535):
-        return f"{label} «{value}» non valida: serve un numero da 1 a 65535"
+        return tr("{label} «{value}» non valida: serve un numero da 1 a 65535").format(label=label, value=value)
     return ""
 
 
@@ -2107,28 +2120,28 @@ def session_problem(sess: "Session") -> str:
     host = (sess.host or "").strip()
     if proto in {"ssh", "sftp", "rdp", "vnc", "telnet"}:
         if not host:
-            return "manca l'host (nome o indirizzo del server)"
+            return tr("manca l'host (nome o indirizzo del server)")
         if host.startswith("-") or any(ch.isspace() for ch in host):
-            return f"host «{host}» non valido"
+            return tr("host «{host}» non valido").format(host=host)
         if (sess.user or "").strip().startswith("-"):
-            return f"utente «{sess.user}» non valido"
-        problem = _port_problem(sess.port, "display/porta" if proto == "vnc" else "porta", allow_zero=proto == "vnc")
+            return tr("utente «{user}» non valido").format(user=sess.user)
+        problem = _port_problem(sess.port, tr("display/porta") if proto == "vnc" else tr("porta"), allow_zero=proto == "vnc")
         if problem:
             return problem
     if proto in {"ssh", "sftp"} and getattr(sess, "routing_mode", "direct") == "proxy_jump":
         jump = (getattr(sess, "jump_host", "") or "").strip()
         if jump.startswith("-") or any(ch.isspace() for ch in jump):
-            return f"jump host «{jump}» non valido"
-        problem = _port_problem(getattr(sess, "jump_port", ""), "porta del jump host")
+            return tr("jump host «{jump}» non valido").format(jump=jump)
+        problem = _port_problem(getattr(sess, "jump_port", ""), tr("porta del jump host"))
         if problem:
             return problem
     if proto == "serial":
         if not host:
-            return "manca la porta seriale (per esempio /dev/ttyUSB0)"
+            return tr("manca la porta seriale (per esempio /dev/ttyUSB0)")
         if not (sess.port or "").strip().isdigit():
-            return f"velocità «{sess.port}» non valida: serve un numero, per esempio 115200"
+            return tr("velocità «{port}» non valida: serve un numero, per esempio 115200").format(port=sess.port)
     if proto == "command" and not (sess.command or "").strip():
-        return "manca il comando da eseguire"
+        return tr("manca il comando da eseguire")
     return ""
 
 
@@ -2136,15 +2149,15 @@ HOME_SESSION_NAME = "Home Session"
 HOME_SESSION_COLOR = "#4aa3df"
 DEFAULT_FOLDER_COLOR = "#f2c94c"
 FOLDER_COLOR_PRESETS: List[Tuple[str, str]] = [
-    ("Giallo", "#f2c94c"),
-    ("Blu", "#4aa3df"),
-    ("Azzurro", "#56c7d9"),
-    ("Verde", "#53b175"),
-    ("Arancione", "#f2994a"),
-    ("Rosso", "#eb5757"),
-    ("Viola", "#9b73e6"),
-    ("Rosa", "#e77fb3"),
-    ("Grigio", "#8b97a6"),
+    (tr("Giallo"), "#f2c94c"),
+    (tr("Blu"), "#4aa3df"),
+    (tr("Azzurro"), "#56c7d9"),
+    (tr("Verde"), "#53b175"),
+    (tr("Arancione"), "#f2994a"),
+    (tr("Rosso"), "#eb5757"),
+    (tr("Viola"), "#9b73e6"),
+    (tr("Rosa"), "#e77fb3"),
+    (tr("Grigio"), "#8b97a6"),
 ]
 
 
@@ -2172,7 +2185,7 @@ class FolderNode:
         if isinstance(raw_children, list):
             children = [node_from_dict(x) for x in raw_children if isinstance(x, dict)]
         return cls(
-            name=str(data.get("name", "Cartella")),
+            name=str(data.get("name", tr("Cartella"))),
             children=children,
             color=normalize_folder_color(data.get("color", DEFAULT_FOLDER_COLOR)),
         )
@@ -2205,14 +2218,14 @@ def node_to_dict(node: Node) -> Dict[str, object]:
 def make_default_tree() -> List[Node]:
     base_children: List[Node] = [
         FolderNode(
-            name="Terminali",
-            children=[Session(name="Terminale locale", protocol="local")],
+            name=tr("Terminali"),
+            children=[Session(name=tr("Terminale locale"), protocol="local")],
         ),
         FolderNode(
-            name="SSH / Linux",
+            name=tr("SSH / Linux"),
             children=[
                 Session(
-                    name="Esempio SSH",
+                    name=tr("Esempio SSH"),
                     protocol="ssh",
                     host="server.local",
                     port="22",
@@ -2221,23 +2234,23 @@ def make_default_tree() -> List[Node]:
             ],
         ),
         FolderNode(
-            name="RDP / Windows",
+            name=tr("RDP / Windows"),
             children=[
                 Session(
-                    name="Esempio RDP dominio",
+                    name=tr("Esempio RDP dominio"),
                     protocol="rdp",
                     host="192.168.1.10",
                     port="3389",
-                    user="utente",
-                    domain="DOMINIO",
+                    user=tr("utente"),
+                    domain=tr("DOMINIO"),
                 )
             ],
         ),
         FolderNode(
-            name="Seriale / Console",
+            name=tr("Seriale / Console"),
             children=[
                 Session(
-                    name="Console seriale USB 115200",
+                    name=tr("Console seriale USB 115200"),
                     protocol="serial",
                     host="/dev/ttyUSB0",
                     port="115200",
@@ -2303,7 +2316,7 @@ class SessionStore:
                 items = raw
 
             if not isinstance(items, list):
-                raise ValueError("Formato sessioni non valido: attesa una lista.")
+                raise ValueError(tr("Formato sessioni non valido: attesa una lista."))
 
             self.nodes = [node_from_dict(x) for x in items if isinstance(x, dict)]
             if not self.nodes:
@@ -2312,7 +2325,7 @@ class SessionStore:
                 return
 
             if isinstance(raw, list) and all(isinstance(node, Session) for node in self.nodes):
-                self.nodes = [FolderNode(name="Importate dalla 0.1", children=self.nodes)]
+                self.nodes = [FolderNode(name=tr("Importate dalla 0.1"), children=self.nodes)]
             changed = self.ensure_home_session_root()
             if changed or isinstance(raw, list):
                 self.save()
@@ -2326,10 +2339,9 @@ class SessionStore:
             self.nodes = make_default_tree()
             self.save()
             self.load_warning = (
-                f"Il file delle sessioni non era leggibile ({exc}). Ne ho conservato una copia in "
-                f"{backup} e sono ripartito dalle sessioni di esempio."
+                tr("Il file delle sessioni non era leggibile ({exc}). Ne ho conservato una copia in {backup} e sono ripartito dalle sessioni di esempio.").format(exc=exc, backup=backup)
             )
-            print(f"File sessioni corrotto, salvato come {backup}: {exc}", file=sys.stderr)
+            print(tr("File sessioni corrotto, salvato come {backup}: {exc}").format(backup=backup, exc=exc), file=sys.stderr)
 
     def save(self) -> None:
         ensure_private_config_dir()
@@ -2354,11 +2366,11 @@ class SessionStore:
     def get_node(self, path: str) -> Node:
         parts = self._parts(path)
         if not parts:
-            raise ValueError("La radice non è un nodo.")
+            raise ValueError(tr("La radice non è un nodo."))
         current: Node = self.nodes[parts[0]]
         for part in parts[1:]:
             if not isinstance(current, FolderNode):
-                raise ValueError("Percorso non valido: nodo non cartella.")
+                raise ValueError(tr("Percorso non valido: nodo non cartella."))
             current = current.children[part]
         return current
 
@@ -2367,7 +2379,7 @@ class SessionStore:
             return self.nodes
         node = self.get_node(folder_path)
         if not isinstance(node, FolderNode):
-            raise ValueError("Il percorso destinazione non è una cartella.")
+            raise ValueError(tr("Il percorso destinazione non è una cartella."))
         return node.children
 
     def parent_path(self, path: str) -> str:
@@ -2383,7 +2395,7 @@ class SessionStore:
     def replace_node(self, path: str, node: Node) -> None:
         parts = self._parts(path)
         if not parts:
-            raise ValueError("Impossibile sostituire la radice.")
+            raise ValueError(tr("Impossibile sostituire la radice."))
         container = self.get_container(".".join(str(x) for x in parts[:-1]))
         container[parts[-1]] = node
         self.save()
@@ -2391,7 +2403,7 @@ class SessionStore:
     def remove_node(self, path: str) -> Node:
         parts = self._parts(path)
         if not parts or path == self.home_path():
-            raise ValueError("Home Session non può essere eliminata.")
+            raise ValueError(tr("Home Session non può essere eliminata."))
         container = self.get_container(".".join(str(x) for x in parts[:-1]))
         node = container.pop(parts[-1])
         self.save()
@@ -2412,7 +2424,7 @@ class SessionStore:
 
         found = walk(self.nodes, "")
         if found is None:
-            raise ValueError("Nodo non trovato dopo lo spostamento.")
+            raise ValueError(tr("Nodo non trovato dopo lo spostamento."))
         return found
 
     def move_node(self, source_path: str, target_folder_path: str, target_index: Optional[int] = None) -> str:
@@ -2423,12 +2435,12 @@ class SessionStore:
         sessione; ``None`` inserisce in fondo.
         """
         if not source_path or source_path == self.home_path():
-            raise ValueError("Home Session non può essere spostata.")
+            raise ValueError(tr("Home Session non può essere spostata."))
         source_node = self.get_node(source_path)
         if isinstance(source_node, FolderNode) and (
             target_folder_path == source_path or target_folder_path.startswith(source_path + ".")
         ):
-            raise ValueError("Una cartella non può essere spostata dentro sé stessa o una sua sottocartella.")
+            raise ValueError(tr("Una cartella non può essere spostata dentro sé stessa o una sua sottocartella."))
 
         source_parts = self._parts(source_path)
         source_parent_path = ".".join(str(x) for x in source_parts[:-1])
@@ -2481,7 +2493,7 @@ class SessionStore:
 @dataclass
 class TunnelSession:
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    name: str = "Nuovo tunnel"
+    name: str = tr("Nuovo tunnel")
     tunnel_type: str = "local"  # local, remote, dynamic
     ssh_host: str = ""
     ssh_port: str = "22"
@@ -2520,7 +2532,7 @@ class TunnelSession:
             address_family = "auto"
         return cls(
             id=str(data.get("id", uuid.uuid4().hex)),
-            name=str(data.get("name", "Tunnel SSH")),
+            name=str(data.get("name", tr("Tunnel SSH"))),
             tunnel_type=tunnel_type,
             ssh_host=str(data.get("ssh_host", "")),
             ssh_port=str(data.get("ssh_port", "22")),
@@ -2573,8 +2585,8 @@ class TunnelSession:
 
     def type_label(self) -> str:
         return {
-            "local": "Locale",
-            "remote": "Remoto",
+            "local": tr("Locale"),
+            "remote": tr("Remoto"),
             "dynamic": "SOCKS",
         }.get(self.tunnel_type, self.tunnel_type.capitalize())
 
@@ -2583,7 +2595,7 @@ class TunnelSession:
 
     def destination_endpoint(self) -> str:
         if self.tunnel_type == "dynamic":
-            return "Destinazione scelta dal client SOCKS"
+            return tr("Destinazione scelta dal client SOCKS")
         return f"{self.remote_host or '?'}:{self.remote_port or '?'}"
 
     def ssh_endpoint(self) -> str:
@@ -2592,10 +2604,10 @@ class TunnelSession:
 
     def summary(self) -> str:
         if self.tunnel_type == "dynamic":
-            return f"SOCKS {self.listen_endpoint()} tramite {self.ssh_endpoint()}"
+            return tr("SOCKS {listen_endpoint} tramite {ssh_endpoint}").format(listen_endpoint=self.listen_endpoint(), ssh_endpoint=self.ssh_endpoint())
         if self.tunnel_type == "remote":
-            return f"Remoto {self.listen_endpoint()} → {self.destination_endpoint()} tramite {self.ssh_endpoint()}"
-        return f"Locale {self.listen_endpoint()} → {self.destination_endpoint()} tramite {self.ssh_endpoint()}"
+            return tr("Remoto {listen_endpoint} → {destination_endpoint} tramite {ssh_endpoint}").format(listen_endpoint=self.listen_endpoint(), destination_endpoint=self.destination_endpoint(), ssh_endpoint=self.ssh_endpoint())
+        return tr("Locale {listen_endpoint} → {destination_endpoint} tramite {ssh_endpoint}").format(listen_endpoint=self.listen_endpoint(), destination_endpoint=self.destination_endpoint(), ssh_endpoint=self.ssh_endpoint())
 
 
 class TunnelStore:
@@ -2609,7 +2621,7 @@ class TunnelStore:
         if not self.path.exists():
             self.tunnels = [
                 TunnelSession(
-                    name="Esempio tunnel locale RDP",
+                    name=tr("Esempio tunnel locale RDP"),
                     tunnel_type="local",
                     ssh_host="bastion.local",
                     ssh_port="22",
@@ -2628,7 +2640,7 @@ class TunnelStore:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             items = raw.get("items", raw) if isinstance(raw, dict) else raw
             if not isinstance(items, list):
-                raise ValueError("Formato tunnel non valido")
+                raise ValueError(tr("Formato tunnel non valido"))
             self.tunnels = [TunnelSession.from_dict(x) for x in items if isinstance(x, dict)]
         except Exception as exc:
             backup = self.path.with_suffix(".broken.json")
@@ -2638,7 +2650,7 @@ class TunnelStore:
                 backup = self.path
             self.tunnels = []
             self.save()
-            print(f"File tunnel corrotto, salvato come {backup}: {exc}", file=sys.stderr)
+            print(tr("File tunnel corrotto, salvato come {backup}: {exc}").format(backup=backup, exc=exc), file=sys.stderr)
 
     def save(self) -> None:
         ensure_private_config_dir()
@@ -2712,7 +2724,7 @@ def _password_entry(activates_default: bool = True) -> Gtk.Entry:
     entry.set_activates_default(activates_default)
     entry.set_hexpand(True)
     entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "view-reveal-symbolic")
-    entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Mostra la password")
+    entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, tr("Mostra la password"))
 
     def toggle(e: Gtk.Entry, _pos, _event) -> None:
         visible = not e.get_visibility()
@@ -2720,7 +2732,7 @@ def _password_entry(activates_default: bool = True) -> Gtk.Entry:
         e.set_icon_from_icon_name(
             Gtk.EntryIconPosition.SECONDARY, "view-conceal-symbolic" if visible else "view-reveal-symbolic"
         )
-        e.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Nascondi la password" if visible else "Mostra la password")
+        e.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, tr("Nascondi la password") if visible else tr("Mostra la password"))
 
     entry.connect("icon-press", toggle)
     return entry
@@ -2762,26 +2774,26 @@ class MasterPasswordDialog(Gtk.Dialog):
     """
 
     TEXTS = {
-        "unlock": ("Sblocca le password", "Inserisci la master password per usare le credenziali salvate.", "_Sblocca"),
+        "unlock": (tr("Sblocca le password"), tr("Inserisci la master password per usare le credenziali salvate."), "_Sblocca"),
         "create": (
-            "Proteggi le tue password",
-            "Scegli una master password: cifra tutte le credenziali salvate in FedTermHub. Non viene "
-            "salvata da nessuna parte e non si può recuperare: se la dimentichi, le credenziali sono perse.",
-            "_Crea archivio",
+            tr("Proteggi le tue password"),
+            tr("Scegli una master password: cifra tutte le credenziali salvate in FedTermHub. Non viene "
+            "salvata da nessuna parte e non si può recuperare: se la dimentichi, le credenziali sono perse."),
+            tr("_Crea archivio"),
         ),
         "change": (
-            "Cambia master password",
-            "Le credenziali vengono cifrate di nuovo con la nuova password. I backup esportati prima "
-            "restano protetti dalla password che avevano.",
-            "_Cambia password",
+            tr("Cambia master password"),
+            tr("Le credenziali vengono cifrate di nuovo con la nuova password. I backup esportati prima "
+            "restano protetti dalla password che avevano."),
+            tr("_Cambia password"),
         ),
         "export": (
-            "Password del backup",
-            "Il file di backup viene cifrato con questa password: serve per importarlo di nuovo, "
-            "conservala insieme al file. Può essere diversa dalla master password.",
+            tr("Password del backup"),
+            tr("Il file di backup viene cifrato con questa password: serve per importarlo di nuovo, "
+            "conservala insieme al file. Può essere diversa dalla master password."),
             "_Esporta",
         ),
-        "import": ("Password del backup", "Inserisci la password scelta quando il backup è stato esportato.", "_Importa"),
+        "import": (tr("Password del backup"), tr("Inserisci la password scelta quando il backup è stato esportato."), "_Importa"),
     }
 
     def __init__(self, parent: Gtk.Window, mode: str = "unlock") -> None:
@@ -2791,7 +2803,7 @@ class MasterPasswordDialog(Gtk.Dialog):
         self.set_resizable(False)
         self.mode = mode
         self.get_style_context().add_class("modern-dialog")
-        self.add_button("_Annulla", Gtk.ResponseType.CANCEL)
+        self.add_button(tr("_Annulla"), Gtk.ResponseType.CANCEL)
         ok = self.add_button(ok_label, Gtk.ResponseType.OK)
         ok.get_style_context().add_class("suggested-action")
         self.set_default_response(Gtk.ResponseType.OK)
@@ -2821,7 +2833,7 @@ class MasterPasswordDialog(Gtk.Dialog):
         self.current: Optional[Gtk.Entry] = None
         if mode == "change":
             self.current = _password_entry()
-            caption = Gtk.Label.new_with_mnemonic("Password a_ttuale")
+            caption = Gtk.Label.new_with_mnemonic(tr("Password a_ttuale"))
             caption.set_xalign(0)
             caption.set_mnemonic_widget(self.current)
             grid.attach(caption, 0, row, 1, 1)
@@ -2830,11 +2842,11 @@ class MasterPasswordDialog(Gtk.Dialog):
 
         self.password = _password_entry()
         if mode == "change":
-            caption = Gtk.Label.new_with_mnemonic("_Nuova password")
+            caption = Gtk.Label.new_with_mnemonic(tr("_Nuova password"))
         elif mode in {"export", "import"}:
-            caption = Gtk.Label.new_with_mnemonic("Pass_word")
+            caption = Gtk.Label.new_with_mnemonic(tr("Pass_word"))
         else:
-            caption = Gtk.Label.new_with_mnemonic("_Master password")
+            caption = Gtk.Label.new_with_mnemonic(tr("_Master password"))
         caption.set_xalign(0)
         caption.set_mnemonic_widget(self.password)
         grid.attach(caption, 0, row, 1, 1)
@@ -2848,7 +2860,7 @@ class MasterPasswordDialog(Gtk.Dialog):
             grid.attach(self.meter, 1, row, 1, 1)
             row += 1
             self.confirm = _password_entry()
-            caption = Gtk.Label.new_with_mnemonic("C_onferma")
+            caption = Gtk.Label.new_with_mnemonic(tr("C_onferma"))
             caption.set_xalign(0)
             caption.set_mnemonic_widget(self.confirm)
             grid.attach(caption, 0, row, 1, 1)
@@ -2863,10 +2875,10 @@ class MasterPasswordDialog(Gtk.Dialog):
 
         # Spunta per lo sblocco persistente direttamente nel prompt: evita di dover cercare
         # l'opzione nelle impostazioni.
-        self.keep_unlocked = Gtk.CheckButton(label="Non chiedere più la password finché FedTermHub resta aperto")
+        self.keep_unlocked = Gtk.CheckButton(label=tr("Non chiedere più la password finché FedTermHub resta aperto"))
         self.keep_unlocked.set_tooltip_text(
-            "Disattiva il blocco automatico per inattività (si cambia anche dalle Impostazioni). "
-            "La password verrà richiesta alla prossima apertura del programma."
+            tr("Disattiva il blocco automatico per inattività (si cambia anche dalle Impostazioni). "
+            "La password verrà richiesta alla prossima apertura del programma.")
         )
         if mode in {"unlock", "create"}:
             outer.pack_start(self.keep_unlocked, False, False, 0)
@@ -2897,20 +2909,21 @@ class MasterPasswordDialog(Gtk.Dialog):
     def local_error(self) -> Optional[str]:
         """Errori che si vedono senza toccare il disco."""
         if self.current is not None and not self.get_current_password():
-            return "Inserisci la master password attuale."
+            return tr("Inserisci la master password attuale.")
         if not self.get_password():
-            return "Inserisci la password."
+            return tr("Inserisci la password.")
         if self.mode in {"create", "change", "export"}:
             if len(self.get_password()) < 8:
-                return "Usa almeno 8 caratteri: è l'unica protezione delle credenziali salvate."
+                return tr("Usa almeno 8 caratteri: è l'unica protezione delle credenziali salvate.")
             if not self.password_matches():
-                return "Le due password non coincidono."
+                return tr("Le due password non coincidono.")
         return None
 
     def show_error(self, message: str) -> None:
         self.error.set_text(message)
         self.error.show()
-        target = self.current if (self.current is not None and "attuale" in message) else self.password
+        about_current = message in (tr("Inserisci la master password attuale."), tr("La master password attuale non è corretta."))
+        target = self.current if (self.current is not None and about_current) else self.password
         target.grab_focus()
         target.select_region(0, -1)
 
@@ -2952,11 +2965,11 @@ class CredentialDialog(Gtk.Dialog):
         groups: Optional[List[str]] = None,
     ) -> None:
         is_new = credential is None
-        super().__init__(title="Nuova credenziale" if is_new else "Modifica credenziale", transient_for=parent, flags=0)
+        super().__init__(title=tr("Nuova credenziale") if is_new else tr("Modifica credenziale"), transient_for=parent, flags=0)
         self.set_modal(True)
         self.get_style_context().add_class("modern-dialog")
-        self.add_button("_Annulla", Gtk.ResponseType.CANCEL)
-        self.save_button = self.add_button("_Salva", Gtk.ResponseType.OK)
+        self.add_button(tr("_Annulla"), Gtk.ResponseType.CANCEL)
+        self.save_button = self.add_button(tr("_Salva"), Gtk.ResponseType.OK)
         self.save_button.get_style_context().add_class("suggested-action")
         self.set_default_response(Gtk.ResponseType.OK)
         self.set_default_size(560, -1)
@@ -2967,7 +2980,7 @@ class CredentialDialog(Gtk.Dialog):
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, margin=18)
         self.get_content_area().pack_start(outer, True, True, 0)
-        heading = Gtk.Label(label="Nuova credenziale" if is_new else "Modifica credenziale", xalign=0)
+        heading = Gtk.Label(label=tr("Nuova credenziale") if is_new else tr("Modifica credenziale"), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
         outer.pack_start(heading, False, False, 0)
 
@@ -2983,8 +2996,8 @@ class CredentialDialog(Gtk.Dialog):
         self.name = Gtk.Entry(text=self.credential.name)
         self.name.set_hexpand(True)
         self.name.set_activates_default(True)
-        self.name.set_placeholder_text("Es. Administrator dominio Rossi")
-        caption(self.name, Gtk.Label.new_with_mnemonic("_Nome"), 0)
+        self.name.set_placeholder_text(tr("Es. Administrator dominio Rossi"))
+        caption(self.name, Gtk.Label.new_with_mnemonic(tr("_Nome")), 0)
         grid.attach(self.name, 1, 0, 1, 1)
 
         self.group = Gtk.ComboBoxText.new_with_entry()
@@ -2992,21 +3005,21 @@ class CredentialDialog(Gtk.Dialog):
             self.group.append_text(name)
         group_entry = self.group.get_child()
         group_entry.set_text(self.credential.group)
-        group_entry.set_placeholder_text("Es. il nome del cliente (facoltativo)")
+        group_entry.set_placeholder_text(tr("Es. il nome del cliente (facoltativo)"))
         group_entry.set_activates_default(True)
-        self.group.set_tooltip_text("Le credenziali dello stesso gruppo compaiono insieme nell'elenco.")
-        caption(group_entry, Gtk.Label.new_with_mnemonic("_Gruppo"), 1)
+        self.group.set_tooltip_text(tr("Le credenziali dello stesso gruppo compaiono insieme nell'elenco."))
+        caption(group_entry, Gtk.Label.new_with_mnemonic(tr("_Gruppo")), 1)
         grid.attach(self.group, 1, 1, 1, 1)
 
         self.username = Gtk.Entry(text=self.credential.username)
         self.username.set_activates_default(True)
-        caption(self.username, Gtk.Label.new_with_mnemonic("_Utente"), 2)
+        caption(self.username, Gtk.Label.new_with_mnemonic(tr("_Utente")), 2)
         grid.attach(self.username, 1, 2, 1, 1)
 
         self.domain = Gtk.Entry(text=self.credential.domain)
         self.domain.set_activates_default(True)
-        self.domain.set_placeholder_text("Solo per account Windows / Active Directory")
-        caption(self.domain, Gtk.Label.new_with_mnemonic("_Dominio"), 3)
+        self.domain.set_placeholder_text(tr("Solo per account Windows / Active Directory"))
+        caption(self.domain, Gtk.Label.new_with_mnemonic(tr("_Dominio")), 3)
         grid.attach(self.domain, 1, 3, 1, 1)
 
         self.password = _password_entry()
@@ -3014,17 +3027,17 @@ class CredentialDialog(Gtk.Dialog):
         password_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         password_row.pack_start(self.password, True, True, 0)
         generate = _vault_button(
-            parent, Gtk.Label.new_with_mnemonic("Gene_ra"), ["view-refresh-symbolic", "system-run-symbolic"],
+            parent, Gtk.Label.new_with_mnemonic(tr("Gene_ra")), ["view-refresh-symbolic", "system-run-symbolic"],
             self.on_generate,
         )
-        generate.set_tooltip_text("Crea una password casuale di 20 caratteri")
+        generate.set_tooltip_text(tr("Crea una password casuale di 20 caratteri"))
         password_row.pack_start(generate, False, False, 0)
-        caption(self.password, Gtk.Label.new_with_mnemonic("_Password"), 4)
+        caption(self.password, Gtk.Label.new_with_mnemonic(tr("_Password")), 4)
         grid.attach(password_row, 1, 4, 1, 1)
         grid.attach(_StrengthMeter(self.password), 1, 5, 1, 1)
 
         self.server_hint = Gtk.Label(
-            label="Hai cambiato la password salvata: ricordati di cambiarla anche sul server.", xalign=0
+            label=tr("Hai cambiato la password salvata: ricordati di cambiarla anche sul server."), xalign=0
         )
         self.server_hint.set_line_wrap(True)
         self.server_hint.set_no_show_all(True)
@@ -3044,7 +3057,7 @@ class CredentialDialog(Gtk.Dialog):
         notes_scroll.set_shadow_type(Gtk.ShadowType.IN)
         notes_scroll.get_style_context().add_class("vault-notes")
         notes_scroll.add(self.notes)
-        notes_caption = Gtk.Label.new_with_mnemonic("No_te")
+        notes_caption = Gtk.Label.new_with_mnemonic(tr("No_te"))
         caption(self.notes, notes_caption, 7)
         notes_caption.set_valign(Gtk.Align.START)
         grid.attach(notes_scroll, 1, 7, 1, 1)
@@ -3064,14 +3077,14 @@ class CredentialDialog(Gtk.Dialog):
         self.password.set_text(generate_password())
         self.password.set_visibility(True)
         self.password.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "view-conceal-symbolic")
-        self.password.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Nascondi la password")
+        self.password.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, tr("Nascondi la password"))
 
     def get_credential(self) -> Credential:
         buffer = self.notes.get_buffer()
         notes = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
         return Credential(
             id=self.credential.id,
-            name=self.name.get_text().strip() or "Senza nome",
+            name=self.name.get_text().strip() or tr("Senza nome"),
             username=self.username.get_text().strip(),
             domain=self.domain.get_text().strip(),
             password=self.password.get_text(),
@@ -3084,9 +3097,9 @@ class RdpPasswordDialog(Gtk.Dialog):
     """Richiesta password RDP quando la sessione non ha credenziale collegata."""
 
     def __init__(self, parent: Gtk.Window, session: Session) -> None:
-        super().__init__(title="Password RDP", transient_for=parent, flags=0)
+        super().__init__(title=tr("Password RDP"), transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "Connetti", Gtk.ResponseType.OK)
+        self.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("Connetti"), Gtk.ResponseType.OK)
         self.set_default_size(520, 230)
 
         box = self.get_content_area()
@@ -3094,7 +3107,7 @@ class RdpPasswordDialog(Gtk.Dialog):
         box.add(grid)
 
         info = Gtk.Label(
-            label=f"Inserisci la password per {session.name or session.host}. Non sarà salvata in chiaro.",
+            label=tr("Inserisci la password per {v}. Non sarà salvata in chiaro.").format(v=session.name or session.host),
             xalign=0,
         )
         info.set_line_wrap(True)
@@ -3106,12 +3119,12 @@ class RdpPasswordDialog(Gtk.Dialog):
         self.password.set_visibility(False)
         self.password.set_input_purpose(Gtk.InputPurpose.PASSWORD)
         self.password.set_activates_default(True)
-        self.save_to_vault = Gtk.CheckButton(label="Salva questa credenziale nel Password Manager cifrato")
+        self.save_to_vault = Gtk.CheckButton(label=tr("Salva questa credenziale nel Password Manager cifrato"))
         self.save_to_vault.set_active(True)
-        show = Gtk.CheckButton(label="Mostra password")
+        show = Gtk.CheckButton(label=tr("Mostra password"))
         show.connect("toggled", lambda b: self.password.set_visibility(b.get_active()))
 
-        rows = [("Utente", self.username), ("Dominio", self.domain), ("Password", self.password)]
+        rows = [(tr("Utente"), self.username), (tr("Dominio"), self.domain), (tr("Password"), self.password)]
         for row, (label, widget) in enumerate(rows, start=1):
             grid.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             grid.attach(widget, 1, row, 1, 1)
@@ -3137,7 +3150,7 @@ class VaultManagerDialog(Gtk.Dialog):
     """
 
     def __init__(self, parent: Gtk.Window, vault: PasswordVault) -> None:
-        super().__init__(title="Password", transient_for=parent, flags=0)
+        super().__init__(title=tr("Password"), transient_for=parent, flags=0)
         self.set_modal(True)
         self.set_resizable(True)
         self.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
@@ -3151,7 +3164,7 @@ class VaultManagerDialog(Gtk.Dialog):
         self.selected_id = ""
         self._rows: Dict[str, Gtk.ListBoxRow] = {}
 
-        close = self.add_button("_Chiudi", Gtk.ResponseType.CLOSE)
+        close = self.add_button(tr("_Chiudi"), Gtk.ResponseType.CLOSE)
         close.get_parent().set_margin_end(14)
         close.get_parent().set_margin_bottom(12)
         self.connect("delete-event", lambda d, _e: (d.response(Gtk.ResponseType.CLOSE), True)[1])
@@ -3167,7 +3180,7 @@ class VaultManagerDialog(Gtk.Dialog):
         header.get_style_context().add_class("vault-header")
         header.pack_start(_vault_image(parent, ["dialog-password-symbolic", "dialog-password"], 30), False, False, 0)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        heading = Gtk.Label(label="Password", xalign=0)
+        heading = Gtk.Label(label=tr("Password"), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
         self.lock_state = Gtk.Label(xalign=0)
         self.lock_state.set_line_wrap(True)
@@ -3177,24 +3190,24 @@ class VaultManagerDialog(Gtk.Dialog):
         header.pack_start(titles, True, True, 0)
 
         self.btn_lock = _vault_button(
-            parent, Gtk.Label.new_with_mnemonic("_Blocca"),
+            parent, Gtk.Label.new_with_mnemonic(tr("_Blocca")),
             ["changes-prevent-symbolic", "system-lock-screen-symbolic"], self.on_lock,
         )
-        self.btn_lock.set_tooltip_text("Chiude la finestra e richiede la master password al prossimo uso")
+        self.btn_lock.set_tooltip_text(tr("Chiude la finestra e richiede la master password al prossimo uso"))
         self.btn_lock.set_valign(Gtk.Align.CENTER)
         header.pack_start(self.btn_lock, False, False, 0)
 
         self.menu_button = Gtk.MenuButton()
         self.menu_button.add(_vault_image(parent, ["open-menu-symbolic", "view-more-symbolic"], 16))
-        self.menu_button.set_tooltip_text("Backup e master password")
+        self.menu_button.set_tooltip_text(tr("Backup e master password"))
         self.menu_button.set_valign(Gtk.Align.CENTER)
         self.menu_button.get_style_context().add_class("secondary-action")
         menu = Gtk.Menu()
         for text, callback in (
-            ("Cambia master password…", self.on_change_master),
+            (tr("Cambia master password…"), self.on_change_master),
             (None, None),
-            ("Esporta backup cifrato…", self.on_export_encrypted),
-            ("Importa backup cifrato…", self.on_import_encrypted),
+            (tr("Esporta backup cifrato…"), self.on_export_encrypted),
+            (tr("Importa backup cifrato…"), self.on_import_encrypted),
         ):
             item = Gtk.SeparatorMenuItem() if text is None else Gtk.MenuItem(label=text)
             if callback is not None:
@@ -3212,13 +3225,13 @@ class VaultManagerDialog(Gtk.Dialog):
         self.hint_text.set_line_wrap(True)
         self.hint.pack_start(self.hint_text, True, True, 0)
         self.btn_apply_groups = _vault_button(
-            parent, Gtk.Label.new_with_mnemonic("_Raggruppa"), ["view-list-symbolic", "folder-symbolic"],
+            parent, Gtk.Label.new_with_mnemonic(tr("_Raggruppa")), ["view-list-symbolic", "folder-symbolic"],
             self.on_apply_groups,
         )
         self.btn_apply_groups.set_valign(Gtk.Align.CENTER)
         self.hint.pack_start(self.btn_apply_groups, False, False, 0)
         hint_close = _vault_icon_button(
-            parent, ["window-close-symbolic"], "Non ora",
+            parent, ["window-close-symbolic"], tr("Non ora"),
             lambda _b: (self.hint.set_no_show_all(True), self.hint.hide()),
         )
         hint_close.set_valign(Gtk.Align.CENTER)
@@ -3234,17 +3247,17 @@ class VaultManagerDialog(Gtk.Dialog):
         side = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         side.get_style_context().add_class("vault-sidebar")
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Cerca nome, utente, gruppo… (Ctrl+F)")
+        self.search.set_placeholder_text(tr("Cerca nome, utente, gruppo… (Ctrl+F)"))
         self.search.get_style_context().add_class("vault-search")
         self.search.connect("search-changed", self.on_search_changed)
         self.search.connect("activate", self.on_search_activate)
         self.search.connect("key-press-event", self.on_search_key)
         side.pack_start(self.search, False, False, 0)
         self.btn_add = _vault_button(
-            parent, Gtk.Label.new_with_mnemonic("_Nuova credenziale"), ["list-add-symbolic", "document-new-symbolic"],
+            parent, Gtk.Label.new_with_mnemonic(tr("_Nuova credenziale")), ["list-add-symbolic", "document-new-symbolic"],
             self.on_add, "suggested-action",
         )
-        self.btn_add.set_tooltip_text("Ctrl+N")
+        self.btn_add.set_tooltip_text(tr("Ctrl+N"))
         side.pack_start(self.btn_add, False, False, 0)
 
         self.listbox = Gtk.ListBox()
@@ -3318,23 +3331,23 @@ class VaultManagerDialog(Gtk.Dialog):
 
     def _build_empty_page(self) -> Gtk.Box:
         first = _vault_button(
-            self.parent_app, Gtk.Label.new_with_mnemonic("_Aggiungi la prima credenziale"),
+            self.parent_app, Gtk.Label.new_with_mnemonic(tr("_Aggiungi la prima credenziale")),
             ["list-add-symbolic"], self.on_add, "suggested-action",
         )
         return self._centered_page(
             ["dialog-password-symbolic", "dialog-password"],
-            "Nessuna password salvata",
-            "Salva qui utenti e password dei server: restano cifrate con la master password. "
+            tr("Nessuna password salvata"),
+            tr("Salva qui utenti e password dei server: restano cifrate con la master password. "
             "Nella finestra di una sessione scegli poi la credenziale da usare, così FedTermHub "
-            "si collega senza chiederla ogni volta.",
+            "si collega senza chiederla ogni volta."),
             first,
         )
 
     def _build_nothing_page(self) -> Gtk.Box:
         return self._centered_page(
             ["dialog-password-symbolic", "dialog-password"],
-            "Scegli una credenziale",
-            "Selezionala nell'elenco per vederne i dati, copiarli o modificarli.",
+            tr("Scegli una credenziale"),
+            tr("Selezionala nell'elenco per vederne i dati, copiarli o modificarli."),
         )
 
     def _build_detail_page(self) -> Gtk.Box:
@@ -3376,26 +3389,26 @@ class VaultManagerDialog(Gtk.Dialog):
             return value
 
         copy_icons = ["edit-copy-symbolic", "edit-copy"]
-        self.d_user = field("user", 0, "Utente", [
-            _vault_icon_button(self.parent_app, copy_icons, "Copia utente (Ctrl+B)", self.on_copy_username),
+        self.d_user = field("user", 0, tr("Utente"), [
+            _vault_icon_button(self.parent_app, copy_icons, tr("Copia utente (Ctrl+B)"), self.on_copy_username),
         ])
-        self.d_domain = field("domain", 1, "Dominio", [
-            _vault_icon_button(self.parent_app, copy_icons, "Copia dominio", self.on_copy_domain),
+        self.d_domain = field("domain", 1, tr("Dominio"), [
+            _vault_icon_button(self.parent_app, copy_icons, tr("Copia dominio"), self.on_copy_domain),
         ])
         self.reveal = Gtk.ToggleButton()
         self.reveal.add(_vault_image(self.parent_app, ["view-reveal-symbolic", "view-visible-symbolic"], 16))
-        self.reveal.set_tooltip_text("Mostra la password")
+        self.reveal.set_tooltip_text(tr("Mostra la password"))
         self.reveal.set_relief(Gtk.ReliefStyle.NONE)
         self.reveal.get_style_context().add_class("vault-icon-button")
         self.reveal.connect("toggled", lambda *_a: self._show_password())
         self.btn_copy_password = _vault_icon_button(
-            self.parent_app, copy_icons, "Copia password (Ctrl+C)", self.on_copy_password
+            self.parent_app, copy_icons, tr("Copia password (Ctrl+C)"), self.on_copy_password
         )
-        self.d_password = field("password", 2, "Password", [self.reveal, self.btn_copy_password])
+        self.d_password = field("password", 2, tr("Password"), [self.reveal, self.btn_copy_password])
         self.d_password.get_style_context().add_class("vault-secret")
-        self.d_notes = field("notes", 3, "Note", [])
+        self.d_notes = field("notes", 3, tr("Note"), [])
 
-        usage_caption = Gtk.Label(label="Usata da", xalign=0)
+        usage_caption = Gtk.Label(label=tr("Usata da"), xalign=0)
         usage_caption.get_style_context().add_class("vault-field-caption")
         page.pack_start(usage_caption, False, False, 0)
         self.d_usage = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -3411,15 +3424,15 @@ class VaultManagerDialog(Gtk.Dialog):
         page.pack_start(Gtk.Box(), True, True, 0)
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.btn_edit = _vault_button(
-            self.parent_app, Gtk.Label.new_with_mnemonic("_Modifica"),
+            self.parent_app, Gtk.Label.new_with_mnemonic(tr("_Modifica")),
             ["document-edit-symbolic", "accessories-text-editor-symbolic"], self.on_edit,
         )
-        self.btn_edit.set_tooltip_text("Modifica la credenziale selezionata")
+        self.btn_edit.set_tooltip_text(tr("Modifica la credenziale selezionata"))
         self.btn_del = _vault_button(
-            self.parent_app, Gtk.Label.new_with_mnemonic("_Elimina"),
+            self.parent_app, Gtk.Label.new_with_mnemonic(tr("_Elimina")),
             ["user-trash-symbolic", "edit-delete-symbolic"], self.on_delete, "vault-delete",
         )
-        self.btn_del.set_tooltip_text("Canc")
+        self.btn_del.set_tooltip_text(tr("Canc"))
         actions.pack_start(self.btn_edit, False, False, 0)
         actions.pack_end(self.btn_del, False, False, 0)
         page.pack_start(actions, False, False, 0)
@@ -3434,7 +3447,7 @@ class VaultManagerDialog(Gtk.Dialog):
         if before is not None and getattr(before, "group", None) == row.group:
             row.set_header(None)
             return
-        label = Gtk.Label(label=(row.group or "Senza gruppo").upper(), xalign=0)
+        label = Gtk.Label(label=(row.group or tr("Senza gruppo")).upper(), xalign=0)
         label.get_style_context().add_class("vault-group-header")
         row.set_header(label)
 
@@ -3455,7 +3468,7 @@ class VaultManagerDialog(Gtk.Dialog):
         name.get_style_context().add_class("vault-row-title")
         texts.pack_start(name, False, False, 0)
         account = cred.account_text()
-        subtitle = Gtk.Label(label=account or "nessun utente", xalign=0)
+        subtitle = Gtk.Label(label=account or tr("nessun utente"), xalign=0)
         subtitle.set_ellipsize(Pango.EllipsizeMode.END)
         subtitle.get_style_context().add_class("vault-row-subtitle")
         texts.pack_start(subtitle, False, False, 0)
@@ -3463,7 +3476,7 @@ class VaultManagerDialog(Gtk.Dialog):
         if uses:
             badge = Gtk.Label(label=str(uses))
             badge.set_valign(Gtk.Align.CENTER)
-            badge.set_tooltip_text("Usata da 1 sessione" if uses == 1 else f"Usata da {uses} sessioni")
+            badge.set_tooltip_text(tr("Usata da 1 sessione") if uses == 1 else tr("Usata da {uses} sessioni").format(uses=uses))
             badge.get_style_context().add_class("vault-badge")
             box.pack_start(badge, False, False, 0)
         row.add(box)
@@ -3499,11 +3512,11 @@ class VaultManagerDialog(Gtk.Dialog):
         self.listbox.show_all()
         total = len(self.vault.credentials)
         if self.filter_text:
-            self.no_match.set_text(f"Nessuna credenziale corrisponde a «{self.search.get_text().strip()}».")
-            self.count_label.set_text(f"{visible} di {total} credenziali")
+            self.no_match.set_text(tr("Nessuna credenziale corrisponde a «{strip}».").format(strip=self.search.get_text().strip()))
+            self.count_label.set_text(tr("{visible} di {total} credenziali").format(visible=visible, total=total))
         else:
-            self.no_match.set_text("Ancora nessuna credenziale.")
-            self.count_label.set_text("1 credenziale" if total == 1 else f"{total} credenziali")
+            self.no_match.set_text(tr("Ancora nessuna credenziale."))
+            self.count_label.set_text(tr("1 credenziale") if total == 1 else tr("{total} credenziali").format(total=total))
         row = self._rows.get(self.selected_id)
         if row is not None:
             self.listbox.select_row(row)
@@ -3536,7 +3549,7 @@ class VaultManagerDialog(Gtk.Dialog):
             return
         self.stack.set_visible_child_name("detail")
         self.d_title.set_text(cred.name)
-        self.d_group.set_text(cred.group or "Senza gruppo")
+        self.d_group.set_text(cred.group or tr("Senza gruppo"))
         for key, value in (("user", cred.username), ("domain", cred.domain), ("notes", cred.notes)):
             label = {"user": self.d_user, "domain": self.d_domain, "notes": self.d_notes}[key]
             label.set_text(value)
@@ -3552,7 +3565,7 @@ class VaultManagerDialog(Gtk.Dialog):
         usage = self._usage(cred.id)
         if not usage:
             none = Gtk.Label(
-                label="Nessuna sessione la usa. Per collegarla, apri una sessione e sceglila nel campo Credenziale.",
+                label=tr("Nessuna sessione la usa. Per collegarla, apri una sessione e sceglila nel campo Credenziale."),
                 xalign=0,
             )
             none.set_line_wrap(True)
@@ -3579,12 +3592,12 @@ class VaultManagerDialog(Gtk.Dialog):
         if cred is None:
             return
         if not cred.password:
-            self.d_password.set_text("nessuna password salvata")
+            self.d_password.set_text(tr("nessuna password salvata"))
         elif self.reveal.get_active():
             self.d_password.set_text(cred.password)
         else:
             self.d_password.set_text("•" * 12)
-        self.reveal.set_tooltip_text("Nascondi la password" if self.reveal.get_active() else "Mostra la password")
+        self.reveal.set_tooltip_text(tr("Nascondi la password") if self.reveal.get_active() else tr("Mostra la password"))
 
     # ------------------------------------------------------------------ stato e suggerimenti
     def _update_lock_state(self) -> None:
@@ -3593,10 +3606,10 @@ class VaultManagerDialog(Gtk.Dialog):
         except Exception:
             minutes = 0
         if minutes > 0:
-            when = "1 minuto" if minutes == 1 else f"{minutes} minuti"
-            text = f"Sbloccate · si bloccano dopo {when} senza attività"
+            when = tr("1 minuto") if minutes == 1 else tr("{minutes} minuti").format(minutes=minutes)
+            text = tr("Sbloccate · si bloccano dopo {when} senza attività").format(when=when)
         else:
-            text = "Sbloccate finché FedTermHub resta aperto"
+            text = tr("Sbloccate finché FedTermHub resta aperto")
         self.lock_state.set_text(text)
         try:
             seconds = int(self.parent_app.settings.clear_clipboard_seconds)
@@ -3604,7 +3617,7 @@ class VaultManagerDialog(Gtk.Dialog):
             seconds = 0
         if seconds > 0:
             self.btn_copy_password.set_tooltip_text(
-                f"Copia password (Ctrl+C) · si cancella dagli appunti dopo {seconds} secondi"
+                tr("Copia password (Ctrl+C) · si cancella dagli appunti dopo {seconds} secondi").format(seconds=seconds)
             )
 
     def _group_suggestions(self) -> Dict[str, str]:
@@ -3621,10 +3634,9 @@ class VaultManagerDialog(Gtk.Dialog):
             self.hint.hide()
             return
         self.hint.show_all()
-        what = "1 credenziale senza gruppo è usata" if count == 1 else f"{count} credenziali senza gruppo sono usate"
+        what = tr("1 credenziale senza gruppo è usata") if count == 1 else tr("{count} credenziali senza gruppo sono usate").format(count=count)
         self.hint_text.set_text(
-            f"{what} da sessioni che stanno in una cartella. Posso raggrupparle col nome di quella cartella "
-            "(di solito il cliente): le ritrovi insieme e puoi sempre cambiarlo."
+            tr("{what} da sessioni che stanno in una cartella. Posso raggrupparle col nome di quella cartella (di solito il cliente): le ritrovi insieme e puoi sempre cambiarlo.").format(what=what)
         )
 
     def on_apply_groups(self, _button: Optional[Gtk.Button]) -> None:
@@ -3635,7 +3647,7 @@ class VaultManagerDialog(Gtk.Dialog):
         self.vault.save()
         self.refresh()
         self._update_hint()
-        self.parent_app.set_status(f"Raggruppate {len(suggestions)} credenziali per cartella.")
+        self.parent_app.set_status(tr("Raggruppate {n_suggestions} credenziali per cartella.").format(n_suggestions=len(suggestions)))
 
     def _activity(self) -> bool:
         try:
@@ -3753,18 +3765,17 @@ class VaultManagerDialog(Gtk.Dialog):
             flags=0,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.NONE,
-            text=f"Eliminare «{cred.name}»?",
+            text=tr("Eliminare «{name}»?").format(name=cred.name),
         )
         if usage:
             names = ", ".join(name for name, _kind, _folder in usage[:4]) + ("…" if len(usage) > 4 else "")
             confirm.format_secondary_text(
-                f"È usata da {len(usage)} {'sessione' if len(usage) == 1 else 'sessioni'} ({names}): "
-                "resteranno salvate ma ti chiederanno la password a ogni connessione."
+                trn("È usata da {n_usage} sessione ({names}): resterà salvata ma ti chiederà la password a ogni connessione.", "È usata da {n_usage} sessioni ({names}): resteranno salvate ma ti chiederanno la password a ogni connessione.", len(usage)).format(n_usage=len(usage), names=names)
             )
         else:
-            confirm.format_secondary_text("Nessuna sessione la usa. L'eliminazione non si può annullare.")
-        confirm.add_button("_Annulla", Gtk.ResponseType.CANCEL)
-        delete = confirm.add_button("_Elimina", Gtk.ResponseType.OK)
+            confirm.format_secondary_text(tr("Nessuna sessione la usa. L'eliminazione non si può annullare."))
+        confirm.add_button(tr("_Annulla"), Gtk.ResponseType.CANCEL)
+        delete = confirm.add_button(tr("_Elimina"), Gtk.ResponseType.OK)
         delete.get_style_context().add_class("destructive-action")
         confirm.set_default_response(Gtk.ResponseType.CANCEL)
         response = confirm.run()
@@ -3777,39 +3788,39 @@ class VaultManagerDialog(Gtk.Dialog):
         neighbour = self.listbox.get_row_at_index(min(index, len(self._rows) - 1)) if self._rows else None
         if neighbour is not None:
             self.listbox.select_row(neighbour)
-        self.parent_app.set_status(f"Credenziale «{cred.name}» eliminata.")
+        self.parent_app.set_status(tr("Credenziale «{name}» eliminata.").format(name=cred.name))
 
     def on_copy_username(self, _button: Optional[Gtk.Button]) -> None:
         cred = self.selected_credential()
         if cred is not None:
-            self.parent_app.copy_sensitive_text(cred.account_text() if cred.domain else cred.username, "Utente")
+            self.parent_app.copy_sensitive_text(cred.account_text() if cred.domain else cred.username, tr("Utente"))
 
     def on_copy_domain(self, _button: Optional[Gtk.Button]) -> None:
         cred = self.selected_credential()
         if cred is not None:
-            self.parent_app.copy_sensitive_text(cred.domain, "Dominio")
+            self.parent_app.copy_sensitive_text(cred.domain, tr("Dominio"))
 
     def on_copy_password(self, _button: Optional[Gtk.Button]) -> None:
         cred = self.selected_credential()
         if cred is not None:
-            self.parent_app.copy_sensitive_text(cred.password, "Password")
+            self.parent_app.copy_sensitive_text(cred.password, tr("Password"))
 
     def on_change_master(self, _button: Optional[Gtk.Button]) -> None:
         dialog = MasterPasswordDialog(self, mode="change")
 
         def change() -> Optional[str]:
             if not self.vault.verify_master_password(dialog.get_current_password()):
-                return "La master password attuale non è corretta."
+                return tr("La master password attuale non è corretta.")
             try:
                 self.vault.change_master_password(dialog.get_password())
             except Exception as exc:
-                return f"Impossibile cambiare la master password: {exc}"
+                return tr("Impossibile cambiare la master password: {exc}").format(exc=exc)
             return None
 
         changed = dialog.run_validated(change)
         dialog.destroy()
         if changed:
-            self.parent_app.set_status("Master password cambiata. Le credenziali sono state cifrate di nuovo.")
+            self.parent_app.set_status(tr("Master password cambiata. Le credenziali sono state cifrate di nuovo."))
 
     def on_export_encrypted(self, _button: Optional[Gtk.Button]) -> None:
         self.parent_app.export_vault_encrypted(self)
@@ -3840,7 +3851,7 @@ class TunnelDialog(Gtk.Dialog):
         credentials: Optional[List[Tuple[str, str]]] = None,
     ) -> None:
         super().__init__(
-            title="Nuovo tunnel SSH" if tunnel is None else "Modifica tunnel SSH",
+            title=tr("Nuovo tunnel SSH") if tunnel is None else tr("Modifica tunnel SSH"),
             transient_for=parent,
             flags=0,
         )
@@ -3855,15 +3866,15 @@ class TunnelDialog(Gtk.Dialog):
         self.tunnel = tunnel or TunnelSession()
         credentials = credentials or []
 
-        cancel_button = self.add_button("Annulla", Gtk.ResponseType.CANCEL)
+        cancel_button = self.add_button(tr("Annulla"), Gtk.ResponseType.CANCEL)
         cancel_button.get_style_context().add_class("secondary-action")
         action_area = self.get_action_area()
         action_area.set_spacing(8)
-        self.test_button = Gtk.Button.new_with_mnemonic("_Verifica connessione")
+        self.test_button = Gtk.Button.new_with_mnemonic(tr("_Verifica connessione"))
         self.test_button.get_style_context().add_class("secondary-action")
         self.test_button.connect("clicked", self.on_test)
         action_area.pack_start(self.test_button, False, False, 0)
-        self.save_button = Gtk.Button.new_with_mnemonic("_Salva tunnel")
+        self.save_button = Gtk.Button.new_with_mnemonic(tr("_Salva tunnel"))
         self.save_button.get_style_context().add_class("suggested-action")
         self.save_button.connect("clicked", self.on_save)
         action_area.pack_end(self.save_button, False, False, 0)
@@ -3885,10 +3896,10 @@ class TunnelDialog(Gtk.Dialog):
         )
         header.pack_start(icon, False, False, 0)
         header_text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        heading = Gtk.Label(label="Tunnel SSH", xalign=0)
+        heading = Gtk.Label(label=tr("Tunnel SSH"), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
         subtitle = Gtk.Label(
-            label="Crea un inoltro locale, remoto oppure un proxy SOCKS.",
+            label=tr("Crea un inoltro locale, remoto oppure un proxy SOCKS."),
             xalign=0,
         )
         subtitle.get_style_context().add_class("muted")
@@ -3898,22 +3909,22 @@ class TunnelDialog(Gtk.Dialog):
         shell.pack_start(header, False, False, 0)
 
         name_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        name_label = Gtk.Label(label="Nome", xalign=0)
+        name_label = Gtk.Label(label=tr("Nome"), xalign=0)
         name_label.get_style_context().add_class("field-label")
         name_label.set_size_request(90, -1)
         name_row.pack_start(name_label, False, False, 0)
         self.name = Gtk.Entry(text=self.tunnel.name)
         self.name.set_hexpand(True)
-        self.name.set_placeholder_text("es. RDP cliente tramite bastion")
+        self.name.set_placeholder_text(tr("es. RDP cliente tramite bastion"))
         name_row.pack_start(self.name, True, True, 0)
         shell.pack_start(name_row, False, False, 0)
 
         # Selettore del tipo, volutamente simile a un pannello di port forwarding.
         mode_strip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         mode_strip.get_style_context().add_class("tunnel-type-selector")
-        self.radio_local = Gtk.RadioButton.new_with_label_from_widget(None, "Locale  (-L)")
-        self.radio_remote = Gtk.RadioButton.new_with_label_from_widget(self.radio_local, "Remoto  (-R)")
-        self.radio_dynamic = Gtk.RadioButton.new_with_label_from_widget(self.radio_local, "SOCKS  (-D)")
+        self.radio_local = Gtk.RadioButton.new_with_label_from_widget(None, tr("Locale  (-L)"))
+        self.radio_remote = Gtk.RadioButton.new_with_label_from_widget(self.radio_local, tr("Remoto  (-R)"))
+        self.radio_dynamic = Gtk.RadioButton.new_with_label_from_widget(self.radio_local, tr("SOCKS  (-D)"))
         for radio in (self.radio_local, self.radio_remote, self.radio_dynamic):
             radio.set_hexpand(True)
             radio.set_halign(Gtk.Align.FILL)
@@ -3942,16 +3953,16 @@ class TunnelDialog(Gtk.Dialog):
         route_frame.get_style_context().add_class("tunnel-route-card")
         route_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=12)
         route_frame.add(route_box)
-        route_heading = Gtk.Label(label="Percorso della connessione", xalign=0)
+        route_heading = Gtk.Label(label=tr("Percorso della connessione"), xalign=0)
         route_heading.get_style_context().add_class("section-heading")
         route_box.pack_start(route_heading, False, False, 0)
 
         route_grid = Gtk.Grid(column_spacing=10, row_spacing=4)
         route_grid.set_hexpand(True)
         route_grid.set_column_homogeneous(False)
-        self.flow_left = self._route_node("computer-symbolic", "Client locale", "127.0.0.1")
-        self.flow_ssh = self._route_node("network-vpn-symbolic", "Server SSH", "host:22")
-        self.flow_right = self._route_node("network-server-symbolic", "Servizio remoto", "host:porta")
+        self.flow_left = self._route_node("computer-symbolic", tr("Client locale"), "127.0.0.1")
+        self.flow_ssh = self._route_node("network-vpn-symbolic", tr("Server SSH"), "host:22")
+        self.flow_right = self._route_node("network-server-symbolic", tr("Servizio remoto"), tr("host:porta"))
         self.arrow1 = Gtk.Label(label="→")
         self.arrow2 = Gtk.Label(label="→")
         for arrow in (self.arrow1, self.arrow2):
@@ -3978,20 +3989,20 @@ class TunnelDialog(Gtk.Dialog):
         fields_row.get_style_context().add_class("tunnel-fields-row")
         body.pack_start(fields_row, False, False, 0)
 
-        listen_card, listen_grid = self._section("Porta di ascolto", "network-wired-symbolic", min_width=250)
-        ssh_card, ssh_grid = self._section("Server SSH", "network-vpn-symbolic", min_width=330)
+        listen_card, listen_grid = self._section(tr("Porta di ascolto"), "network-wired-symbolic", min_width=250)
+        ssh_card, ssh_grid = self._section(tr("Server SSH"), "network-vpn-symbolic", min_width=330)
         destination_card, destination_box = self._section(
-            "Destinazione", "network-server-symbolic", vertical=True, min_width=250
+            tr("Destinazione"), "network-server-symbolic", vertical=True, min_width=250
         )
         fields_row.pack_start(listen_card, True, True, 0)
         fields_row.pack_start(ssh_card, True, True, 0)
         fields_row.pack_start(destination_card, True, True, 0)
 
         # Porta di ascolto.
-        self.bind_label = Gtk.Label(label="Indirizzo locale", xalign=0)
+        self.bind_label = Gtk.Label(label=tr("Indirizzo locale"), xalign=0)
         self.bind_address = Gtk.Entry(text=self.tunnel.bind_address or "127.0.0.1")
-        self.bind_address.set_placeholder_text("127.0.0.1, 0.0.0.0 oppure ::1")
-        self.port_label = Gtk.Label(label="Porta locale", xalign=0)
+        self.bind_address.set_placeholder_text(tr("127.0.0.1, 0.0.0.0 oppure ::1"))
+        self.port_label = Gtk.Label(label=tr("Porta locale"), xalign=0)
         self.local_port = Gtk.SpinButton.new_with_range(1, 65535, 1)
         self.local_port.set_value(
             self._safe_int(self.tunnel.local_port, 1080 if self.tunnel.tunnel_type == "dynamic" else 13389)
@@ -4007,34 +4018,34 @@ class TunnelDialog(Gtk.Dialog):
         self.ssh_port = Gtk.SpinButton.new_with_range(1, 65535, 1)
         self.ssh_port.set_value(self._safe_int(self.tunnel.ssh_port, 22))
         self.ssh_user = Gtk.Entry(text=self.tunnel.ssh_user)
-        self.ssh_user.set_placeholder_text("utente SSH")
+        self.ssh_user.set_placeholder_text(tr("utente SSH"))
         self.credential = Gtk.ComboBoxText()
-        self.credential.append("", "Nessuna credenziale collegata")
+        self.credential.append("", tr("Nessuna credenziale collegata"))
         found = self.tunnel.credential_id == ""
         for cred_id, cred_name in credentials:
             self.credential.append(cred_id, cred_name)
             found = found or cred_id == self.tunnel.credential_id
         if not found and self.tunnel.credential_id:
-            self.credential.append(self.tunnel.credential_id, f"Credenziale {self.tunnel.credential_id[:12]}…")
+            self.credential.append(self.tunnel.credential_id, tr("Credenziale {v}…").format(v=self.tunnel.credential_id[:12]))
         self.credential.set_active_id(self.tunnel.credential_id or "")
         if self.credential.get_active() < 0:
             self.credential.set_active(0)
-        self.use_password = Gtk.CheckButton(label="Usa la password salvata nel Password Manager")
+        self.use_password = Gtk.CheckButton(label=tr("Usa la password salvata nel Password Manager"))
         self.use_password.set_active(self.tunnel.use_credential_password)
         self.identity_file = Gtk.Entry(text=self.tunnel.identity_file)
         self.identity_file.set_placeholder_text("~/.ssh/id_ed25519")
         browse = Gtk.Button.new_from_icon_name("document-open-symbolic", Gtk.IconSize.MENU)
-        browse.set_tooltip_text("Scegli una chiave privata")
+        browse.set_tooltip_text(tr("Scegli una chiave privata"))
         browse.connect("clicked", self.on_choose_identity)
         identity_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         identity_box.pack_start(self.identity_file, True, True, 0)
         identity_box.pack_start(browse, False, False, 0)
-        self._form_row(ssh_grid, 0, "Host", self.ssh_host)
-        self._form_row(ssh_grid, 1, "Porta", self.ssh_port)
-        self._form_row(ssh_grid, 2, "Utente", self.ssh_user)
-        self._form_row(ssh_grid, 3, "Credenziale", self.credential)
+        self._form_row(ssh_grid, 0, tr("Host"), self.ssh_host)
+        self._form_row(ssh_grid, 1, tr("Porta"), self.ssh_port)
+        self._form_row(ssh_grid, 2, tr("Utente"), self.ssh_user)
+        self._form_row(ssh_grid, 3, tr("Credenziale"), self.credential)
         ssh_grid.attach(self.use_password, 1, 4, 1, 1)
-        self._form_row(ssh_grid, 5, "Chiave privata", identity_box)
+        self._form_row(ssh_grid, 5, tr("Chiave privata"), identity_box)
 
         # Destinazione: per SOCKS il pannello viene sostituito con una spiegazione.
         self.destination_stack = Gtk.Stack()
@@ -4043,11 +4054,11 @@ class TunnelDialog(Gtk.Dialog):
         destination_box.pack_start(self.destination_stack, True, True, 0)
         destination_grid = Gtk.Grid(column_spacing=9, row_spacing=8)
         self.remote_host = Gtk.Entry(text=self.tunnel.remote_host or "127.0.0.1")
-        self.remote_host.set_placeholder_text("Server o servizio finale")
+        self.remote_host.set_placeholder_text(tr("Server o servizio finale"))
         self.remote_port = Gtk.SpinButton.new_with_range(1, 65535, 1)
         self.remote_port.set_value(self._safe_int(self.tunnel.remote_port, 3389))
-        self.remote_host_label = Gtk.Label(label="Host", xalign=0)
-        self.remote_port_label = Gtk.Label(label="Porta", xalign=0)
+        self.remote_host_label = Gtk.Label(label=tr("Host"), xalign=0)
+        self.remote_port_label = Gtk.Label(label=tr("Porta"), xalign=0)
         destination_grid.attach(self.remote_host_label, 0, 0, 1, 1)
         destination_grid.attach(self.remote_host, 1, 0, 1, 1)
         destination_grid.attach(self.remote_port_label, 0, 1, 1, 1)
@@ -4057,7 +4068,7 @@ class TunnelDialog(Gtk.Dialog):
         socks_icon = Gtk.Image.new_from_icon_name("network-workgroup-symbolic", Gtk.IconSize.DIALOG)
         socks_icon.set_pixel_size(38)
         socks_text = Gtk.Label(
-            label="La destinazione viene scelta dall'applicazione che usa il proxy SOCKS.",
+            label=tr("La destinazione viene scelta dall'applicazione che usa il proxy SOCKS."),
             xalign=0,
         )
         socks_text.set_line_wrap(True)
@@ -4068,16 +4079,16 @@ class TunnelDialog(Gtk.Dialog):
 
         # Affidabilità in una riga separata, senza comprimere i campi principali.
         reliability_card, reliability_grid = self._section(
-            "Affidabilità e avvio", "emblem-system-symbolic", min_width=0
+            tr("Affidabilità e avvio"), "emblem-system-symbolic", min_width=0
         )
         body.pack_start(reliability_card, False, False, 0)
-        self.exit_on_failure = Gtk.CheckButton(label="Arresta se l'inoltro non può essere aperto")
+        self.exit_on_failure = Gtk.CheckButton(label=tr("Arresta se l'inoltro non può essere aperto"))
         self.exit_on_failure.set_active(self.tunnel.exit_on_forward_failure)
-        self.compression = Gtk.CheckButton(label="Compressione SSH")
+        self.compression = Gtk.CheckButton(label=tr("Compressione SSH"))
         self.compression.set_active(self.tunnel.compression)
-        self.auto_start = Gtk.CheckButton(label="Avvia automaticamente con FedTermHub")
+        self.auto_start = Gtk.CheckButton(label=tr("Avvia automaticamente con FedTermHub"))
         self.auto_start.set_active(self.tunnel.auto_start)
-        self.auto_restart = Gtk.CheckButton(label="Riconnetti automaticamente se il tunnel cade")
+        self.auto_restart = Gtk.CheckButton(label=tr("Riconnetti automaticamente se il tunnel cade"))
         self.auto_restart.set_active(self.tunnel.auto_restart)
         self.keepalive = Gtk.SpinButton.new_with_range(0, 3600, 5)
         self.keepalive.set_value(self.tunnel.server_alive_interval)
@@ -4089,29 +4100,29 @@ class TunnelDialog(Gtk.Dialog):
         reliability_grid.attach(self.compression, 2, 0, 2, 1)
         reliability_grid.attach(self.auto_start, 0, 1, 2, 1)
         reliability_grid.attach(self.auto_restart, 2, 1, 2, 1)
-        self._form_row(reliability_grid, 2, "Keepalive (s)", self.keepalive, label_column=0, widget_column=1)
-        self._form_row(reliability_grid, 2, "Tentativi", self.keepalive_count, label_column=2, widget_column=3)
-        self._form_row(reliability_grid, 3, "Ritardo riavvio (s)", self.restart_delay, label_column=0, widget_column=1)
+        self._form_row(reliability_grid, 2, tr("Keepalive (s)"), self.keepalive, label_column=0, widget_column=1)
+        self._form_row(reliability_grid, 2, tr("Tentativi"), self.keepalive_count, label_column=2, widget_column=3)
+        self._form_row(reliability_grid, 3, tr("Ritardo riavvio (s)"), self.restart_delay, label_column=0, widget_column=1)
 
-        advanced = Gtk.Expander(label="Opzioni avanzate")
+        advanced = Gtk.Expander(label=tr("Opzioni avanzate"))
         advanced.get_style_context().add_class("tunnel-advanced")
         body.pack_start(advanced, False, False, 0)
         adv_grid = Gtk.Grid(column_spacing=10, row_spacing=8, margin=10)
         advanced.add(adv_grid)
         self.address_family = Gtk.ComboBoxText()
-        self.address_family.append("auto", "Automatica")
-        self.address_family.append("ipv4", "Solo IPv4")
-        self.address_family.append("ipv6", "Solo IPv6")
+        self.address_family.append("auto", tr("Automatica"))
+        self.address_family.append("ipv4", tr("Solo IPv4"))
+        self.address_family.append("ipv6", tr("Solo IPv6"))
         self.address_family.set_active_id(self.tunnel.address_family)
-        self.verbose_log = Gtk.CheckButton(label="Log SSH dettagliato (-v)")
+        self.verbose_log = Gtk.CheckButton(label=tr("Log SSH dettagliato (-v)"))
         self.verbose_log.set_active(self.tunnel.verbose_log)
         self.options = Gtk.Entry(text=self.tunnel.options)
-        self.options.set_placeholder_text("es. -o ProxyJump=jump.example")
-        self._form_row(adv_grid, 0, "Famiglia IP", self.address_family)
+        self.options.set_placeholder_text(tr("es. -o ProxyJump=jump.example"))
+        self._form_row(adv_grid, 0, tr("Famiglia IP"), self.address_family)
         adv_grid.attach(self.verbose_log, 1, 1, 1, 1)
-        self._form_row(adv_grid, 2, "Opzioni extra", self.options)
+        self._form_row(adv_grid, 2, tr("Opzioni extra"), self.options)
 
-        command_expander = Gtk.Expander(label="Anteprima del comando")
+        command_expander = Gtk.Expander(label=tr("Anteprima del comando"))
         command_expander.get_style_context().add_class("tunnel-advanced")
         body.pack_start(command_expander, False, False, 0)
         command_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin=8)
@@ -4239,11 +4250,11 @@ class TunnelDialog(Gtk.Dialog):
 
     def on_choose_identity(self, _button: Gtk.Button) -> None:
         chooser = Gtk.FileChooserDialog(
-            title="Scegli chiave privata SSH",
+            title=tr("Scegli chiave privata SSH"),
             transient_for=self,
             action=Gtk.FileChooserAction.OPEN,
         )
-        chooser.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Seleziona", Gtk.ResponseType.OK)
+        chooser.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Seleziona"), Gtk.ResponseType.OK)
         current = os.path.expanduser(self.identity_file.get_text().strip())
         if current and Path(current).exists():
             chooser.set_filename(current)
@@ -4285,47 +4296,47 @@ class TunnelDialog(Gtk.Dialog):
         self.remote_port.set_sensitive(not dynamic)
 
         if dynamic:
-            self.bind_label.set_text("Indirizzo proxy")
-            self.port_label.set_text("Porta SOCKS")
-            self.flow_left._title_label.set_text("Applicazioni locali")
-            self.flow_ssh._title_label.set_text("Server SSH")
-            self.flow_right._title_label.set_text("Rete remota")
+            self.bind_label.set_text(tr("Indirizzo proxy"))
+            self.port_label.set_text(tr("Porta SOCKS"))
+            self.flow_left._title_label.set_text(tr("Applicazioni locali"))
+            self.flow_ssh._title_label.set_text(tr("Server SSH"))
+            self.flow_right._title_label.set_text(tr("Rete remota"))
             self.arrow1.set_text("→")
             self.arrow2.set_text("→")
             self.explain.set_text(
-                "Le applicazioni locali si collegano al proxy SOCKS. Il server SSH "
-                "apre poi la connessione verso la destinazione richiesta dal client."
+                tr("Le applicazioni locali si collegano al proxy SOCKS. Il server SSH "
+                "apre poi la connessione verso la destinazione richiesta dal client.")
             )
         elif remote:
-            self.bind_label.set_text("Bind sul server SSH")
-            self.port_label.set_text("Porta remota")
-            self.flow_left._title_label.set_text("Servizio locale")
-            self.flow_ssh._title_label.set_text("Server SSH")
-            self.flow_right._title_label.set_text("Client remoti")
+            self.bind_label.set_text(tr("Bind sul server SSH"))
+            self.port_label.set_text(tr("Porta remota"))
+            self.flow_left._title_label.set_text(tr("Servizio locale"))
+            self.flow_ssh._title_label.set_text(tr("Server SSH"))
+            self.flow_right._title_label.set_text(tr("Client remoti"))
             self.arrow1.set_text("←")
             self.arrow2.set_text("←")
             self.explain.set_text(
-                "I client remoti raggiungono la porta aperta sul server SSH; il traffico "
-                "viene riportato al servizio raggiungibile da questo computer."
+                tr("I client remoti raggiungono la porta aperta sul server SSH; il traffico "
+                "viene riportato al servizio raggiungibile da questo computer.")
             )
         else:
-            self.bind_label.set_text("Indirizzo locale")
-            self.port_label.set_text("Porta locale")
-            self.flow_left._title_label.set_text("Client locale")
-            self.flow_ssh._title_label.set_text("Server SSH")
-            self.flow_right._title_label.set_text("Servizio remoto")
+            self.bind_label.set_text(tr("Indirizzo locale"))
+            self.port_label.set_text(tr("Porta locale"))
+            self.flow_left._title_label.set_text(tr("Client locale"))
+            self.flow_ssh._title_label.set_text(tr("Server SSH"))
+            self.flow_right._title_label.set_text(tr("Servizio remoto"))
             self.arrow1.set_text("→")
             self.arrow2.set_text("→")
             self.explain.set_text(
-                "Il client locale si collega alla porta indicata e raggiunge il servizio "
-                "di destinazione attraverso il server SSH."
+                tr("Il client locale si collega alla porta indicata e raggiunge il servizio "
+                "di destinazione attraverso il server SSH.")
             )
         self.update_preview()
 
     def get_tunnel(self) -> TunnelSession:
         return TunnelSession(
             id=self.tunnel.id,
-            name=self.name.get_text().strip() or "Tunnel SSH",
+            name=self.name.get_text().strip() or tr("Tunnel SSH"),
             tunnel_type=self.current_type(),
             ssh_host=self.ssh_host.get_text().strip(),
             ssh_port=str(self.ssh_port.get_value_as_int()),
@@ -4359,7 +4370,7 @@ class TunnelDialog(Gtk.Dialog):
             elif tunnel.tunnel_type == "dynamic":
                 self.flow_left._detail_label.set_text(tunnel.listen_endpoint())
                 self.flow_ssh._detail_label.set_text(tunnel.ssh_endpoint())
-                self.flow_right._detail_label.set_text("Destinazione dinamica")
+                self.flow_right._detail_label.set_text(tr("Destinazione dinamica"))
             else:
                 self.flow_left._detail_label.set_text(tunnel.listen_endpoint())
                 self.flow_ssh._detail_label.set_text(tunnel.ssh_endpoint())
@@ -4368,7 +4379,7 @@ class TunnelDialog(Gtk.Dialog):
             argv, _env = self.parent_app.build_tunnel_command(tunnel, allow_unlock=False)
             command = self.parent_app.mask_args(argv)
         except Exception as exc:
-            command = f"Configurazione incompleta: {exc}"
+            command = tr("Configurazione incompleta: {exc}").format(exc=exc)
         self.command_preview.get_buffer().set_text(command)
 
     def _show_validation(self, message: str, success: Optional[bool] = None) -> None:
@@ -4386,10 +4397,10 @@ class TunnelDialog(Gtk.Dialog):
         tunnel = self.get_tunnel()
         errors = self.parent_app.validate_tunnel(tunnel, check_local_bind=False)
         if errors:
-            self._show_validation("Correggi prima: " + " • ".join(errors), False)
+            self._show_validation(tr("Correggi prima: ") + " • ".join(errors), False)
             return
         self.test_button.set_sensitive(False)
-        self._show_validation("Verifica del server SSH in corso…", None)
+        self._show_validation(tr("Verifica del server SSH in corso…"), None)
         self.parent_app.test_tunnel_connection(tunnel, self.on_test_result)
 
     def on_test_result(self, success: bool, message: str, details: str) -> None:
@@ -4403,7 +4414,7 @@ class TunnelDialog(Gtk.Dialog):
         tunnel = self.get_tunnel()
         errors = self.parent_app.validate_tunnel(tunnel, check_local_bind=False)
         if errors:
-            self._show_validation("Impossibile salvare: " + " • ".join(errors), False)
+            self._show_validation(tr("Impossibile salvare: ") + " • ".join(errors), False)
             return
         self.response(Gtk.ResponseType.OK)
 
@@ -4426,14 +4437,14 @@ class TunnelManagerDialog(Gtk.Dialog):
     COL_AUTO = 8
 
     def __init__(self, parent: Gtk.Window) -> None:
-        super().__init__(title="Tunnel SSH", transient_for=parent, flags=0)
+        super().__init__(title=tr("Tunnel SSH"), transient_for=parent, flags=0)
         self.set_modal(True)
         self.parent_app = parent
         self._destroyed = False
         self.set_default_size(1120, 700)
         self.set_size_request(820, 560)
         self.set_resizable(True)
-        self.add_buttons("Chiudi", Gtk.ResponseType.CLOSE)
+        self.add_buttons(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         self.connect("delete-event", lambda d, _e: (d.response(Gtk.ResponseType.CLOSE), True)[1])
         self.connect("destroy", self.on_destroy)
         self._last_runtime_snapshot = None
@@ -4451,14 +4462,14 @@ class TunnelManagerDialog(Gtk.Dialog):
         icon = parent.make_icon_image(["network-vpn-symbolic", "network-vpn"], 28)
         header.pack_start(icon, False, False, 0)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
-        heading = Gtk.Label(label="Gestore tunnel SSH", xalign=0)
+        heading = Gtk.Label(label=tr("Gestore tunnel SSH"), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
-        hint = Gtk.Label(label="Inoltri locali, remoti e proxy SOCKS in un'unica vista.", xalign=0)
+        hint = Gtk.Label(label=tr("Inoltri locali, remoti e proxy SOCKS in un'unica vista."), xalign=0)
         hint.get_style_context().add_class("muted")
         titles.pack_start(heading, False, False, 0)
         titles.pack_start(hint, False, False, 0)
         header.pack_start(titles, True, True, 0)
-        self.count_label = Gtk.Label(label="0 tunnel")
+        self.count_label = Gtk.Label(label=tr("0 tunnel"))
         self.count_label.get_style_context().add_class("count-badge")
         header.pack_end(self.count_label, False, False, 0)
         root.pack_start(header, False, False, 0)
@@ -4466,15 +4477,15 @@ class TunnelManagerDialog(Gtk.Dialog):
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         toolbar.get_style_context().add_class("tunnel-toolbar")
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Cerca tunnel…")
+        self.search.set_placeholder_text(tr("Cerca tunnel…"))
         self.search.set_hexpand(True)
         self.search.connect("search-changed", lambda *_: self.refresh())
         toolbar.pack_start(self.search, True, True, 0)
         for label, icon_name, callback in [
-            ("Nuovo", "list-add-symbolic", self.on_add),
-            ("Modifica", "document-edit-symbolic", self.on_edit),
-            ("Duplica", "edit-copy-symbolic", self.on_duplicate),
-            ("Elimina", "user-trash-symbolic", self.on_delete),
+            (tr("Nuovo"), "list-add-symbolic", self.on_add),
+            (tr("Modifica"), "document-edit-symbolic", self.on_edit),
+            (tr("Duplica"), "edit-copy-symbolic", self.on_duplicate),
+            (tr("Elimina"), "user-trash-symbolic", self.on_delete),
         ]:
             toolbar.pack_start(self._button(label, icon_name, callback), False, False, 0)
         root.pack_start(toolbar, False, False, 0)
@@ -4495,17 +4506,17 @@ class TunnelManagerDialog(Gtk.Dialog):
         self.tree.connect("button-press-event", self.on_tree_button_press)
         state_renderer = Gtk.CellRendererText()
         state_renderer.set_property("weight", Pango.Weight.BOLD)
-        state_column = Gtk.TreeViewColumn("Stato", state_renderer, text=self.COL_STATE, foreground=self.COL_COLOR)
+        state_column = Gtk.TreeViewColumn(tr("Stato"), state_renderer, text=self.COL_STATE, foreground=self.COL_COLOR)
         state_column.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
         state_column.set_fixed_width(120)
         self.tree.append_column(state_column)
         for title, col_id, expand, width in [
-            ("Nome", self.COL_NAME, True, 190),
-            ("Tipo", self.COL_TYPE, False, 82),
-            ("Porta", self.COL_LISTEN, False, 145),
-            ("Destinazione", self.COL_DEST, True, 210),
-            ("Server SSH", self.COL_SSH, True, 210),
-            ("Auto", self.COL_AUTO, False, 54),
+            (tr("Nome"), self.COL_NAME, True, 190),
+            (tr("Tipo"), self.COL_TYPE, False, 82),
+            (tr("Porta"), self.COL_LISTEN, False, 145),
+            (tr("Destinazione"), self.COL_DEST, True, 210),
+            (tr("Server SSH"), self.COL_SSH, True, 210),
+            (tr("Auto"), self.COL_AUTO, False, 54),
         ]:
             renderer = Gtk.CellRendererText()
             renderer.set_property("ellipsize", Pango.EllipsizeMode.END)
@@ -4527,13 +4538,13 @@ class TunnelManagerDialog(Gtk.Dialog):
         # Barra di azione compatta, direttamente sotto la tabella.
         action_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         action_bar.get_style_context().add_class("tunnel-action-bar")
-        self.start_button = self._button("Avvia", "media-playback-start-symbolic", self.on_start)
-        self.stop_button = self._button("Ferma", "media-playback-stop-symbolic", self.on_stop)
-        self.test_selected_button = self._button("Verifica SSH", "network-transmit-receive-symbolic", self.on_test_selected)
-        self.log_button = self._button("Mostra log", "text-x-generic-symbolic", self.on_toggle_log)
-        self.copy_button = self._button("Copia comando", "edit-copy-symbolic", self.on_copy_command)
-        self.endpoint_button = self._button("Copia endpoint", "edit-copy-symbolic", self.on_copy_endpoint)
-        self.linked_session_button = self._button("Crea sessione", "network-workgroup-symbolic", self.on_create_linked_session)
+        self.start_button = self._button(tr("Avvia"), "media-playback-start-symbolic", self.on_start)
+        self.stop_button = self._button(tr("Ferma"), "media-playback-stop-symbolic", self.on_stop)
+        self.test_selected_button = self._button(tr("Verifica SSH"), "network-transmit-receive-symbolic", self.on_test_selected)
+        self.log_button = self._button(tr("Mostra log"), "text-x-generic-symbolic", self.on_toggle_log)
+        self.copy_button = self._button(tr("Copia comando"), "edit-copy-symbolic", self.on_copy_command)
+        self.endpoint_button = self._button(tr("Copia endpoint"), "edit-copy-symbolic", self.on_copy_endpoint)
+        self.linked_session_button = self._button(tr("Crea sessione"), "network-workgroup-symbolic", self.on_create_linked_session)
         for button in (self.start_button, self.stop_button, self.test_selected_button, self.log_button, self.copy_button, self.endpoint_button, self.linked_session_button):
             action_bar.pack_start(button, False, False, 0)
         root.pack_start(action_bar, False, False, 0)
@@ -4541,7 +4552,7 @@ class TunnelManagerDialog(Gtk.Dialog):
         detail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7, margin=10)
         detail.get_style_context().add_class("tunnel-detail-card")
         detail.set_size_request(-1, 122)
-        self.detail_title = Gtk.Label(label="Seleziona un tunnel", xalign=0)
+        self.detail_title = Gtk.Label(label=tr("Seleziona un tunnel"), xalign=0)
         self.detail_title.get_style_context().add_class("section-heading")
         self.detail_summary = Gtk.Label(label="", xalign=0)
         self.detail_summary.set_line_wrap(True)
@@ -4560,8 +4571,8 @@ class TunnelManagerDialog(Gtk.Dialog):
         log_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         log_box.get_style_context().add_class("tunnel-log-drawer")
         log_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        log_header.pack_start(Gtk.Label(label="Log del tunnel", xalign=0), True, True, 0)
-        clear_log = self._button("Pulisci", "edit-clear-symbolic", self.on_clear_log)
+        log_header.pack_start(Gtk.Label(label=tr("Log del tunnel"), xalign=0), True, True, 0)
+        clear_log = self._button(tr("Pulisci"), "edit-clear-symbolic", self.on_clear_log)
         log_header.pack_end(clear_log, False, False, 0)
         log_box.pack_start(log_header, False, False, 0)
         self.log_view = Gtk.TextView()
@@ -4579,9 +4590,9 @@ class TunnelManagerDialog(Gtk.Dialog):
 
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         footer.get_style_context().add_class("tunnel-footer")
-        footer.pack_start(self._button("Avvia tutti", "system-run-symbolic", self.on_start_all), False, False, 0)
-        footer.pack_start(self._button("Ferma tutti", "process-stop-symbolic", self.on_stop_all), False, False, 0)
-        footer_note = Gtk.Label(label="I tunnel restano attivi anche chiudendo questa finestra.", xalign=1)
+        footer.pack_start(self._button(tr("Avvia tutti"), "system-run-symbolic", self.on_start_all), False, False, 0)
+        footer.pack_start(self._button(tr("Ferma tutti"), "process-stop-symbolic", self.on_stop_all), False, False, 0)
+        footer_note = Gtk.Label(label=tr("I tunnel restano attivi anche chiudendo questa finestra."), xalign=1)
         footer_note.get_style_context().add_class("muted")
         footer.pack_end(footer_note, True, True, 0)
         root.pack_start(footer, False, False, 0)
@@ -4634,9 +4645,9 @@ class TunnelManagerDialog(Gtk.Dialog):
             if query and query not in haystack:
                 continue
             state_text, state_color = self._state_display(self.parent_app.get_tunnel_state(tunnel.id))
-            self.list_store.append([tunnel.id, state_text, state_color, tunnel.name, tunnel.type_label(), tunnel.listen_endpoint(), tunnel.destination_endpoint(), tunnel.ssh_endpoint(), "Sì" if tunnel.auto_start else "—"])
+            self.list_store.append([tunnel.id, state_text, state_color, tunnel.name, tunnel.type_label(), tunnel.listen_endpoint(), tunnel.destination_endpoint(), tunnel.ssh_endpoint(), tr("Sì") if tunnel.auto_start else "—"])
             shown += 1
-        self.count_label.set_text(f"{shown} tunnel" if shown != 1 else "1 tunnel")
+        self.count_label.set_text(tr("{shown} tunnel").format(shown=shown) if shown != 1 else tr("1 tunnel"))
         self._last_runtime_snapshot = self.runtime_snapshot()
         if not current and shown:
             first = self.list_store.get_iter_first()
@@ -4657,12 +4668,12 @@ class TunnelManagerDialog(Gtk.Dialog):
     @staticmethod
     def _state_display(state: str) -> Tuple[str, str]:
         return {
-            "running": ("● Attivo", "#49d17d"),
-            "starting": ("● Avvio", "#f3c969"),
-            "restarting": ("● Riconnessione", "#f3c969"),
-            "error": ("● Errore", "#ff7185"),
-            "locked": ("● Password bloccate", "#f3c969"),
-            "stopped": ("○ Fermo", "#9aa4b2"),
+            "running": (tr("● Attivo"), "#49d17d"),
+            "starting": (tr("● Avvio"), "#f3c969"),
+            "restarting": (tr("● Riconnessione"), "#f3c969"),
+            "error": (tr("● Errore"), "#ff7185"),
+            "locked": (tr("● Password bloccate"), "#f3c969"),
+            "stopped": (tr("○ Fermo"), "#9aa4b2"),
         }.get(state, (f"○ {state}", "#9aa4b2"))
 
     def on_selection_changed(self, *_args) -> None:
@@ -4675,8 +4686,8 @@ class TunnelManagerDialog(Gtk.Dialog):
         for button in (self.start_button, self.stop_button, self.test_selected_button, self.log_button, self.copy_button, self.endpoint_button, self.linked_session_button):
             button.set_sensitive(selected)
         if tunnel is None:
-            self.detail_title.set_text("Seleziona un tunnel")
-            self.detail_summary.set_text("Scegli una riga per visualizzare percorso, stato e azioni disponibili.")
+            self.detail_title.set_text(tr("Seleziona un tunnel"))
+            self.detail_summary.set_text(tr("Scegli una riga per visualizzare percorso, stato e azioni disponibili."))
             self.detail_status.set_text("")
             return
         state = self.parent_app.get_tunnel_state(tunnel.id)
@@ -4685,12 +4696,12 @@ class TunnelManagerDialog(Gtk.Dialog):
         exit_code = self.parent_app.tunnel_exit_codes.get(tunnel.id)
         self.detail_title.set_text(tunnel.name)
         self.detail_summary.set_text(tunnel.summary())
-        details = [f"Stato: {self._state_display(state)[0].replace('● ', '').replace('○ ', '')}", f"PID: {pid}"]
+        details = [tr("Stato: {replace}").format(replace=self._state_display(state)[0].replace('● ', '').replace('○ ', '')), tr("PID: {pid}").format(pid=pid)]
         if exit_code is not None:
-            details.append(f"Ultima uscita: {exit_code}")
-        details.append(f"Keepalive: {tunnel.server_alive_interval}s × {tunnel.server_alive_count}")
+            details.append(tr("Ultima uscita: {exit_code}").format(exit_code=exit_code))
+        details.append(tr("Keepalive: {server_alive_interval}s × {server_alive_count}").format(server_alive_interval=tunnel.server_alive_interval, server_alive_count=tunnel.server_alive_count))
         if tunnel.auto_restart:
-            details.append(f"Riconnessione: {tunnel.restart_delay}s")
+            details.append(tr("Riconnessione: {restart_delay}s").format(restart_delay=tunnel.restart_delay))
         self.detail_status.set_text("  •  ".join(details))
         self.start_button.set_sensitive(state not in {"running", "starting"})
         self.stop_button.set_sensitive(state in {"running", "starting", "restarting"})
@@ -4699,7 +4710,7 @@ class TunnelManagerDialog(Gtk.Dialog):
     def update_log(self) -> None:
         tunnel = self.selected_tunnel()
         if tunnel is None:
-            self.log_view.get_buffer().set_text("Seleziona un tunnel per visualizzarne il log.")
+            self.log_view.get_buffer().set_text(tr("Seleziona un tunnel per visualizzarne il log."))
             return
         self.log_view.get_buffer().set_text(self.parent_app.tunnel_log_text(tunnel))
         end = self.log_view.get_buffer().get_end_iter()
@@ -4713,19 +4724,19 @@ class TunnelManagerDialog(Gtk.Dialog):
             tree.get_selection().select_path(hit[0])
         menu = Gtk.Menu()
         for label, callback in [
-            ("Avvia / Ferma", self.on_toggle_selected),
-            ("Modifica", self.on_edit),
-            ("Duplica", self.on_duplicate),
-            ("Verifica SSH", self.on_test_selected),
-            ("Copia endpoint", self.on_copy_endpoint),
-            ("Copia comando", self.on_copy_command),
-            ("Crea sessione collegata", self.on_create_linked_session),
+            (tr("Avvia / Ferma"), self.on_toggle_selected),
+            (tr("Modifica"), self.on_edit),
+            (tr("Duplica"), self.on_duplicate),
+            (tr("Verifica SSH"), self.on_test_selected),
+            (tr("Copia endpoint"), self.on_copy_endpoint),
+            (tr("Copia comando"), self.on_copy_command),
+            (tr("Crea sessione collegata"), self.on_create_linked_session),
         ]:
             item = Gtk.MenuItem(label=label)
             item.connect("activate", lambda _i, cb=callback: cb(None))
             menu.append(item)
         menu.append(Gtk.SeparatorMenuItem())
-        delete_item = Gtk.MenuItem(label="Elimina")
+        delete_item = Gtk.MenuItem(label=tr("Elimina"))
         delete_item.connect("activate", lambda *_: self.on_delete(None))
         menu.append(delete_item)
         menu.show_all()
@@ -4747,7 +4758,7 @@ class TunnelManagerDialog(Gtk.Dialog):
             if dialog.run() == Gtk.ResponseType.OK:
                 tunnel = dialog.get_tunnel()
                 self.parent_app.tunnel_store.upsert(tunnel)
-                self.parent_app.set_status(f"Tunnel salvato: {tunnel.name}")
+                self.parent_app.set_status(tr("Tunnel salvato: {name}").format(name=tunnel.name))
                 self.refresh(tunnel.id)
         finally:
             dialog.destroy()
@@ -4776,7 +4787,7 @@ class TunnelManagerDialog(Gtk.Dialog):
             return
         clone = TunnelSession.from_dict(tunnel.to_dict())
         clone.id = uuid.uuid4().hex
-        clone.name = f"{tunnel.name} copia"
+        clone.name = tr("{name} copia").format(name=tunnel.name)
         clone.auto_start = False
         self.parent_app.tunnel_store.upsert(clone)
         self.refresh(clone.id)
@@ -4795,12 +4806,12 @@ class TunnelManagerDialog(Gtk.Dialog):
                     linked.append(node)
 
         collect(self.parent_app.store.nodes)
-        dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.NONE, text=f"Eliminare il tunnel “{tunnel.name}”?")
-        dialog.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Elimina", Gtk.ResponseType.OK)
+        dialog = Gtk.MessageDialog(transient_for=self, flags=0, message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.NONE, text=tr("Eliminare il tunnel “{name}”?").format(name=tunnel.name))
+        dialog.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Elimina"), Gtk.ResponseType.OK)
         extra = ""
         if linked:
-            extra = f"\n\nIl collegamento automatico verrà rimosso da {len(linked)} sessioni."
-        dialog.format_secondary_text("Il tunnel attivo verrà fermato e la configurazione rimossa." + extra)
+            extra = tr("\n\nIl collegamento automatico verrà rimosso da {n_linked} sessioni.").format(n_linked=len(linked))
+        dialog.format_secondary_text(tr("Il tunnel attivo verrà fermato e la configurazione rimossa.") + extra)
         response = dialog.run()
         dialog.destroy()
         if response != Gtk.ResponseType.OK:
@@ -4834,7 +4845,7 @@ class TunnelManagerDialog(Gtk.Dialog):
     def on_stop_all(self, _button: Optional[Gtk.Button]) -> None:
         for tunnel_id in list(self.parent_app.tunnel_processes.keys()):
             self.parent_app.stop_tunnel(tunnel_id, quiet=True)
-        self.parent_app.set_status("Tutti i tunnel sono stati fermati.")
+        self.parent_app.set_status(tr("Tutti i tunnel sono stati fermati."))
         self.refresh()
 
     def on_test_selected(self, _button: Optional[Gtk.Button]) -> None:
@@ -4863,7 +4874,7 @@ class TunnelManagerDialog(Gtk.Dialog):
             if isinstance(box, Gtk.Box):
                 labels = [child for child in box.get_children() if isinstance(child, Gtk.Label)]
                 if labels:
-                    labels[-1].set_text("Nascondi log" if reveal else "Mostra log")
+                    labels[-1].set_text(tr("Nascondi log") if reveal else tr("Mostra log"))
         except Exception:
             pass
         if reveal:
@@ -4884,9 +4895,9 @@ class TunnelManagerDialog(Gtk.Dialog):
             clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
             clipboard.set_text(self.parent_app.mask_args(argv), -1)
             clipboard.store()
-            self.parent_app.set_status("Comando tunnel copiato negli appunti.")
+            self.parent_app.set_status(tr("Comando tunnel copiato negli appunti."))
         except Exception as exc:
-            self.parent_app.show_notification(f"Impossibile copiare il comando: {exc}", "error", 5000)
+            self.parent_app.show_notification(tr("Impossibile copiare il comando: {exc}").format(exc=exc), "error", 5000)
 
     def on_copy_endpoint(self, _button: Optional[Gtk.Button]) -> None:
         tunnel = self.selected_tunnel()
@@ -4895,12 +4906,12 @@ class TunnelManagerDialog(Gtk.Dialog):
         clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         clipboard.set_text(tunnel.listen_endpoint(), -1)
         clipboard.store()
-        self.parent_app.set_status("Endpoint locale copiato negli appunti.")
+        self.parent_app.set_status(tr("Endpoint locale copiato negli appunti."))
 
     def on_create_linked_session(self, _button: Optional[Gtk.Button]) -> None:
         tunnel = self.selected_tunnel()
         if tunnel is None or tunnel.tunnel_type != "local":
-            self.parent_app.show_notification("La creazione guidata è disponibile per i tunnel locali (-L).", "info", 4000)
+            self.parent_app.show_notification(tr("La creazione guidata è disponibile per i tunnel locali (-L)."), "info", 4000)
             return
         port = tunnel.local_port or ""
         if tunnel.remote_port == "3389":
@@ -4912,13 +4923,13 @@ class TunnelManagerDialog(Gtk.Dialog):
         else:
             proto = "ssh"
         draft = Session(
-            name=f"{tunnel.name} - sessione",
+            name=tr("{name} - sessione").format(name=tunnel.name),
             protocol=proto,
             host=tunnel.bind_address or "127.0.0.1",
             port=port,
             required_tunnel_id=tunnel.id,
             wait_for_tunnel=True,
-            notes=f"Sessione collegata automaticamente al tunnel {tunnel.name}.",
+            notes=tr("Sessione collegata automaticamente al tunnel {name}.").format(name=tunnel.name),
         )
         dialog = SessionDialog(self, draft, credentials=self.parent_app.credential_options_for_dialog(), tunnels=self.parent_app.tunnel_options_for_dialog())
         try:
@@ -4926,7 +4937,7 @@ class TunnelManagerDialog(Gtk.Dialog):
                 session = dialog.get_session()
                 self.parent_app.store.add_node("", session)
                 self.parent_app.refresh_sessions()
-                self.parent_app.show_notification(f"Sessione creata: {session.name}", "success", 3500)
+                self.parent_app.show_notification(tr("Sessione creata: {name}").format(name=session.name), "success", 3500)
         finally:
             dialog.destroy()
 
@@ -4940,14 +4951,14 @@ class SettingsDialog(Gtk.Dialog):
     """
 
     def __init__(self, parent: Gtk.Window) -> None:
-        super().__init__(title="Impostazioni", transient_for=parent, flags=0)
+        super().__init__(title=tr("Impostazioni"), transient_for=parent, flags=0)
         # Non modale: una finestra opzioni modale blocca con un grab tutti gli
         # input verso la finestra principale, "congelando" la sessione RDP o il
         # terminale attivo finché non viene chiusa.
         self.set_modal(False)
         self.parent_app = parent
-        cancel_button = self.add_button("Annulla", Gtk.ResponseType.CANCEL)
-        apply_button = self.add_button("Applica", Gtk.ResponseType.OK)
+        cancel_button = self.add_button(tr("Annulla"), Gtk.ResponseType.CANCEL)
+        apply_button = self.add_button(tr("Applica"), Gtk.ResponseType.OK)
         cancel_button.get_style_context().add_class("secondary-action")
         apply_button.get_style_context().add_class("suggested-action")
         self.set_default_response(Gtk.ResponseType.OK)
@@ -4961,7 +4972,7 @@ class SettingsDialog(Gtk.Dialog):
         self.get_content_area().set_hexpand(True)
         self.get_content_area().set_vexpand(True)
         self.get_content_area().add(outer)
-        heading = Gtk.Label(label="Preferenze di FedTermHub", xalign=0)
+        heading = Gtk.Label(label=tr("Preferenze di FedTermHub"), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
         outer.pack_start(heading, False, False, 0)
 
@@ -5061,81 +5072,86 @@ class SettingsDialog(Gtk.Dialog):
 
     def _build_general_page(self) -> None:
         scroll, page = self._page()
-        frame, grid = self._card("Avvio e comportamento")
+        frame, grid = self._card(tr("Avvio e comportamento"))
         page.pack_start(frame, False, False, 0)
 
         self.startup_mode = Gtk.ComboBoxText()
-        self.startup_mode.append("terminal", "Apri un terminale locale")
-        self.startup_mode.append("empty", "Apri l'area di lavoro vuota")
-        self.confirm_close = Gtk.CheckButton(label="Chiedi conferma prima di chiudere sessioni attive")
-        self.error_popups = Gtk.CheckButton(label="Mostra una finestra per gli errori di connessione")
-        self.open_error_tabs = Gtk.CheckButton(label="Apri anche una scheda con i dettagli tecnici")
+        self.startup_mode.append("terminal", tr("Apri un terminale locale"))
+        self.startup_mode.append("empty", tr("Apri l'area di lavoro vuota"))
+        self.confirm_close = Gtk.CheckButton(label=tr("Chiedi conferma prima di chiudere sessioni attive"))
+        self.error_popups = Gtk.CheckButton(label=tr("Mostra una finestra per gli errori di connessione"))
+        self.open_error_tabs = Gtk.CheckButton(label=tr("Apri anche una scheda con i dettagli tecnici"))
         self.notification_duration = Gtk.SpinButton.new_with_range(1, 15, 1)
-        self.notification_duration.set_tooltip_text("Durata dei messaggi non persistenti")
+        self.notification_duration.set_tooltip_text(tr("Durata dei messaggi non persistenti"))
 
-        self._row(grid, 0, "All'avvio", self.startup_mode)
-        self._row(grid, 1, "Chiusura", self.confirm_close)
-        self._row(grid, 2, "Errori", self.error_popups)
-        self._row(grid, 3, "Diagnostica", self.open_error_tabs)
-        self._row(grid, 4, "Notifiche (secondi)", self.notification_duration)
+        self._row(grid, 0, tr("All'avvio"), self.startup_mode)
+        self._row(grid, 1, tr("Chiusura"), self.confirm_close)
+        self._row(grid, 2, tr("Errori"), self.error_popups)
+        self._row(grid, 3, tr("Diagnostica"), self.open_error_tabs)
+        self._row(grid, 4, tr("Notifiche (secondi)"), self.notification_duration)
 
         info = Gtk.Label(
-            label="Le modifiche grafiche vengono applicate subito. Le impostazioni di connessione valgono per le nuove sessioni aperte.",
+            label=tr("Le modifiche grafiche vengono applicate subito. Le impostazioni di connessione valgono per le nuove sessioni aperte."),
             xalign=0,
         )
         info.set_line_wrap(True)
         info.get_style_context().add_class("info-card")
         page.pack_start(info, False, False, 0)
-        self._append_page(scroll, "general", "Generale")
+        self._append_page(scroll, "general", tr("Generale"))
 
     def _build_interface_page(self) -> None:
         scroll, page = self._page()
-        frame, grid = self._card("Aspetto")
+        frame, grid = self._card(tr("Aspetto"))
         page.pack_start(frame, False, False, 0)
 
         self.theme = Gtk.ComboBoxText()
-        self.theme.append("dark", "Scuro ad alto contrasto")
-        self.theme.append("light", "Chiaro")
+        self.theme.append("dark", tr("Scuro ad alto contrasto"))
+        self.theme.append("light", tr("Chiaro"))
         self.icon_theme = Gtk.ComboBoxText()
         for value, label in [
-            ("auto", "Automatico"), ("Papirus-Dark", "Papirus Dark"),
-            ("Papirus", "Papirus"), ("Papirus-Light", "Papirus Light"),
-            ("Adwaita", "Adwaita"), ("hicolor", "hicolor fallback"),
+            ("auto", tr("Automatico")), ("Papirus-Dark", tr("Papirus Dark")),
+            ("Papirus", "Papirus"), ("Papirus-Light", tr("Papirus Light")),
+            ("Adwaita", "Adwaita"), ("hicolor", tr("hicolor fallback")),
         ]:
             self.icon_theme.append(value, label)
-        self.animations = Gtk.CheckButton(label="Abilita animazioni e transizioni")
+        self.language = Gtk.ComboBoxText()
+        self.language.append("auto", tr("Automatica (lingua del sistema)"))
+        self.language.append("it", "Italiano")
+        self.language.append("en", "English")
+        self.animations = Gtk.CheckButton(label=tr("Abilita animazioni e transizioni"))
         self.toolbar_icon_size = Gtk.SpinButton.new_with_range(18, 32, 1)
-        self.show_toolbar_labels = Gtk.CheckButton(label="Mostra le etichette sotto le icone")
-        self.compact_tabs = Gtk.CheckButton(label="Usa schede compatte")
+        self.show_toolbar_labels = Gtk.CheckButton(label=tr("Mostra le etichette sotto le icone"))
+        self.compact_tabs = Gtk.CheckButton(label=tr("Usa schede compatte"))
 
-        self._row(grid, 0, "Tema", self.theme)
-        self._row(grid, 1, "Set di icone", self.icon_theme)
-        self._row(grid, 2, "Animazioni", self.animations)
-        self._row(grid, 3, "Dimensione icone", self.toolbar_icon_size)
-        self._row(grid, 4, "Etichette", self.show_toolbar_labels)
-        self._row(grid, 5, "Schede", self.compact_tabs)
+        self._row(grid, 0, tr("Lingua"), self.language, tr("La nuova lingua viene usata dal prossimo avvio di FedTermHub."))
+        self._row(grid, 1, tr("Tema"), self.theme)
+        self._row(grid, 2, tr("Set di icone"), self.icon_theme)
+        self._row(grid, 3, tr("Animazioni"), self.animations)
+        self._row(grid, 4, tr("Dimensione icone"), self.toolbar_icon_size)
+        self._row(grid, 5, tr("Etichette"), self.show_toolbar_labels)
+        self._row(grid, 6, tr("Schede"), self.compact_tabs)
 
-        frame2, grid2 = self._card("Elementi dell'interfaccia")
+        frame2, grid2 = self._card(tr("Elementi dell'interfaccia"))
         page.pack_start(frame2, False, False, 0)
-        self.show_menubar = Gtk.CheckButton(label="Barra dei menu")
-        self.show_ribbon = Gtk.CheckButton(label="Barra comandi superiore")
-        self.show_left_rail = Gtk.CheckButton(label="Barra rapida verticale")
-        self.show_sidebar = Gtk.CheckButton(label="Pannello sessioni")
-        self.show_statusbar = Gtk.CheckButton(label="Barra di stato inferiore")
-        self.show_workspace_hint = Gtk.CheckButton(label="Suggerimento sopra le schede")
+        self.show_menubar = Gtk.CheckButton(label=tr("Barra dei menu"))
+        self.show_ribbon = Gtk.CheckButton(label=tr("Barra comandi superiore"))
+        self.show_left_rail = Gtk.CheckButton(label=tr("Barra rapida verticale"))
+        self.show_sidebar = Gtk.CheckButton(label=tr("Pannello sessioni"))
+        self.show_statusbar = Gtk.CheckButton(label=tr("Barra di stato inferiore"))
+        self.show_workspace_hint = Gtk.CheckButton(label=tr("Suggerimento sopra le schede"))
         self.sidebar_width = Gtk.SpinButton.new_with_range(190, 520, 5)
-        self._row(grid2, 0, "Menu", self.show_menubar)
-        self._row(grid2, 1, "Comandi", self.show_ribbon)
-        self._row(grid2, 2, "Scorciatoie", self.show_left_rail)
-        self._row(grid2, 3, "Sessioni", self.show_sidebar)
-        self._row(grid2, 4, "Stato", self.show_statusbar)
-        self._row(grid2, 5, "Suggerimenti", self.show_workspace_hint)
-        self._row(grid2, 6, "Larghezza pannello", self.sidebar_width, "Valore in pixel; il pannello resta ridimensionabile con il mouse.")
-        self._append_page(scroll, "interface", "Interfaccia")
+        self._row(grid2, 0, tr("Menu"), self.show_menubar)
+        self._row(grid2, 1, tr("Comandi"), self.show_ribbon)
+        self._row(grid2, 2, tr("Scorciatoie"), self.show_left_rail)
+        self._row(grid2, 3, tr("Sessioni"), self.show_sidebar)
+        self._row(grid2, 4, tr("Stato"), self.show_statusbar)
+        self._row(grid2, 5, tr("Suggerimenti"), self.show_workspace_hint)
+        self._row(grid2, 6, tr("Larghezza pannello"), self.sidebar_width, tr("Valore in pixel; il pannello resta ridimensionabile con il mouse."))
+        self._append_page(scroll, "interface", tr("Interfaccia"))
 
     def _build_terminal_page(self) -> None:
         scroll, page = self._page()
-        frame, grid = self._card("Aspetto del terminale")
+        frame, grid = self._card(tr("Aspetto del terminale"))
         page.pack_start(frame, False, False, 0)
 
         self.terminal_font = Gtk.FontButton()
@@ -5143,116 +5159,119 @@ class SettingsDialog(Gtk.Dialog):
         self.terminal_font.set_use_size(True)
         self.terminal_scrollback = Gtk.SpinButton.new_with_range(1000, 500000, 1000)
         self.terminal_cursor_shape = Gtk.ComboBoxText()
-        self.terminal_cursor_shape.append("block", "Blocco")
-        self.terminal_cursor_shape.append("ibeam", "Barra verticale")
-        self.terminal_cursor_shape.append("underline", "Sottolineatura")
-        self.terminal_cursor_blink = Gtk.CheckButton(label="Cursore lampeggiante")
-        self.terminal_copy_on_select = Gtk.CheckButton(label="Copia automaticamente il testo selezionato")
-        self.terminal_scroll_on_output = Gtk.CheckButton(label="Scorri automaticamente quando arriva nuovo output")
-        self.terminal_audible_bell = Gtk.CheckButton(label="Abilita segnale acustico del terminale")
+        self.terminal_cursor_shape.append("block", tr("Blocco"))
+        self.terminal_cursor_shape.append("ibeam", tr("Barra verticale"))
+        self.terminal_cursor_shape.append("underline", tr("Sottolineatura"))
+        self.terminal_cursor_blink = Gtk.CheckButton(label=tr("Cursore lampeggiante"))
+        self.terminal_copy_on_select = Gtk.CheckButton(label=tr("Copia automaticamente il testo selezionato"))
+        self.terminal_scroll_on_output = Gtk.CheckButton(label=tr("Scorri automaticamente quando arriva nuovo output"))
+        self.terminal_audible_bell = Gtk.CheckButton(label=tr("Abilita segnale acustico del terminale"))
 
-        self._row(grid, 0, "Carattere", self.terminal_font)
-        self._row(grid, 1, "Righe cronologia", self.terminal_scrollback)
-        self._row(grid, 2, "Forma cursore", self.terminal_cursor_shape)
-        self._row(grid, 3, "Lampeggio", self.terminal_cursor_blink)
-        self._row(grid, 4, "Selezione", self.terminal_copy_on_select)
-        self._row(grid, 5, "Scorrimento", self.terminal_scroll_on_output)
-        self._row(grid, 6, "Campanello", self.terminal_audible_bell)
+        self._row(grid, 0, tr("Carattere"), self.terminal_font)
+        self._row(grid, 1, tr("Righe cronologia"), self.terminal_scrollback)
+        self._row(grid, 2, tr("Forma cursore"), self.terminal_cursor_shape)
+        self._row(grid, 3, tr("Lampeggio"), self.terminal_cursor_blink)
+        self._row(grid, 4, tr("Selezione"), self.terminal_copy_on_select)
+        self._row(grid, 5, tr("Scorrimento"), self.terminal_scroll_on_output)
+        self._row(grid, 6, tr("Campanello"), self.terminal_audible_bell)
 
-        frame2, grid2 = self._card("Terminale locale")
+        frame2, grid2 = self._card(tr("Terminale locale"))
         page.pack_start(frame2, False, False, 0)
         self.terminal_shell = Gtk.Entry()
-        self.terminal_shell.set_placeholder_text("Vuoto = shell predefinita dell'utente")
+        self.terminal_shell.set_placeholder_text(tr("Vuoto = shell predefinita dell'utente"))
         self.terminal_start_directory = Gtk.Entry()
-        self.terminal_start_directory.set_placeholder_text("Vuoto = cartella Home")
-        browse = Gtk.Button.new_with_mnemonic("Scegli _cartella…")
+        self.terminal_start_directory.set_placeholder_text(tr("Vuoto = cartella Home"))
+        browse = Gtk.Button.new_with_mnemonic(tr("Scegli _cartella…"))
         browse.connect("clicked", self.on_choose_terminal_directory)
         dir_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         dir_box.pack_start(self.terminal_start_directory, True, True, 0)
         dir_box.pack_start(browse, False, False, 0)
-        self._row(grid2, 0, "Shell", self.terminal_shell, "Esempi: /bin/bash, /usr/bin/fish, /bin/zsh")
-        self._row(grid2, 1, "Cartella iniziale", dir_box)
-        self._append_page(scroll, "terminal", "Terminale")
+        self._row(grid2, 0, tr("Shell"), self.terminal_shell, "Esempi: /bin/bash, /usr/bin/fish, /bin/zsh")
+        self._row(grid2, 1, tr("Cartella iniziale"), dir_box)
+        self._append_page(scroll, "terminal", tr("Terminale"))
 
     def _build_connections_page(self) -> None:
         scroll, page = self._page()
-        frame, grid = self._card("Connessioni")
+        frame, grid = self._card(tr("Connessioni"))
         page.pack_start(frame, False, False, 0)
-        self.rdp_preflight = Gtk.CheckButton(label="Verifica host e porta prima di avviare RDP")
+        self.rdp_preflight = Gtk.CheckButton(label=tr("Verifica host e porta prima di avviare RDP"))
         self.connection_timeout = Gtk.SpinButton.new_with_range(2, 120, 1)
         self.ssh_keepalive_interval = Gtk.SpinButton.new_with_range(0, 600, 5)
         self.ssh_keepalive_count = Gtk.SpinButton.new_with_range(1, 20, 1)
-        self.ssh_compression = Gtk.CheckButton(label="Abilita compressione SSH")
+        self.ssh_compression = Gtk.CheckButton(label=tr("Abilita compressione SSH"))
         self.ssh_strict_host_key = Gtk.ComboBoxText()
-        self.ssh_strict_host_key.append("ask", "Chiedi conferma")
-        self.ssh_strict_host_key.append("accept-new", "Accetta automaticamente solo host nuovi")
-        self.ssh_strict_host_key.append("yes", "Accetta solo chiavi già note")
-        self.ssh_strict_host_key.append("no", "Non verificare la chiave (sconsigliato)")
-        self._row(grid, 0, "Controllo RDP", self.rdp_preflight)
-        self._row(grid, 1, "Timeout connessione (s)", self.connection_timeout)
-        self._row(grid, 2, "Keepalive SSH (s)", self.ssh_keepalive_interval, "0 disabilita i pacchetti keepalive.")
-        self._row(grid, 3, "Tentativi keepalive", self.ssh_keepalive_count)
-        self._row(grid, 4, "Compressione", self.ssh_compression)
-        self._row(grid, 5, "Chiavi host SSH", self.ssh_strict_host_key)
-        self._append_page(scroll, "connections", "Connessioni")
+        self.ssh_strict_host_key.append("ask", tr("Chiedi conferma"))
+        self.ssh_strict_host_key.append("accept-new", tr("Accetta automaticamente solo host nuovi"))
+        self.ssh_strict_host_key.append("yes", tr("Accetta solo chiavi già note"))
+        self.ssh_strict_host_key.append("no", tr("Non verificare la chiave (sconsigliato)"))
+        self._row(grid, 0, tr("Controllo RDP"), self.rdp_preflight)
+        self._row(grid, 1, tr("Timeout connessione (s)"), self.connection_timeout)
+        self._row(grid, 2, tr("Keepalive SSH (s)"), self.ssh_keepalive_interval, tr("0 disabilita i pacchetti keepalive."))
+        self._row(grid, 3, tr("Tentativi keepalive"), self.ssh_keepalive_count)
+        self._row(grid, 4, tr("Compressione"), self.ssh_compression)
+        self._row(grid, 5, tr("Chiavi host SSH"), self.ssh_strict_host_key)
+        self._append_page(scroll, "connections", tr("Connessioni"))
 
     def _build_security_page(self) -> None:
         scroll, page = self._page()
-        frame, grid = self._card("Password e appunti")
+        frame, grid = self._card(tr("Password e appunti"))
         page.pack_start(frame, False, False, 0)
         self.vault_auto_lock = Gtk.SpinButton.new_with_range(5, 240, 5)
         self.vault_keep_unlocked = Gtk.CheckButton(
-            label="Non richiedere la password finché l'app resta aperta"
+            label=tr("Non richiedere la password finché l'app resta aperta")
         )
         self.vault_keep_unlocked.set_tooltip_text(
-            "Con la spunta attiva il Password Manager resta sbloccato per tutta la sessione di lavoro: "
+            tr("Con la spunta attiva il Password Manager resta sbloccato per tutta la sessione di lavoro: "
             "la password viene richiesta di nuovo solo alla prossima apertura del programma "
-            "(o dopo un blocco manuale)."
+            "(o dopo un blocco manuale).")
         )
         self.vault_keep_unlocked.connect(
             "toggled", lambda cb: self.vault_auto_lock.set_sensitive(not cb.get_active())
         )
-        self.lock_vault_on_minimize = Gtk.CheckButton(label="Blocca il vault quando la finestra viene minimizzata")
+        self.lock_vault_on_minimize = Gtk.CheckButton(label=tr("Blocca le password quando la finestra viene minimizzata"))
         self.clear_clipboard = Gtk.SpinButton.new_with_range(0, 600, 5)
-        self._row(grid, 0, "Sblocco persistente", self.vault_keep_unlocked)
-        self._row(grid, 1, "Blocco automatico (min)", self.vault_auto_lock, "Richiede di nuovo la password dopo questo periodo di inattività.")
-        self._row(grid, 2, "Minimizzazione", self.lock_vault_on_minimize)
-        self._row(grid, 3, "Cancella password dagli appunti (s)", self.clear_clipboard, "0 non modifica automaticamente gli appunti.")
+        self._row(grid, 0, tr("Sblocco persistente"), self.vault_keep_unlocked)
+        self._row(grid, 1, tr("Blocco automatico (min)"), self.vault_auto_lock, tr("Richiede di nuovo la password dopo questo periodo di inattività."))
+        self._row(grid, 2, tr("Minimizzazione"), self.lock_vault_on_minimize)
+        self._row(grid, 3, tr("Cancella password dagli appunti (s)"), self.clear_clipboard, tr("0 non modifica automaticamente gli appunti."))
 
         warning = Gtk.Label(
-            label="Le password restano cifrate nel Password Manager. Quando copi una password, FedTermHub può rimuoverla automaticamente dagli appunti dopo l'intervallo scelto.",
+            label=tr("Le password restano cifrate nel Password Manager. Quando copi una password, FedTermHub può rimuoverla automaticamente dagli appunti dopo l'intervallo scelto."),
             xalign=0,
         )
         warning.set_line_wrap(True)
         warning.get_style_context().add_class("info-card")
         page.pack_start(warning, False, False, 0)
-        self._append_page(scroll, "security", "Sicurezza")
+        self._append_page(scroll, "security", tr("Sicurezza"))
 
     def _build_data_page(self) -> None:
         scroll, page = self._page()
-        frame, grid = self._card("Configurazione e manutenzione")
+        frame, grid = self._card(tr("Configurazione e manutenzione"))
         page.pack_start(frame, False, False, 0)
         buttons = [
-            ("Apri cartella configurazione", self.on_open_config_folder),
-            ("Esporta impostazioni", self.on_export_settings),
-            ("Importa impostazioni", self.on_import_settings),
-            ("Apri log applicazione", self.on_open_log),
-            ("Ripristina valori predefiniti", self.on_reset_defaults),
+            (tr("Apri cartella configurazione"), self.on_open_config_folder),
+            (tr("Esporta impostazioni"), self.on_export_settings),
+            (tr("Importa impostazioni"), self.on_import_settings),
+            (tr("Apri log applicazione"), self.on_open_log),
+            (tr("Ripristina valori predefiniti"), self.on_reset_defaults),
         ]
         for row, (label, callback) in enumerate(buttons):
             button = Gtk.Button.new_with_label(label)
             button.set_halign(Gtk.Align.START)
             button.connect("clicked", callback)
             grid.attach(button, 0, row, 2, 1)
-        note = Gtk.Label(label=f"Configurazione: {CONFIG_DIR}\nLog: {LOG_FILE}", xalign=0)
+        note = Gtk.Label(label=tr("Configurazione: {CONFIG_DIR}\nLog: {LOG_FILE}").format(CONFIG_DIR=CONFIG_DIR, LOG_FILE=LOG_FILE), xalign=0)
         note.set_selectable(True)
         note.set_line_wrap(True)
         note.get_style_context().add_class("muted")
         page.pack_start(note, False, False, 0)
-        self._append_page(scroll, "data", "Dati")
+        self._append_page(scroll, "data", tr("Dati"))
 
     def load_values(self, settings: AppSettings) -> None:
         self.theme.set_active_id(settings.theme)
+        self.language.set_active_id(settings.language)
+        if self.language.get_active() < 0:
+            self.language.set_active_id("auto")
         self.icon_theme.set_active_id(settings.icon_theme)
         if self.icon_theme.get_active() < 0:
             self.icon_theme.set_active_id("auto")
@@ -5297,11 +5316,11 @@ class SettingsDialog(Gtk.Dialog):
 
     def on_choose_terminal_directory(self, _button: Gtk.Button) -> None:
         chooser = Gtk.FileChooserDialog(
-            title="Cartella iniziale del terminale",
+            title=tr("Cartella iniziale del terminale"),
             transient_for=self,
             action=Gtk.FileChooserAction.SELECT_FOLDER,
         )
-        chooser.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "Seleziona", Gtk.ResponseType.OK)
+        chooser.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("Seleziona"), Gtk.ResponseType.OK)
         current = self.terminal_start_directory.get_text().strip()
         if current and Path(current).is_dir():
             chooser.set_filename(current)
@@ -5315,7 +5334,7 @@ class SettingsDialog(Gtk.Dialog):
         try:
             Gio.AppInfo.launch_default_for_uri(CONFIG_DIR.as_uri(), None)
         except Exception as exc:
-            self.parent_app.set_status(f"Impossibile aprire la cartella: {exc}")
+            self.parent_app.set_status(tr("Impossibile aprire la cartella: {exc}").format(exc=exc))
 
     def on_export_settings(self, _button: Gtk.Button) -> None:
         self.parent_app.export_settings(self)
@@ -5333,9 +5352,9 @@ class SettingsDialog(Gtk.Dialog):
             flags=0,
             message_type=Gtk.MessageType.QUESTION,
             buttons=Gtk.ButtonsType.YES_NO,
-            text="Ripristinare le impostazioni predefinite?",
+            text=tr("Ripristinare le impostazioni predefinite?"),
         )
-        confirm.format_secondary_text("Sessioni, tunnel e password salvate non verranno eliminate.")
+        confirm.format_secondary_text(tr("Sessioni, tunnel e password salvate non verranno eliminate."))
         response = confirm.run()
         confirm.destroy()
         if response == Gtk.ResponseType.YES:
@@ -5345,6 +5364,8 @@ class SettingsDialog(Gtk.Dialog):
         settings = self.parent_app.settings
         settings.theme = self.theme.get_active_id() or "dark"
         settings.icon_theme = self.icon_theme.get_active_id() or "auto"
+        language_changed = (self.language.get_active_id() or "auto") != settings.language
+        settings.language = self.language.get_active_id() or "auto"
         settings.animations = bool(self.animations.get_active())
         settings.toolbar_icon_size = int(self.toolbar_icon_size.get_value())
         settings.show_toolbar_labels = bool(self.show_toolbar_labels.get_active())
@@ -5394,7 +5415,12 @@ class SettingsDialog(Gtk.Dialog):
         self.parent_app.apply_layout_preferences()
         self.parent_app.apply_terminal_preferences()
         self.parent_app.mark_user_activity()
-        self.parent_app.show_notification("Impostazioni applicate", "success")
+        if language_changed and i18n_detect(settings.language) != I18N_ACTIVE:
+            self.parent_app.show_notification(
+                tr("Impostazioni applicate. La nuova lingua sarà attiva dal prossimo avvio di FedTermHub."), "info"
+            )
+        else:
+            self.parent_app.show_notification(tr("Impostazioni applicate"), "success")
 
 
 class MultiExecDialog(Gtk.Dialog):
@@ -5405,27 +5431,27 @@ class MultiExecDialog(Gtk.Dialog):
     """
 
     def __init__(self, parent: Gtk.Window, targets: Optional[List[Tuple[object, str, str, bool]]] = None) -> None:
-        super().__init__(title="MultiExec", transient_for=parent, flags=0)
+        super().__init__(title=tr("MultiExec"), transient_for=parent, flags=0)
         self.set_modal(True)
         self.get_style_context().add_class("modern-dialog")
-        self.add_button("_Annulla", Gtk.ResponseType.CANCEL)
-        self.send_button = self.add_button("_Invia", Gtk.ResponseType.OK)
+        self.add_button(tr("_Annulla"), Gtk.ResponseType.CANCEL)
+        self.send_button = self.add_button(tr("_Invia"), Gtk.ResponseType.OK)
         self.send_button.get_style_context().add_class("suggested-action")
         self.set_default_response(Gtk.ResponseType.OK)
         self.set_default_size(560, -1)
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=16)
         self.get_content_area().pack_start(outer, True, True, 0)
-        caption = Gtk.Label.new_with_mnemonic("_Comando")
+        caption = Gtk.Label.new_with_mnemonic(tr("_Comando"))
         caption.set_xalign(0)
         caption.get_style_context().add_class("field-label")
         outer.pack_start(caption, False, False, 0)
         self.command = Gtk.Entry()
         self.command.set_hexpand(True)
         self.command.set_activates_default(True)
-        self.command.set_placeholder_text("Es. uptime  (viene inviato seguito da Invio)")
+        self.command.set_placeholder_text(tr("Es. uptime  (viene inviato seguito da Invio)"))
         caption.set_mnemonic_widget(self.command)
         outer.pack_start(self.command, False, False, 0)
-        heading = Gtk.Label(label="Invia a", xalign=0)
+        heading = Gtk.Label(label=tr("Invia a"), xalign=0)
         heading.get_style_context().add_class("field-label")
         outer.pack_start(heading, False, False, 4)
         self.checks: List[Tuple[Gtk.CheckButton, object]] = []
@@ -5453,7 +5479,7 @@ class MultiExecDialog(Gtk.Dialog):
         self.set_response_sensitive(Gtk.ResponseType.OK, ready)
         label = self.send_button.get_child()
         if isinstance(label, Gtk.Label):
-            label.set_text_with_mnemonic("_Invia" if count == 0 else f"_Invia a {count}")
+            label.set_text_with_mnemonic(tr("_Invia") if count == 0 else tr("_Invia a {count}").format(count=count))
 
     def selected_targets(self) -> List[object]:
         return [target for check, target in self.checks if check.get_active()]
@@ -5466,11 +5492,11 @@ class CommandPaletteDialog(Gtk.Dialog):
     """Palette comandi rapida per sistemisti: cerca e lancia azioni senza navigare nei menu."""
 
     def __init__(self, parent: Gtk.Window, actions: List[Tuple[str, str, Callable[[], None]]]) -> None:
-        super().__init__(title="Command Palette", transient_for=parent, flags=0)
+        super().__init__(title=tr("Command Palette"), transient_for=parent, flags=0)
         self.set_modal(True)
         self.set_resizable(True)
         self.set_default_size(620, 460)
-        self.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Esegui", Gtk.ResponseType.OK)
+        self.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Esegui"), Gtk.ResponseType.OK)
         self.selected_action: Optional[Callable[[], None]] = None
         self._actions = actions
         self._rows: List[Tuple[Gtk.ListBoxRow, str, Callable[[], None]]] = []
@@ -5480,12 +5506,12 @@ class CommandPaletteDialog(Gtk.Dialog):
         outer.get_style_context().add_class("command-palette")
         box.add(outer)
 
-        title = Gtk.Label(label="Cerca un comando o una sessione di lavoro", xalign=0)
+        title = Gtk.Label(label=tr("Cerca un comando o una sessione di lavoro"), xalign=0)
         title.get_style_context().add_class("dialog-heading")
         outer.pack_start(title, False, False, 0)
 
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Esempio: rdp, tunnel, scan, capture, password, ping…")
+        self.search.set_placeholder_text(tr("Esempio: rdp, tunnel, scan, capture, password, ping…"))
         self.search.get_style_context().add_class("command-palette-search")
         outer.pack_start(self.search, False, False, 0)
 
@@ -5554,30 +5580,30 @@ class CommandPaletteDialog(Gtk.Dialog):
 
 class ToolsDialog(Gtk.Dialog):
     def __init__(self, parent: Gtk.Window) -> None:
-        super().__init__(title="Tools", transient_for=parent, flags=0)
+        super().__init__(title=tr("Tools"), transient_for=parent, flags=0)
         self.set_modal(True)
         self.parent_app = parent
-        self.add_buttons("Chiudi", Gtk.ResponseType.CLOSE)
+        self.add_buttons(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         self.set_default_size(620, 360)
         box = self.get_content_area()
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin=12)
         box.add(outer)
-        outer.pack_start(Gtk.Label(label="Strumenti rapidi di rete e sistema", xalign=0), False, False, 0)
+        outer.pack_start(Gtk.Label(label=tr("Strumenti rapidi di rete e sistema"), xalign=0), False, False, 0)
         grid = Gtk.Grid(column_spacing=8, row_spacing=8)
         outer.pack_start(grid, True, True, 0)
         actions = [
-            ('Ping', 'read -rp \'Host da pingare [8.8.8.8]: \' h; h=${h:-8.8.8.8}; ping -c 5 "$h"; echo; read -rp \'Invio per chiudere...\' _'),
-            ('Traceroute', 'read -rp \'Host traceroute [8.8.8.8]: \' h; h=${h:-8.8.8.8}; tracepath "$h" || traceroute "$h"; echo; read -rp \'Invio per chiudere...\' _'),
-            ('DNS lookup', 'read -rp \'Nome DNS [example.com]: \' h; h=${h:-example.com}; dig "$h" || nslookup "$h"; echo; read -rp \'Invio per chiudere...\' _'),
-            ('Check porta TCP', 'read -rp \'Host: \' h; read -rp \'Porta: \' p; timeout 4 bash -c "</dev/tcp/$h/$p" && echo \'Porta aperta\' || echo \'Porta chiusa/non raggiungibile\'; echo; read -rp \'Invio per chiudere...\' _'),
-            ('IP locale', "ip -br addr; echo; read -rp 'Invio per chiudere...' _"),
-            ('Route', "ip route; echo; read -rp 'Invio per chiudere...' _"),
-            ('Socket aperti', "ss -tulpen; echo; read -rp 'Invio per chiudere...' _"),
-            ('Chiavi SSH', "ls -lah ~/.ssh; echo; ssh-add -l 2>/dev/null || true; echo; read -rp 'Invio per chiudere...' _"),
-            ('Known hosts', '${EDITOR:-nano} ~/.ssh/known_hosts'),
-            ('Journal', 'journalctl -f'),
-            ('Info sistema', "hostnamectl; echo; lsb_release -a 2>/dev/null || cat /etc/os-release; echo; read -rp 'Invio per chiudere...' _"),
-            ('Doctor FedTermHub', "fedtermhub --doctor; echo; read -rp 'Invio per chiudere...' _"),
+            ('Ping', tr('read -rp \'Host da pingare [8.8.8.8]: \' h; h=${h:-8.8.8.8}; ping -c 5 "$h"; echo; read -rp \'Invio per chiudere...\' _')),
+            ('Traceroute', tr('read -rp \'Host traceroute [8.8.8.8]: \' h; h=${h:-8.8.8.8}; tracepath "$h" || traceroute "$h"; echo; read -rp \'Invio per chiudere...\' _')),
+            ('DNS lookup', tr('read -rp \'Nome DNS [example.com]: \' h; h=${h:-example.com}; dig "$h" || nslookup "$h"; echo; read -rp \'Invio per chiudere...\' _')),
+            (tr('Check porta TCP'), tr('read -rp \'Host: \' h; read -rp \'Porta: \' p; timeout 4 bash -c "</dev/tcp/$h/$p" && echo \'Porta aperta\' || echo \'Porta chiusa/non raggiungibile\'; echo; read -rp \'Invio per chiudere...\' _')),
+            (tr('IP locale'), tr("ip -br addr; echo; read -rp 'Invio per chiudere...' _")),
+            ('Route', tr("ip route; echo; read -rp 'Invio per chiudere...' _")),
+            (tr('Socket aperti'), tr("ss -tulpen; echo; read -rp 'Invio per chiudere...' _")),
+            (tr('Chiavi SSH'), tr("ls -lah ~/.ssh; echo; ssh-add -l 2>/dev/null || true; echo; read -rp 'Invio per chiudere...' _")),
+            ('Known hosts', tr('${EDITOR:-nano} ~/.ssh/known_hosts')),
+            ('Journal', tr('journalctl -f')),
+            (tr('Info sistema'), tr("hostnamectl; echo; lsb_release -a 2>/dev/null || cat /etc/os-release; echo; read -rp 'Invio per chiudere...' _")),
+            ('Doctor FedTermHub', tr("fedtermhub --doctor; echo; read -rp 'Invio per chiudere...' _")),
         ]
         for idx, (label, cmd) in enumerate(actions):
             button = Gtk.Button.new_with_label(label)
@@ -5594,35 +5620,35 @@ class FolderDialog(Gtk.Dialog):
     def __init__(
         self,
         parent: Gtk.Window,
-        title: str = "Cartella",
+        title: str = tr("Cartella"),
         name: str = "",
         color: str = DEFAULT_FOLDER_COLOR,
     ) -> None:
         super().__init__(title=title, transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
+        self.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Salva"), Gtk.ResponseType.OK)
         self.set_default_size(430, 160)
 
         box = self.get_content_area()
         grid = Gtk.Grid(column_spacing=12, row_spacing=12, margin=16)
         box.add(grid)
 
-        grid.attach(Gtk.Label(label="Nome cartella", xalign=0), 0, 0, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Nome cartella"), xalign=0), 0, 0, 1, 1)
         self.name = Gtk.Entry(text=name)
         self.name.set_hexpand(True)
         self.name.set_activates_default(True)
         grid.attach(self.name, 1, 0, 1, 1)
 
-        grid.attach(Gtk.Label(label="Colore icona", xalign=0), 0, 1, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Colore icona"), xalign=0), 0, 1, 1, 1)
         color_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.color_button = Gtk.ColorButton()
         self.color_button.set_use_alpha(False)
         rgba = Gdk.RGBA()
         rgba.parse(normalize_folder_color(color))
         self.color_button.set_rgba(rgba)
-        self.color_button.set_tooltip_text("Scegli il colore dell'icona cartella")
+        self.color_button.set_tooltip_text(tr("Scegli il colore dell'icona cartella"))
         color_row.pack_start(self.color_button, False, False, 0)
-        hint = Gtk.Label(label="Il colore viene salvato insieme alla cartella.", xalign=0)
+        hint = Gtk.Label(label=tr("Il colore viene salvato insieme alla cartella."), xalign=0)
         hint.get_style_context().add_class("muted")
         color_row.pack_start(hint, True, True, 0)
         grid.attach(color_row, 1, 1, 1, 1)
@@ -5631,7 +5657,7 @@ class FolderDialog(Gtk.Dialog):
         self.show_all()
 
     def get_name(self) -> str:
-        return self.name.get_text().strip() or "Nuova cartella"
+        return self.name.get_text().strip() or tr("Nuova cartella")
 
     def get_color(self) -> str:
         rgba = self.color_button.get_rgba()
@@ -5644,16 +5670,16 @@ class FolderDialog(Gtk.Dialog):
 
 class MoveDialog(Gtk.Dialog):
     def __init__(self, parent: Gtk.Window, folders: List[Tuple[str, str]], current_parent_path: str = "") -> None:
-        super().__init__(title="Sposta in cartella", transient_for=parent, flags=0)
+        super().__init__(title=tr("Sposta in cartella"), transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "Sposta", Gtk.ResponseType.OK)
+        self.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("Sposta"), Gtk.ResponseType.OK)
         self.set_default_size(420, 140)
 
         box = self.get_content_area()
         grid = Gtk.Grid(column_spacing=10, row_spacing=10, margin=14)
         box.add(grid)
 
-        grid.attach(Gtk.Label(label="Destinazione", xalign=0), 0, 0, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Destinazione"), xalign=0), 0, 0, 1, 1)
         self.combo = Gtk.ComboBoxText()
         for path, label in folders:
             combo_id = path if path else "__ROOT__"
@@ -5678,16 +5704,16 @@ class SessionDialog(Gtk.Dialog):
         ("rdp", "RDP"),
         ("vnc", "VNC"),
         ("sftp", "SFTP"),
-        ("telnet", "Telnet"),
-        ("serial", "Seriale"),
-        ("local", "Terminale locale"),
-        ("command", "Comando"),
+        ("telnet", tr("Telnet")),
+        ("serial", tr("Seriale")),
+        ("local", tr("Terminale locale")),
+        ("command", tr("Comando")),
     ]
 
     def __init__(self, parent: Gtk.Window, session: Optional[Session] = None, credentials: Optional[List[Tuple[str, str]]] = None, tunnels: Optional[List[Tuple[str, str]]] = None) -> None:
-        super().__init__(title="Sessione", transient_for=parent, flags=0)
+        super().__init__(title=tr("Sessione"), transient_for=parent, flags=0)
         self.set_modal(True)
-        self.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
+        self.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Salva"), Gtk.ResponseType.OK)
         # Salva e' l'azione principale: evidenziata come "Applica" nelle
         # Preferenze, e attivata da Invio nei campi di testo.
         salva = self.get_widget_for_response(Gtk.ResponseType.OK)
@@ -5715,7 +5741,7 @@ class SessionDialog(Gtk.Dialog):
         scroll.add(outer)
         box.add(scroll)
 
-        heading = Gtk.Label(label="Nuova connessione" if not self.original.name else f"Modifica: {self.original.name}", xalign=0)
+        heading = Gtk.Label(label=tr("Nuova connessione") if not self.original.name else tr("Modifica: {name}").format(name=self.original.name), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
         outer.pack_start(heading, False, False, 0)
 
@@ -5725,7 +5751,7 @@ class SessionDialog(Gtk.Dialog):
 
         self.name = Gtk.Entry(text=self.original.name)
         self.name.set_hexpand(True)
-        self.name.set_placeholder_text("Nome visibile nella lista sessioni")
+        self.name.set_placeholder_text(tr("Nome visibile nella lista sessioni"))
         self.protocol = Gtk.ComboBoxText()
         self.protocol.set_hexpand(True)
         for proto, label in self.PROTOCOLS:
@@ -5735,9 +5761,9 @@ class SessionDialog(Gtk.Dialog):
             self.protocol.set_active(0)
         self.protocol.connect("changed", self.on_protocol_changed)
 
-        top.attach(Gtk.Label(label="Nome", xalign=0), 0, 0, 1, 1)
+        top.attach(Gtk.Label(label=tr("Nome"), xalign=0), 0, 0, 1, 1)
         top.attach(self.name, 1, 0, 1, 1)
-        top.attach(Gtk.Label(label="Protocollo", xalign=0), 0, 1, 1, 1)
+        top.attach(Gtk.Label(label=tr("Protocollo"), xalign=0), 0, 1, 1, 1)
         top.attach(self.protocol, 1, 1, 1, 1)
 
         self.stack = Gtk.Stack()
@@ -5748,38 +5774,38 @@ class SessionDialog(Gtk.Dialog):
 
         self._build_protocol_pages()
 
-        self.auth_box = Gtk.Frame(label="Password Manager")
+        self.auth_box = Gtk.Frame(label=tr("Password Manager"))
         self.auth_grid = Gtk.Grid(column_spacing=12, row_spacing=10, margin=10)
         self.auth_box.add(self.auth_grid)
         outer.pack_start(self.auth_box, False, False, 0)
 
         self.credential = Gtk.ComboBoxText()
-        self.credential.append("", "(nessuna credenziale collegata)")
+        self.credential.append("", tr("(nessuna credenziale collegata)"))
         found_current = self.original.credential_id == ""
         for cred_id, cred_name in credentials:
             self.credential.append(cred_id, cred_name)
             if cred_id == self.original.credential_id:
                 found_current = True
         if not found_current and self.original.credential_id:
-            self.credential.append(self.original.credential_id, f"ID salvato: {self.original.credential_id[:12]}…")
+            self.credential.append(self.original.credential_id, tr("ID salvato: {v}…").format(v=self.original.credential_id[:12]))
         self.credential.set_active_id(self.original.credential_id if self.original.credential_id else "")
         if self.credential.get_active() < 0:
             self.credential.set_active(0)
-        self.use_credential_password = Gtk.CheckButton(label="Usa la password salvata quando il protocollo lo supporta")
+        self.use_credential_password = Gtk.CheckButton(label=tr("Usa la password salvata quando il protocollo lo supporta"))
         self.use_credential_password.set_active(self.original.use_credential_password)
-        self.auth_grid.attach(Gtk.Label(label="Credenziale", xalign=0), 0, 0, 1, 1)
+        self.auth_grid.attach(Gtk.Label(label=tr("Credenziale"), xalign=0), 0, 0, 1, 1)
         self.auth_grid.attach(self.credential, 1, 0, 1, 1)
         self.auth_grid.attach(self.use_credential_password, 1, 1, 1, 1)
 
         # Le opzioni avanzate di instradamento restano chiuse per impostazione
         # predefinita: l'interfaccia normale non cambia per chi usa connessioni dirette.
-        self.routing_expander = Gtk.Expander(label="Instradamento avanzato")
+        self.routing_expander = Gtk.Expander(label=tr("Instradamento avanzato"))
         self.routing_expander.set_expanded(
             (self.original.routing_mode or "direct") != "direct"
             or bool(self.original.required_tunnel_id)
         )
         self.routing_expander.set_tooltip_text(
-            "Jump host, tunnel SSH salvati e RD Gateway. Apri solo quando necessari."
+            tr("Jump host, tunnel SSH salvati e RD Gateway. Apri solo quando necessari.")
         )
         outer.pack_start(self.routing_expander, False, False, 0)
         self.workflow_box = self.routing_expander  # compatibilità con codice precedente
@@ -5792,7 +5818,7 @@ class SessionDialog(Gtk.Dialog):
         self.routing_mode = Gtk.ComboBoxText()
         self.routing_mode.set_hexpand(True)
         self.routing_mode.connect("changed", self.on_routing_mode_changed)
-        route_grid.attach(Gtk.Label(label="Modalità", xalign=0), 0, 0, 1, 1)
+        route_grid.attach(Gtk.Label(label=tr("Modalità"), xalign=0), 0, 0, 1, 1)
         route_grid.attach(self.routing_mode, 1, 0, 1, 1)
 
         self.routing_stack = Gtk.Stack()
@@ -5802,7 +5828,7 @@ class SessionDialog(Gtk.Dialog):
 
         direct_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin=4)
         direct_label = Gtk.Label(
-            label="Connessione diretta: non viene avviato alcun gateway o tunnel preliminare.",
+            label=tr("Connessione diretta: non viene avviato alcun gateway o tunnel preliminare."),
             xalign=0,
         )
         direct_label.set_line_wrap(True)
@@ -5812,7 +5838,7 @@ class SessionDialog(Gtk.Dialog):
 
         tunnel_grid = Gtk.Grid(column_spacing=12, row_spacing=8, margin=4)
         self.required_tunnel = Gtk.ComboBoxText()
-        self.required_tunnel.append("", "Seleziona un tunnel SSH")
+        self.required_tunnel.append("", tr("Seleziona un tunnel SSH"))
         found_tunnel = self.original.required_tunnel_id == ""
         for tunnel_id, tunnel_name in tunnels:
             self.required_tunnel.append(tunnel_id, tunnel_name)
@@ -5820,34 +5846,34 @@ class SessionDialog(Gtk.Dialog):
         if not found_tunnel and self.original.required_tunnel_id:
             self.required_tunnel.append(
                 self.original.required_tunnel_id,
-                f"Tunnel {self.original.required_tunnel_id[:10]}…",
+                tr("Tunnel {v}…").format(v=self.original.required_tunnel_id[:10]),
             )
         self.required_tunnel.set_active_id(self.original.required_tunnel_id or "")
         if self.required_tunnel.get_active() < 0:
             self.required_tunnel.set_active(0)
         self.wait_for_tunnel = Gtk.CheckButton(
-            label="Avvia automaticamente e attendi che il tunnel sia pronto"
+            label=tr("Avvia automaticamente e attendi che il tunnel sia pronto")
         )
         self.wait_for_tunnel.set_active(self.original.wait_for_tunnel)
-        tunnel_grid.attach(Gtk.Label(label="Tunnel salvato", xalign=0), 0, 0, 1, 1)
+        tunnel_grid.attach(Gtk.Label(label=tr("Tunnel salvato"), xalign=0), 0, 0, 1, 1)
         tunnel_grid.attach(self.required_tunnel, 1, 0, 1, 1)
         tunnel_grid.attach(self.wait_for_tunnel, 1, 1, 1, 1)
         self.routing_stack.add_named(tunnel_grid, "saved_tunnel")
 
         jump_grid = Gtk.Grid(column_spacing=12, row_spacing=8, margin=4)
         self.jump_host = self.labeled_entry(
-            jump_grid, 0, "Jump host", self.original.jump_host, "bastion.azienda.local"
+            jump_grid, 0, tr("Jump host"), self.original.jump_host, "bastion.azienda.local"
         )
         self.jump_port = self.labeled_entry(
-            jump_grid, 1, "Porta SSH", self.original.jump_port or "22", "22"
+            jump_grid, 1, tr("Porta SSH"), self.original.jump_port or "22", "22"
         )
         self.jump_user = self.labeled_entry(
-            jump_grid, 2, "Utente", self.original.jump_user, "utente sul bastion"
+            jump_grid, 2, tr("Utente"), self.original.jump_user, tr("utente sul bastion")
         )
         jump_hint = Gtk.Label(
             label=(
-                "Il jump host usa OpenSSH ProxyJump. Per la sua autenticazione usa "
-                "ssh-agent o ~/.ssh/config; la credenziale della sessione resta destinata all'host finale."
+                tr("Il jump host usa OpenSSH ProxyJump. Per la sua autenticazione usa "
+                "ssh-agent o ~/.ssh/config; la credenziale della sessione resta destinata all'host finale.")
             ),
             xalign=0,
         )
@@ -5858,13 +5884,13 @@ class SessionDialog(Gtk.Dialog):
 
         gateway_grid = Gtk.Grid(column_spacing=12, row_spacing=8, margin=4)
         self.rdp_gateway_host = self.labeled_entry(
-            gateway_grid, 0, "Server RD Gateway", self.original.rdp_gateway_host, "rdgateway.azienda.it"
+            gateway_grid, 0, tr("Server RD Gateway"), self.original.rdp_gateway_host, "rdgateway.azienda.it"
         )
         self.rdp_gateway_port = self.labeled_entry(
-            gateway_grid, 1, "Porta HTTPS", self.original.rdp_gateway_port or "443", "443"
+            gateway_grid, 1, tr("Porta HTTPS"), self.original.rdp_gateway_port or "443", "443"
         )
         self.rdp_gateway_same_credentials = Gtk.CheckButton(
-            label="Usa le stesse credenziali della sessione RDP"
+            label=tr("Usa le stesse credenziali della sessione RDP")
         )
         self.rdp_gateway_same_credentials.set_active(
             self.original.rdp_gateway_use_same_credentials
@@ -5872,17 +5898,17 @@ class SessionDialog(Gtk.Dialog):
         self.rdp_gateway_same_credentials.connect(
             "toggled", lambda *_args: self.update_gateway_controls()
         )
-        gateway_grid.attach(Gtk.Label(label="Credenziali", xalign=0), 0, 2, 1, 1)
+        gateway_grid.attach(Gtk.Label(label=tr("Credenziali"), xalign=0), 0, 2, 1, 1)
         gateway_grid.attach(self.rdp_gateway_same_credentials, 1, 2, 1, 1)
 
         self.rdp_gateway_user = self.labeled_entry(
-            gateway_grid, 3, "Utente gateway", self.original.rdp_gateway_user, "utente gateway"
+            gateway_grid, 3, tr("Utente gateway"), self.original.rdp_gateway_user, tr("utente gateway")
         )
         self.rdp_gateway_domain = self.labeled_entry(
-            gateway_grid, 4, "Dominio gateway", self.original.rdp_gateway_domain, "AZIENDA"
+            gateway_grid, 4, tr("Dominio gateway"), self.original.rdp_gateway_domain, "AZIENDA"
         )
         self.rdp_gateway_credential = Gtk.ComboBoxText()
-        self.rdp_gateway_credential.append("", "Nessuna credenziale separata")
+        self.rdp_gateway_credential.append("", tr("Nessuna credenziale separata"))
         found_gateway_cred = self.original.rdp_gateway_credential_id == ""
         for cred_id, cred_name in credentials:
             self.rdp_gateway_credential.append(cred_id, cred_name)
@@ -5890,30 +5916,30 @@ class SessionDialog(Gtk.Dialog):
         if not found_gateway_cred and self.original.rdp_gateway_credential_id:
             self.rdp_gateway_credential.append(
                 self.original.rdp_gateway_credential_id,
-                f"Credenziale {self.original.rdp_gateway_credential_id[:10]}…",
+                tr("Credenziale {v}…").format(v=self.original.rdp_gateway_credential_id[:10]),
             )
         self.rdp_gateway_credential.set_active_id(
             self.original.rdp_gateway_credential_id or ""
         )
         if self.rdp_gateway_credential.get_active() < 0:
             self.rdp_gateway_credential.set_active(0)
-        gateway_grid.attach(Gtk.Label(label="Credenziale salvata", xalign=0), 0, 5, 1, 1)
+        gateway_grid.attach(Gtk.Label(label=tr("Credenziale salvata"), xalign=0), 0, 5, 1, 1)
         gateway_grid.attach(self.rdp_gateway_credential, 1, 5, 1, 1)
 
         self.rdp_gateway_transport = Gtk.ComboBoxText()
-        self.rdp_gateway_transport.append("auto", "Automatico (consigliato)")
+        self.rdp_gateway_transport.append("auto", tr("Automatico (consigliato)"))
         self.rdp_gateway_transport.append("http", "HTTPS")
         self.rdp_gateway_transport.append("rpc", "RPC")
         selected_transport = (self.original.rdp_gateway_transport or "auto").lower()
         if selected_transport not in {"auto", "http", "rpc"}:
             selected_transport = "auto"
         self.rdp_gateway_transport.set_active_id(selected_transport)
-        gateway_grid.attach(Gtk.Label(label="Trasporto", xalign=0), 0, 6, 1, 1)
+        gateway_grid.attach(Gtk.Label(label=tr("Trasporto"), xalign=0), 0, 6, 1, 1)
         gateway_grid.attach(self.rdp_gateway_transport, 1, 6, 1, 1)
         gateway_hint = Gtk.Label(
             label=(
-                "FedTermHub verifica prima il gateway sulla porta HTTPS. "
-                "Il PC RDP può quindi restare non raggiungibile direttamente dalla rete locale."
+                tr("FedTermHub verifica prima il gateway sulla porta HTTPS. "
+                "Il PC RDP può quindi restare non raggiungibile direttamente dalla rete locale.")
             ),
             xalign=0,
         )
@@ -5928,12 +5954,12 @@ class SessionDialog(Gtk.Dialog):
         self._pending_routing_mode = initial_mode
         self.update_gateway_controls()
 
-        bottom = Gtk.Frame(label="Note")
+        bottom = Gtk.Frame(label=tr("Note"))
         bottom_grid = Gtk.Grid(column_spacing=12, row_spacing=10, margin=10)
         bottom.add(bottom_grid)
         outer.pack_start(bottom, False, False, 0)
         self.notes = Gtk.Entry(text=self.original.notes)
-        self.notes.set_placeholder_text("Appunti liberi sulla connessione")
+        self.notes.set_placeholder_text(tr("Appunti liberi sulla connessione"))
         bottom_grid.attach(self.notes, 0, 0, 1, 1)
 
         self.help_text = Gtk.Label(xalign=0)
@@ -5948,13 +5974,13 @@ class SessionDialog(Gtk.Dialog):
 
     def refresh_routing_modes(self, protocol: str) -> None:
         current = getattr(self, "_pending_routing_mode", None) or self.routing_mode.get_active_id() or "direct"
-        allowed = [("direct", "Connessione diretta")]
+        allowed = [("direct", tr("Connessione diretta"))]
         if protocol in {"ssh", "rdp", "vnc", "sftp"}:
-            allowed.append(("saved_tunnel", "Tunnel SSH salvato"))
+            allowed.append(("saved_tunnel", tr("Tunnel SSH salvato")))
         if protocol in {"ssh", "sftp"}:
-            allowed.append(("proxy_jump", "Jump host SSH"))
+            allowed.append(("proxy_jump", tr("Jump host SSH")))
         if protocol == "rdp":
-            allowed.append(("rd_gateway", "RD Gateway"))
+            allowed.append(("rd_gateway", tr("RD Gateway")))
         allowed_ids = {item[0] for item in allowed}
         if current not in allowed_ids:
             current = "saved_tunnel" if self.original.required_tunnel_id and "saved_tunnel" in allowed_ids else "direct"
@@ -5978,7 +6004,7 @@ class SessionDialog(Gtk.Dialog):
         if mode == "rd_gateway" and hasattr(self, "rdp_mode"):
             self.rdp_mode.set_active_id("native")
             self.rdp_mode.set_tooltip_text(
-                "RD Gateway usa il backend nativo libfreerdp; la modalità legacy non viene utilizzata."
+                tr("RD Gateway usa il backend nativo libfreerdp; la modalità legacy non viene utilizzata.")
             )
         self.update_gateway_controls()
 
@@ -6027,21 +6053,21 @@ class SessionDialog(Gtk.Dialog):
         sess = self.original
 
         # SSH
-        page, grid = self.protocol_page("SSH", "Connessione shell remota dentro una tab integrata VTE.")
-        self.ssh_host = self.labeled_entry(grid, 0, "Host/IP", sess.host, "es. 192.168.1.10 oppure server.dominio.local")
-        self.ssh_port = self.labeled_entry(grid, 1, "Porta", sess.port or "22", "22")
-        self.ssh_user = self.labeled_entry(grid, 2, "Utente", sess.user, "utente Linux/Unix")
-        self.ssh_command = self.labeled_entry(grid, 3, "Comando remoto opzionale", sess.command, "es. htop oppure tail -f /var/log/messages")
+        page, grid = self.protocol_page("SSH", tr("Connessione shell remota dentro una tab integrata VTE."))
+        self.ssh_host = self.labeled_entry(grid, 0, tr("Host/IP"), sess.host, tr("es. 192.168.1.10 oppure server.dominio.local"))
+        self.ssh_port = self.labeled_entry(grid, 1, tr("Porta"), sess.port or "22", "22")
+        self.ssh_user = self.labeled_entry(grid, 2, tr("Utente"), sess.user, tr("utente Linux/Unix"))
+        self.ssh_command = self.labeled_entry(grid, 3, tr("Comando remoto opzionale"), sess.command, tr("es. htop oppure tail -f /var/log/messages"))
         self.stack.add_named(page, "ssh")
 
         # RDP
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=8)
         page.set_vexpand(True)
-        header = Gtk.Label(label="Desktop remoto RDP", xalign=0)
+        header = Gtk.Label(label=tr("Desktop remoto RDP"), xalign=0)
         header.get_style_context().add_class("section-heading")
         page.pack_start(header, False, False, 0)
         subtitle = Gtk.Label(
-            label="Configurazione divisa per argomento: connessione, schermo, risorse e opzioni avanzate.",
+            label=tr("Configurazione divisa per argomento: connessione, schermo, risorse e opzioni avanzate."),
             xalign=0,
         )
         subtitle.set_line_wrap(True)
@@ -6062,51 +6088,51 @@ class SessionDialog(Gtk.Dialog):
 
         # Connessione
         conn = rdp_grid()
-        self.rdp_host = self.labeled_entry(conn, 0, "PC / IP", sess.host, "192.168.1.20 oppure pc.dominio.local")
-        self.rdp_port = self.labeled_entry(conn, 1, "Porta", sess.port or "3389", "3389")
-        self.rdp_user = self.labeled_entry(conn, 2, "Utente", sess.user, "utente Windows")
-        self.rdp_domain = self.labeled_entry(conn, 3, "Dominio", sess.domain, "AZIENDA oppure vuoto")
-        self.rdp_password = self.labeled_entry(conn, 4, "Password", "", "solo in memoria o nel Password Manager", password=True)
+        self.rdp_host = self.labeled_entry(conn, 0, tr("PC / IP"), sess.host, tr("192.168.1.20 oppure pc.dominio.local"))
+        self.rdp_port = self.labeled_entry(conn, 1, tr("Porta"), sess.port or "3389", "3389")
+        self.rdp_user = self.labeled_entry(conn, 2, tr("Utente"), sess.user, tr("utente Windows"))
+        self.rdp_domain = self.labeled_entry(conn, 3, tr("Dominio"), sess.domain, tr("AZIENDA oppure vuoto"))
+        self.rdp_password = self.labeled_entry(conn, 4, tr("Password"), "", tr("solo in memoria o nel Password Manager"), password=True)
         password_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.rdp_show_password = Gtk.CheckButton(label="Mostra")
+        self.rdp_show_password = Gtk.CheckButton(label=tr("Mostra"))
         self.rdp_show_password.connect("toggled", lambda b: self.rdp_password.set_visibility(b.get_active()))
-        self.rdp_save_password = Gtk.CheckButton(label="Proponi salvataggio nel Password Manager cifrato")
+        self.rdp_save_password = Gtk.CheckButton(label=tr("Proponi salvataggio nel Password Manager cifrato"))
         self.rdp_save_password.set_active(True)
         password_row.pack_start(self.rdp_show_password, False, False, 0)
         password_row.pack_start(self.rdp_save_password, False, False, 0)
-        conn.attach(Gtk.Label(label="Gestione password", xalign=0), 0, 5, 1, 1)
+        conn.attach(Gtk.Label(label=tr("Gestione password"), xalign=0), 0, 5, 1, 1)
         conn.attach(password_row, 1, 5, 1, 1)
 
         test_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        test_btn = Gtk.Button.new_with_mnemonic("_Test host e porta")
+        test_btn = Gtk.Button.new_with_mnemonic(tr("_Test host e porta"))
         test_btn.get_style_context().add_class("secondary-action")
         self.rdp_test_status = Gtk.Label(label="", xalign=0)
         self.rdp_test_status.get_style_context().add_class("muted")
         test_btn.connect("clicked", self.on_rdp_test_clicked)
         test_row.pack_start(test_btn, False, False, 0)
         test_row.pack_start(self.rdp_test_status, True, True, 0)
-        conn.attach(Gtk.Label(label="Verifica", xalign=0), 0, 6, 1, 1)
+        conn.attach(Gtk.Label(label=tr("Verifica"), xalign=0), 0, 6, 1, 1)
         conn.attach(test_row, 1, 6, 1, 1)
-        rdp_book.append_page(conn, Gtk.Label(label="Connessione"))
+        rdp_book.append_page(conn, Gtk.Label(label=tr("Connessione")))
 
         # Schermo
         display = rdp_grid()
         self.rdp_mode = Gtk.ComboBoxText()
-        self.rdp_mode.append("native", "Nativa libfreerdp (integrata o indipendente)")
-        self.rdp_mode.append("legacy", "Legacy xfreerdp/XEmbed (solo diagnostica)")
+        self.rdp_mode.append("native", tr("Nativa libfreerdp (integrata o indipendente)"))
+        self.rdp_mode.append("legacy", tr("Legacy xfreerdp/XEmbed (solo diagnostica)"))
         selected_mode = "legacy" if sess.rdp_mode in {"legacy", "external-legacy"} else "native"
         self.rdp_mode.set_active_id(selected_mode)
         self.rdp_mode.set_tooltip_text(
-            "La modalità nativa funziona su Wayland e X11. Il fallback legacy richiede X11/XWayland."
+            tr("La modalità nativa funziona su Wayland e X11. Il fallback legacy richiede X11/XWayland.")
         )
-        display.attach(Gtk.Label(label="Modalità", xalign=0), 0, 0, 1, 1)
+        display.attach(Gtk.Label(label=tr("Modalità"), xalign=0), 0, 0, 1, 1)
         display.attach(self.rdp_mode, 1, 0, 1, 1)
 
         self.rdp_quality = Gtk.ComboBoxText()
-        for value, label in [("lan", "LAN / qualità alta"), ("wan", "WAN / bilanciato"), ("low", "Connessione lenta")]:
+        for value, label in [("lan", tr("LAN / qualità alta")), ("wan", tr("WAN / bilanciato")), ("low", tr("Connessione lenta"))]:
             self.rdp_quality.append(value, label)
         self.rdp_quality.set_active_id(sess.rdp_quality if sess.rdp_quality in {"lan", "wan", "low"} else "lan")
-        display.attach(Gtk.Label(label="Profilo rete", xalign=0), 0, 1, 1, 1)
+        display.attach(Gtk.Label(label=tr("Profilo rete"), xalign=0), 0, 1, 1, 1)
         display.attach(self.rdp_quality, 1, 1, 1, 1)
 
         size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -6117,98 +6143,98 @@ class SessionDialog(Gtk.Dialog):
         size_box.pack_start(self.rdp_width, True, True, 0)
         size_box.pack_start(Gtk.Label(label="×"), False, False, 0)
         size_box.pack_start(self.rdp_height, True, True, 0)
-        display.attach(Gtk.Label(label="Risoluzione fissa", xalign=0), 0, 2, 1, 1)
+        display.attach(Gtk.Label(label=tr("Risoluzione fissa"), xalign=0), 0, 2, 1, 1)
         display.attach(size_box, 1, 2, 1, 1)
 
         self.rdp_scale = Gtk.ComboBoxText()
         for value in ["100", "140", "180"]:
             self.rdp_scale.append(value, value + "%")
         self.rdp_scale.set_active_id(sess.rdp_scale if sess.rdp_scale in {"100", "140", "180"} else "100")
-        display.attach(Gtk.Label(label="Scala interfaccia", xalign=0), 0, 3, 1, 1)
+        display.attach(Gtk.Label(label=tr("Scala interfaccia"), xalign=0), 0, 3, 1, 1)
         display.attach(self.rdp_scale, 1, 3, 1, 1)
 
         display_opts = Gtk.Grid(column_spacing=18, row_spacing=8)
-        self.rdp_dynamic_resolution = Gtk.CheckButton(label="Adatta risoluzione alla tab e allo schermo intero")
+        self.rdp_dynamic_resolution = Gtk.CheckButton(label=tr("Adatta risoluzione alla tab e allo schermo intero"))
         self.rdp_dynamic_resolution.set_active(sess.rdp_dynamic_resolution)
-        self.rdp_smart_sizing = Gtk.CheckButton(label="Smart sizing")
+        self.rdp_smart_sizing = Gtk.CheckButton(label=tr("Smart sizing"))
         self.rdp_smart_sizing.set_active(sess.rdp_smart_sizing)
-        self.rdp_multimon = Gtk.CheckButton(label="Multi monitor (non disponibile nel backend nativo)")
+        self.rdp_multimon = Gtk.CheckButton(label=tr("Multi monitor (non disponibile nel backend nativo)"))
         self.rdp_multimon.set_active(False)
         self.rdp_multimon.set_sensitive(False)
-        self.rdp_multimon.set_tooltip_text("Il renderer nativo espone per ora un singolo framebuffer remoto.")
-        self.rdp_fonts = Gtk.CheckButton(label="Font smoothing")
+        self.rdp_multimon.set_tooltip_text(tr("Il renderer nativo espone per ora un singolo framebuffer remoto."))
+        self.rdp_fonts = Gtk.CheckButton(label=tr("Font smoothing"))
         self.rdp_fonts.set_active(sess.rdp_fonts)
         for i, widget in enumerate([self.rdp_dynamic_resolution, self.rdp_smart_sizing, self.rdp_multimon, self.rdp_fonts]):
             display_opts.attach(widget, i % 2, i // 2, 1, 1)
-        display.attach(Gtk.Label(label="Visualizzazione", xalign=0), 0, 4, 1, 1)
+        display.attach(Gtk.Label(label=tr("Visualizzazione"), xalign=0), 0, 4, 1, 1)
         display.attach(display_opts, 1, 4, 1, 1)
 
         self.rdp_detach_on_open = Gtk.CheckButton(
-            label="Apri già sganciata in una finestra indipendente"
+            label=tr("Apri già sganciata in una finestra indipendente")
         )
         self.rdp_detach_on_open.set_active(sess.rdp_window_mode == "detached")
         self.rdp_detach_on_open.set_tooltip_text(
-            "Avvia la sessione in una finestra separata gestita da FedTermHub, "
-            "con barra di controllo e monitor selezionato."
+            tr("Avvia la sessione in una finestra separata gestita da FedTermHub, "
+            "con barra di controllo e monitor selezionato.")
         )
-        display.attach(Gtk.Label(label="Sgancio", xalign=0), 0, 5, 1, 1)
+        display.attach(Gtk.Label(label=tr("Sgancio"), xalign=0), 0, 5, 1, 1)
         display.attach(self.rdp_detach_on_open, 1, 5, 1, 1)
 
         self.rdp_start_fullscreen = Gtk.CheckButton(
-            label="Apri direttamente a schermo intero"
+            label=tr("Apri direttamente a schermo intero")
         )
         self.rdp_start_fullscreen.set_active(sess.rdp_start_fullscreen)
         self.rdp_start_fullscreen.set_tooltip_text(
-            "Avvia la sessione sul monitor scelto. Con finestra indipendente, FedTermHub resta utilizzabile."
+            tr("Avvia la sessione sul monitor scelto. Con finestra indipendente, FedTermHub resta utilizzabile.")
         )
-        display.attach(Gtk.Label(label="Avvio", xalign=0), 0, 6, 1, 1)
+        display.attach(Gtk.Label(label=tr("Avvio"), xalign=0), 0, 6, 1, 1)
         display.attach(self.rdp_start_fullscreen, 1, 6, 1, 1)
 
         monitor_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.rdp_monitor = Gtk.ComboBoxText()
         self.rdp_monitor.set_hexpand(True)
-        self.rdp_monitor_refresh = Gtk.Button.new_with_mnemonic("_Aggiorna")
-        self.rdp_monitor_refresh.set_tooltip_text("Rileva nuovamente i monitor collegati")
+        self.rdp_monitor_refresh = Gtk.Button.new_with_mnemonic(tr("_Aggiorna"))
+        self.rdp_monitor_refresh.set_tooltip_text(tr("Rileva nuovamente i monitor collegati"))
         self.rdp_monitor_refresh.connect(
             "clicked", lambda _button: self.refresh_rdp_monitor_combo()
         )
         monitor_row.pack_start(self.rdp_monitor, True, True, 0)
         monitor_row.pack_start(self.rdp_monitor_refresh, False, False, 0)
         self.refresh_rdp_monitor_combo(sess.rdp_monitor or "current")
-        display.attach(Gtk.Label(label="Monitor schermo intero", xalign=0), 0, 7, 1, 1)
+        display.attach(Gtk.Label(label=tr("Monitor schermo intero"), xalign=0), 0, 7, 1, 1)
         display.attach(monitor_row, 1, 7, 1, 1)
 
         monitor_hint = Gtk.Label(
             label=(
-                "La scelta viene usata anche premendo Schermo intero o F11. "
-                "Se il monitor non è collegato, FedTermHub usa il monitor corrente o quello principale."
+                tr("La scelta viene usata anche premendo Schermo intero o F11. "
+                "Se il monitor non è collegato, FedTermHub usa il monitor corrente o quello principale.")
             ),
             xalign=0,
         )
         monitor_hint.set_line_wrap(True)
         monitor_hint.get_style_context().add_class("muted")
         display.attach(monitor_hint, 1, 8, 1, 1)
-        rdp_book.append_page(display, Gtk.Label(label="Schermo"))
+        rdp_book.append_page(display, Gtk.Label(label=tr("Schermo")))
 
         # Risorse locali
         resources = rdp_grid()
         drive_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.rdp_drive = Gtk.Entry(text=sess.rdp_drive)
         self.rdp_drive.set_hexpand(True)
-        self.rdp_drive.set_placeholder_text("/home/michele oppure /mnt/dati")
+        self.rdp_drive.set_placeholder_text(tr("/home/utente oppure /mnt/dati"))
         self.rdp_drive.set_tooltip_text(
-            "La cartella locale appare in Esplora risorse di Windows come unità "
-            "di rete “fedtermhub”: copia e incolla file in entrambe le direzioni."
+            tr("La cartella locale appare in Esplora risorse di Windows come unità "
+            "di rete “fedtermhub”: copia e incolla file in entrambe le direzioni.")
         )
-        drive_browse = Gtk.Button.new_with_mnemonic("S_foglia…")
+        drive_browse = Gtk.Button.new_with_mnemonic(tr("S_foglia…"))
 
         def on_browse_drive(_button: Gtk.Button) -> None:
             chooser = Gtk.FileChooserDialog(
-                title="Scegli la cartella da condividere nella sessione RDP",
+                title=tr("Scegli la cartella da condividere nella sessione RDP"),
                 transient_for=self,
                 action=Gtk.FileChooserAction.SELECT_FOLDER,
             )
-            chooser.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Seleziona", Gtk.ResponseType.OK)
+            chooser.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Seleziona"), Gtk.ResponseType.OK)
             current = self.rdp_drive.get_text().strip()
             if current:
                 try:
@@ -6222,14 +6248,14 @@ class SessionDialog(Gtk.Dialog):
         drive_browse.connect("clicked", on_browse_drive)
         drive_box.pack_start(self.rdp_drive, True, True, 0)
         drive_box.pack_start(drive_browse, False, False, 0)
-        drive_label = Gtk.Label(label="Cartella condivisa", xalign=0)
+        drive_label = Gtk.Label(label=tr("Cartella condivisa"), xalign=0)
         drive_label.get_style_context().add_class("field-label")
         resources.attach(drive_label, 0, 0, 1, 1)
         resources.attach(drive_box, 1, 0, 1, 1)
         drive_hint = Gtk.Label(
             label=(
-                "Visibile in Windows come unità di rete “fedtermhub” per scambiare file "
-                "con il PC remoto. La cartella deve esistere e il percorso non può contenere virgole."
+                tr("Visibile in Windows come unità di rete “fedtermhub” per scambiare file "
+                "con il PC remoto. La cartella deve esistere e il percorso non può contenere virgole.")
             ),
             xalign=0,
         )
@@ -6237,68 +6263,68 @@ class SessionDialog(Gtk.Dialog):
         drive_hint.get_style_context().add_class("muted")
         resources.attach(drive_hint, 1, 1, 1, 1)
         resource_opts = Gtk.Grid(column_spacing=18, row_spacing=8)
-        self.rdp_clipboard = Gtk.CheckButton(label="Clipboard (supporto nativo in evoluzione)")
+        self.rdp_clipboard = Gtk.CheckButton(label=tr("Clipboard (supporto nativo in evoluzione)"))
         self.rdp_clipboard.set_active(sess.rdp_clipboard)
-        self.rdp_sound = Gtk.CheckButton(label="Audio remoto")
+        self.rdp_sound = Gtk.CheckButton(label=tr("Audio remoto"))
         self.rdp_sound.set_active(sess.rdp_sound)
-        self.rdp_microphone = Gtk.CheckButton(label="Microfono")
+        self.rdp_microphone = Gtk.CheckButton(label=tr("Microfono"))
         self.rdp_microphone.set_active(sess.rdp_microphone)
-        self.rdp_printer = Gtk.CheckButton(label="Stampante predefinita")
+        self.rdp_printer = Gtk.CheckButton(label=tr("Stampante predefinita"))
         self.rdp_printer.set_active(sess.rdp_printer)
-        self.rdp_smartcard = Gtk.CheckButton(label="Smart card")
+        self.rdp_smartcard = Gtk.CheckButton(label=tr("Smart card"))
         self.rdp_smartcard.set_active(sess.rdp_smartcard)
         for i, widget in enumerate([self.rdp_clipboard, self.rdp_sound, self.rdp_microphone, self.rdp_printer, self.rdp_smartcard]):
             resource_opts.attach(widget, i % 2, i // 2, 1, 1)
-        resources.attach(Gtk.Label(label="Reindirizzamenti", xalign=0), 0, 2, 1, 1)
+        resources.attach(Gtk.Label(label=tr("Reindirizzamenti"), xalign=0), 0, 2, 1, 1)
         resources.attach(resource_opts, 1, 2, 1, 1)
-        rdp_book.append_page(resources, Gtk.Label(label="Risorse"))
+        rdp_book.append_page(resources, Gtk.Label(label=tr("Risorse")))
 
         # Avanzate
         advanced = rdp_grid()
         keyboard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.rdp_keyboard_layout = Gtk.ComboBoxText()
-        for value, label in [("auto", "Automatico"), ("it", "Italiano"), ("us", "Inglese USA"), ("de", "Tedesco"), ("fr", "Francese"), ("es", "Spagnolo"), ("custom", "ID FreeRDP personalizzato")]:
+        for value, label in [("auto", tr("Automatico")), ("it", tr("Italiano")), ("us", tr("Inglese USA")), ("de", tr("Tedesco")), ("fr", tr("Francese")), ("es", tr("Spagnolo")), ("custom", tr("ID FreeRDP personalizzato"))]:
             self.rdp_keyboard_layout.append(value, label)
         known_layouts = {"auto", "it", "us", "de", "fr", "es"}
         active_layout = sess.rdp_keyboard_layout if sess.rdp_keyboard_layout in known_layouts else "custom"
         self.rdp_keyboard_layout.set_active_id(active_layout)
         self.rdp_keyboard_custom = Gtk.Entry()
-        self.rdp_keyboard_custom.set_placeholder_text("es. 0x00000410 oppure nome layout")
+        self.rdp_keyboard_custom.set_placeholder_text(tr("es. 0x00000410 oppure nome layout"))
         if active_layout == "custom":
             self.rdp_keyboard_custom.set_text(sess.rdp_keyboard_layout)
         self.rdp_keyboard_custom.set_visible(active_layout == "custom")
         self.rdp_keyboard_layout.connect("changed", lambda c: self.rdp_keyboard_custom.set_visible(c.get_active_id() == "custom"))
         keyboard_box.pack_start(self.rdp_keyboard_layout, False, False, 0)
         keyboard_box.pack_start(self.rdp_keyboard_custom, False, False, 0)
-        advanced.attach(Gtk.Label(label="Layout tastiera", xalign=0), 0, 0, 1, 1)
+        advanced.attach(Gtk.Label(label=tr("Layout tastiera"), xalign=0), 0, 0, 1, 1)
         advanced.attach(keyboard_box, 1, 0, 1, 1)
 
         self.rdp_security = Gtk.ComboBoxText()
-        for value, label in [("auto", "Negoziazione automatica"), ("nla", "NLA"), ("tls", "TLS"), ("rdp", "RDP legacy")]:
+        for value, label in [("auto", tr("Negoziazione automatica")), ("nla", "NLA"), ("tls", "TLS"), ("rdp", tr("RDP legacy"))]:
             self.rdp_security.append(value, label)
         self.rdp_security.set_active_id(sess.rdp_security if sess.rdp_security in {"auto", "nla", "tls", "rdp"} else "auto")
-        advanced.attach(Gtk.Label(label="Sicurezza", xalign=0), 0, 1, 1, 1)
+        advanced.attach(Gtk.Label(label=tr("Sicurezza"), xalign=0), 0, 1, 1, 1)
         advanced.attach(self.rdp_security, 1, 1, 1, 1)
 
-        self.rdp_timeout = self.labeled_entry(advanced, 2, "Timeout connessione (ms)", sess.rdp_timeout or "12000", "12000")
-        self.rdp_options = self.labeled_entry(advanced, 3, "Opzioni FreeRDP extra", sess.command, "/log-level:INFO")
+        self.rdp_timeout = self.labeled_entry(advanced, 2, tr("Timeout connessione (ms)"), sess.rdp_timeout or "12000", "12000")
+        self.rdp_options = self.labeled_entry(advanced, 3, tr("Opzioni FreeRDP extra"), sess.command, "/log-level:INFO")
 
         adv_opts = Gtk.Grid(column_spacing=18, row_spacing=8)
-        self.rdp_grab_keyboard = Gtk.CheckButton(label="Cattura tastiera (solo backend legacy)")
+        self.rdp_grab_keyboard = Gtk.CheckButton(label=tr("Cattura tastiera (solo backend legacy)"))
         self.rdp_grab_keyboard.set_active(sess.rdp_grab_keyboard)
-        self.rdp_grab_mouse = Gtk.CheckButton(label="Cattura mouse (solo backend legacy)")
+        self.rdp_grab_mouse = Gtk.CheckButton(label=tr("Cattura mouse (solo backend legacy)"))
         self.rdp_grab_mouse.set_active(sess.rdp_grab_mouse)
-        self.rdp_auto_reconnect = Gtk.CheckButton(label="Auto reconnect")
+        self.rdp_auto_reconnect = Gtk.CheckButton(label=tr("Auto reconnect"))
         self.rdp_auto_reconnect.set_active(sess.rdp_auto_reconnect)
-        self.rdp_cert_ignore = Gtk.CheckButton(label="Ignora certificato non attendibile")
+        self.rdp_cert_ignore = Gtk.CheckButton(label=tr("Ignora certificato non attendibile"))
         self.rdp_cert_ignore.set_active(sess.rdp_cert_ignore)
-        self.rdp_admin = Gtk.CheckButton(label="Console /admin")
+        self.rdp_admin = Gtk.CheckButton(label=tr("Console /admin"))
         self.rdp_admin.set_active(sess.rdp_admin)
-        self.rdp_gfx = Gtk.CheckButton(label="Pipeline GFX (consigliata per finestra indipendente)")
+        self.rdp_gfx = Gtk.CheckButton(label=tr("Pipeline GFX (consigliata per finestra indipendente)"))
         self.rdp_gfx.set_active(sess.rdp_gfx)
-        self.rdp_compression = Gtk.CheckButton(label="Compressione")
+        self.rdp_compression = Gtk.CheckButton(label=tr("Compressione"))
         self.rdp_compression.set_active(sess.rdp_compression)
-        self.rdp_password_stdin = Gtk.CheckButton(label="Trasporto password protetto")
+        self.rdp_password_stdin = Gtk.CheckButton(label=tr("Trasporto password protetto"))
         self.rdp_password_stdin.set_active(sess.rdp_password_stdin)
         for i, widget in enumerate([
             self.rdp_grab_keyboard, self.rdp_grab_mouse, self.rdp_auto_reconnect,
@@ -6306,9 +6332,9 @@ class SessionDialog(Gtk.Dialog):
             self.rdp_compression, self.rdp_password_stdin,
         ]):
             adv_opts.attach(widget, i % 2, i // 2, 1, 1)
-        advanced.attach(Gtk.Label(label="Comportamento", xalign=0), 0, 4, 1, 1)
+        advanced.attach(Gtk.Label(label=tr("Comportamento"), xalign=0), 0, 4, 1, 1)
         advanced.attach(adv_opts, 1, 4, 1, 1)
-        rdp_book.append_page(advanced, Gtk.Label(label="Avanzate"))
+        rdp_book.append_page(advanced, Gtk.Label(label=tr("Avanzate")))
 
         def apply_rdp_backend_controls(_widget=None) -> None:
             native = (self.rdp_mode.get_active_id() or "native") == "native"
@@ -6324,20 +6350,20 @@ class SessionDialog(Gtk.Dialog):
             if native and not detached:
                 self.rdp_password_stdin.set_active(True)
                 self.rdp_password_stdin.set_tooltip_text(
-                    "Nel backend integrato la password passa sempre attraverso un memfd anonimo sigillato."
+                    tr("Nel backend integrato la password passa sempre attraverso un memfd anonimo sigillato.")
                 )
                 self.rdp_start_fullscreen.set_tooltip_text(
-                    "Avvia questa sessione RDP in modalità immersiva dentro FedTermHub."
+                    tr("Avvia questa sessione RDP in modalità immersiva dentro FedTermHub.")
                 )
             else:
                 if detached and not self.rdp_gfx.get_active():
                     self.rdp_gfx.set_active(True)
                 self.rdp_password_stdin.set_active(True)
                 self.rdp_password_stdin.set_tooltip_text(
-                    "La finestra indipendente usa /args-from:fd per non esporre la password nei processi."
+                    tr("La finestra indipendente usa /args-from:fd per non esporre la password nei processi.")
                 )
                 self.rdp_start_fullscreen.set_tooltip_text(
-                    "Avvia xfreerdp fullscreen sul monitor selezionato lasciando FedTermHub disponibile."
+                    tr("Avvia xfreerdp fullscreen sul monitor selezionato lasciando FedTermHub disponibile.")
                 )
 
         self.rdp_mode.connect("changed", apply_rdp_backend_controls)
@@ -6348,31 +6374,31 @@ class SessionDialog(Gtk.Dialog):
         self.stack.add_named(page, "rdp")
 
         # VNC
-        page, grid = self.protocol_page("VNC", "Connessione VNC tramite TigerVNC viewer.")
-        self.vnc_host = self.labeled_entry(grid, 0, "Host/IP", sess.host, "es. 192.168.1.30")
-        self.vnc_port = self.labeled_entry(grid, 1, "Display/porta", sess.port, "display 1 oppure porta 5901")
-        self.vnc_options = self.labeled_entry(grid, 2, "Opzioni VNC extra", sess.command, "opzionale")
+        page, grid = self.protocol_page("VNC", tr("Connessione VNC tramite TigerVNC viewer."))
+        self.vnc_host = self.labeled_entry(grid, 0, tr("Host/IP"), sess.host, tr("es. 192.168.1.30"))
+        self.vnc_port = self.labeled_entry(grid, 1, tr("Display/porta"), sess.port, tr("display 1 oppure porta 5901"))
+        self.vnc_options = self.labeled_entry(grid, 2, tr("Opzioni VNC extra"), sess.command, "opzionale")
         self.stack.add_named(page, "vnc")
 
         # SFTP
-        page, grid = self.protocol_page("SFTP", "Sessione SFTP interattiva dentro una tab terminale.")
-        self.sftp_host = self.labeled_entry(grid, 0, "Host/IP", sess.host, "server SFTP")
-        self.sftp_port = self.labeled_entry(grid, 1, "Porta", sess.port or "22", "22")
-        self.sftp_user = self.labeled_entry(grid, 2, "Utente", sess.user, "utente SFTP")
+        page, grid = self.protocol_page("SFTP", tr("Sessione SFTP interattiva dentro una tab terminale."))
+        self.sftp_host = self.labeled_entry(grid, 0, tr("Host/IP"), sess.host, tr("server SFTP"))
+        self.sftp_port = self.labeled_entry(grid, 1, tr("Porta"), sess.port or "22", "22")
+        self.sftp_user = self.labeled_entry(grid, 2, tr("Utente"), sess.user, tr("utente SFTP"))
         self.stack.add_named(page, "sftp")
 
         # Telnet
         page, grid = self.protocol_page(
-            "Telnet",
-            "Console Telnet in una scheda: apparati di rete, stampanti, UPS e vecchi server. "
-            "Il traffico non è cifrato: usalo solo in reti fidate.",
+            tr("Telnet"),
+            tr("Console Telnet in una scheda: apparati di rete, stampanti, UPS e vecchi server. "
+            "Il traffico non è cifrato: usalo solo in reti fidate."),
         )
-        self.telnet_host = self.labeled_entry(grid, 0, "Host/IP", sess.host, "es. 192.168.1.1")
-        self.telnet_port = self.labeled_entry(grid, 1, "Porta", (sess.port if sess.protocol == "telnet" else "") or "23", "23")
+        self.telnet_host = self.labeled_entry(grid, 0, tr("Host/IP"), sess.host, tr("es. 192.168.1.1"))
+        self.telnet_port = self.labeled_entry(grid, 1, tr("Porta"), (sess.port if sess.protocol == "telnet" else "") or "23", "23")
         self.stack.add_named(page, "telnet")
 
         # Seriale
-        page, grid = self.protocol_page("Seriale", "Console seriale integrata, utile per switch, firewall, router e apparati industriali.")
+        page, grid = self.protocol_page(tr("Seriale"), tr("Console seriale integrata, utile per switch, firewall, router e apparati industriali."))
         self.serial_device = Gtk.ComboBoxText.new_with_entry()
         self.serial_device.set_hexpand(True)
         self.refresh_serial_combo(sess.host or "/dev/ttyUSB0")
@@ -6386,38 +6412,38 @@ class SessionDialog(Gtk.Dialog):
             self.serial_databits.append(item, item)
         self.serial_databits.set_active_id(sess.serial_databits if sess.serial_databits in ["8", "7", "6", "5"] else "8")
         self.serial_parity = Gtk.ComboBoxText()
-        for item, label in [("N", "N - nessuna"), ("E", "E - pari"), ("O", "O - dispari"), ("M", "M - mark"), ("S", "S - space")]:
+        for item, label in [("N", tr("N - nessuna")), ("E", tr("E - pari")), ("O", tr("O - dispari")), ("M", tr("M - mark")), ("S", tr("S - space"))]:
             self.serial_parity.append(item, label)
         self.serial_parity.set_active_id(sess.serial_parity if sess.serial_parity in ["N", "E", "O", "M", "S"] else "N")
         self.serial_stopbits = Gtk.ComboBoxText()
         for item in ["1", "1.5", "2"]:
             self.serial_stopbits.append(item, item)
         self.serial_stopbits.set_active_id(sess.serial_stopbits if sess.serial_stopbits in ["1", "1.5", "2"] else "1")
-        btn_refresh = Gtk.Button.new_with_mnemonic("Aggiorna _porte")
+        btn_refresh = Gtk.Button.new_with_mnemonic(tr("Aggiorna _porte"))
         btn_refresh.connect("clicked", lambda _b: self.refresh_serial_combo(get_combo_text(self.serial_device, sess.host or "/dev/ttyUSB0")))
-        grid.attach(Gtk.Label(label="Porta seriale", xalign=0), 0, 0, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Porta seriale"), xalign=0), 0, 0, 1, 1)
         grid.attach(self.serial_device, 1, 0, 1, 1)
         grid.attach(btn_refresh, 2, 0, 1, 1)
-        grid.attach(Gtk.Label(label="Baud rate", xalign=0), 0, 1, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Baud rate"), xalign=0), 0, 1, 1, 1)
         grid.attach(self.serial_baud, 1, 1, 1, 1)
-        grid.attach(Gtk.Label(label="Data bits", xalign=0), 0, 2, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Data bits"), xalign=0), 0, 2, 1, 1)
         grid.attach(self.serial_databits, 1, 2, 1, 1)
-        grid.attach(Gtk.Label(label="Parità", xalign=0), 0, 3, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Parità"), xalign=0), 0, 3, 1, 1)
         grid.attach(self.serial_parity, 1, 3, 1, 1)
-        grid.attach(Gtk.Label(label="Stop bits", xalign=0), 0, 4, 1, 1)
+        grid.attach(Gtk.Label(label=tr("Stop bits"), xalign=0), 0, 4, 1, 1)
         grid.attach(self.serial_stopbits, 1, 4, 1, 1)
         self.stack.add_named(page, "serial")
 
         # Locale
-        page, grid = self.protocol_page("Terminale locale", "Apre la shell locale predefinita dentro una nuova tab.")
-        local_info = Gtk.Label(label="Nessun host, utente o password richiesti. Usa questa sessione come terminale Fedora locale.", xalign=0)
+        page, grid = self.protocol_page(tr("Terminale locale"), tr("Apre la shell locale predefinita dentro una nuova tab."))
+        local_info = Gtk.Label(label=tr("Nessun host, utente o password richiesti. Usa questa sessione come terminale Fedora locale."), xalign=0)
         local_info.set_line_wrap(True)
         grid.attach(local_info, 0, 0, 2, 1)
         self.stack.add_named(page, "local")
 
         # Command
-        page, grid = self.protocol_page("Comando", "Esegue un comando locale dentro una tab terminale.")
-        self.command_cmd = self.labeled_entry(grid, 0, "Comando locale", sess.command, "es. ping 8.8.8.8 oppure journalctl -f")
+        page, grid = self.protocol_page(tr("Comando"), tr("Esegue un comando locale dentro una tab terminale."))
+        self.command_cmd = self.labeled_entry(grid, 0, tr("Comando locale"), sess.command, tr("es. ping 8.8.8.8 oppure journalctl -f"))
         self.stack.add_named(page, "command")
 
     def refresh_rdp_monitor_combo(self, requested: Optional[str] = None) -> None:
@@ -6426,8 +6452,8 @@ class SessionDialog(Gtk.Dialog):
             return
         selected = requested or self.rdp_monitor.get_active_id() or "current"
         self.rdp_monitor.remove_all()
-        self.rdp_monitor.append("current", "Automatico — monitor corrente di FedTermHub")
-        self.rdp_monitor.append("primary", "Monitor principale")
+        self.rdp_monitor.append("current", tr("Automatico — monitor corrente di FedTermHub"))
+        self.rdp_monitor.append("primary", tr("Monitor principale"))
         descriptors = enumerate_monitors()
         known = {"current", "primary"}
         for descriptor in descriptors:
@@ -6435,17 +6461,17 @@ class SessionDialog(Gtk.Dialog):
             known.add(descriptor.selector)
         if selected not in known and selected.startswith("monitor:"):
             self.rdp_monitor.append(
-                selected, "Monitor salvato — non collegato in questo momento"
+                selected, tr("Monitor salvato — non collegato in questo momento")
             )
         if not self.rdp_monitor.set_active_id(selected):
             self.rdp_monitor.set_active_id("current")
         if not descriptors:
             self.rdp_monitor.set_tooltip_text(
-                "Nessun monitor enumerato: verrà usato il monitor corrente al momento dell'apertura."
+                tr("Nessun monitor enumerato: verrà usato il monitor corrente al momento dell'apertura.")
             )
         else:
             self.rdp_monitor.set_tooltip_text(
-                f"Monitor rilevati: {len(descriptors)}. La scelta viene verificata di nuovo all'apertura."
+                tr("Monitor rilevati: {n_descriptors}. La scelta viene verificata di nuovo all'apertura.").format(n_descriptors=len(descriptors))
             )
 
     def on_rdp_test_clicked(self, _button: Gtk.Button) -> None:
@@ -6460,11 +6486,11 @@ class SessionDialog(Gtk.Dialog):
         )
         if not host or not port_text.isdigit():
             self.rdp_test_status.set_text(
-                "Inserisci gateway e porta validi" if use_gateway else "Inserisci host e porta validi"
+                tr("Inserisci gateway e porta validi") if use_gateway else tr("Inserisci host e porta validi")
             )
             return
         self.rdp_test_status.set_text(
-            "Verifica RD Gateway in corso…" if use_gateway else "Verifica in corso…"
+            tr("Verifica RD Gateway in corso…") if use_gateway else tr("Verifica in corso…")
         )
 
         def worker() -> None:
@@ -6472,9 +6498,9 @@ class SessionDialog(Gtk.Dialog):
                 started = time.monotonic()
                 with net_socket.create_connection((host, int(port_text)), timeout=3.5):
                     elapsed = int((time.monotonic() - started) * 1000)
-                GLib.idle_add(self.rdp_test_status.set_text, f"✓ Porta raggiungibile ({elapsed} ms)")
+                GLib.idle_add(self.rdp_test_status.set_text, tr("✓ Porta raggiungibile ({elapsed} ms)").format(elapsed=elapsed))
             except Exception as exc:
-                GLib.idle_add(self.rdp_test_status.set_text, f"✕ Non raggiungibile: {exc}")
+                GLib.idle_add(self.rdp_test_status.set_text, tr("✕ Non raggiungibile: {exc}").format(exc=exc))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -6498,20 +6524,20 @@ class SessionDialog(Gtk.Dialog):
         if proto in {"ssh", "rdp", "vnc", "sftp"}:
             self.refresh_routing_modes(proto)
         help_by_proto = {
-            "ssh": "SSH: host, porta e utente. La password può arrivare dal Password Manager tramite sshpass, oppure puoi usare chiave SSH.",
-            "rdp": "RDP nativo: PC/IP, utente, dominio e password. Il desktop viene disegnato direttamente da libfreerdp in GTK; la password può essere salvata nel Password Manager.",
-            "vnc": "VNC: TigerVNC normalmente richiede la password nella sua finestra; il Password Manager resta utile per ricordarla.",
-            "sftp": "SFTP: apre il client sftp nel terminale. Password automatica solo se sshpass è disponibile.",
-            "telnet": "Telnet: login e password si scrivono nel terminale, il collegamento non è cifrato. Ctrl+] e poi quit per uscire.",
-            "serial": "Seriale: scegli una porta rilevata oppure scrivila manualmente. Se non hai permessi, aggiungi l'utente al gruppo dialout/uucp a seconda della distro.",
-            "local": "Terminale locale: apre la shell predefinita di Fedora.",
-            "command": "Comando: utile per scorciatoie come ping, tail, journalctl o script ricorrenti.",
+            "ssh": tr("SSH: host, porta e utente. La password può arrivare dal Password Manager tramite sshpass, oppure puoi usare chiave SSH."),
+            "rdp": tr("RDP nativo: PC/IP, utente, dominio e password. Il desktop viene disegnato direttamente da libfreerdp in GTK; la password può essere salvata nel Password Manager."),
+            "vnc": tr("VNC: TigerVNC normalmente richiede la password nella sua finestra; il Password Manager resta utile per ricordarla."),
+            "sftp": tr("SFTP: apre il client sftp nel terminale. Password automatica solo se sshpass è disponibile."),
+            "telnet": tr("Telnet: login e password si scrivono nel terminale, il collegamento non è cifrato. Ctrl+] e poi quit per uscire."),
+            "serial": tr("Seriale: scegli una porta rilevata oppure scrivila manualmente. Se non hai permessi, aggiungi l'utente al gruppo dialout/uucp a seconda della distro."),
+            "local": tr("Terminale locale: apre la shell predefinita di Fedora."),
+            "command": tr("Comando: utile per scorciatoie come ping, tail, journalctl o script ricorrenti."),
         }
         self.help_text.set_text(help_by_proto.get(proto, ""))
 
     def get_session(self) -> Session:
         proto = self.protocol.get_active_id() or "ssh"
-        name = self.name.get_text().strip() or "Senza nome"
+        name = self.name.get_text().strip() or tr("Senza nome")
         credential_id = self.credential.get_active_id() or ""
         notes = self.notes.get_text().strip()
         use_password = self.use_credential_password.get_active()
@@ -6633,7 +6659,7 @@ class SessionDialog(Gtk.Dialog):
             flags=0,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.OK,
-            text="La sessione non è completa",
+            text=tr("La sessione non è completa"),
         )
         message.format_secondary_text(problem[:1].upper() + problem[1:] + ".")
         message.run()
@@ -6685,7 +6711,7 @@ class CommandPalette(Gtk.Window):
         self._items: List[Tuple[Session, str, str]] = []
         try:
             for _path, sess, folder in app_window.store.iter_sessions():
-                primary = sess.name or sess.host or "Sessione"
+                primary = sess.name or sess.host or tr("Sessione")
                 bits = []
                 if sess.protocol:
                     bits.append(sess.protocol.upper())
@@ -6705,7 +6731,7 @@ class CommandPalette(Gtk.Window):
         self.add(outer)
 
         self.entry = Gtk.SearchEntry()
-        self.entry.set_placeholder_text("Cerca una sessione e premi Invio per connetterti…")
+        self.entry.set_placeholder_text(tr("Cerca una sessione e premi Invio per connetterti…"))
         self.entry.get_style_context().add_class("command-palette-entry")
         self.entry.connect("search-changed", lambda *_: self._refilter())
         self.entry.connect("activate", lambda *_: self._activate_selected())
@@ -6733,7 +6759,7 @@ class CommandPalette(Gtk.Window):
         outer.pack_start(scroller, True, True, 0)
 
         hint = Gtk.Label(xalign=0)
-        hint.set_markup("<small>↑↓ per scorrere · Invio connette · Esc chiude</small>")
+        hint.set_markup(tr("<small>↑↓ per scorrere · Invio connette · Esc chiude</small>"))
         hint.get_style_context().add_class("command-palette-hint")
         outer.pack_start(hint, False, False, 0)
 
@@ -6773,7 +6799,7 @@ class CommandPalette(Gtk.Window):
             safe_secondary = GLib.markup_escape_text(secondary)
             markup = f"<b>{safe_primary}</b>"
             if safe_secondary:
-                markup += f"\n<small>{safe_secondary}</small>"
+                markup += tr("\n<small>{safe_secondary}</small>").format(safe_secondary=safe_secondary)
             self.model.append([icon, markup, secondary, sess])
         if len(self.model) > 0:
             self.view.get_selection().select_path(Gtk.TreePath.new_first())
@@ -6842,7 +6868,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
     }
 
     def __init__(self, parent: Gtk.Window, target: "DiagnosticTarget", timeout: float = 4.0) -> None:
-        super().__init__(title="Diagnostica connessione", transient_for=parent, modal=False)
+        super().__init__(title=tr("Diagnostica connessione"), transient_for=parent, modal=False)
         self.set_default_size(720, 520)
         self.set_resizable(True)
         self.get_style_context().add_class("connection-diagnostics-dialog")
@@ -6852,7 +6878,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         self._closed = False
         self._running = False
 
-        self.add_button("Chiudi", Gtk.ResponseType.CLOSE)
+        self.add_button(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         self.connect("response", lambda dialog, _response: dialog.destroy())
         self.connect("destroy", self._on_destroy)
 
@@ -6861,7 +6887,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         content.set_border_width(16)
 
         header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        heading = Gtk.Label(label="Diagnostica della connessione", xalign=0)
+        heading = Gtk.Label(label=tr("Diagnostica della connessione"), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
         target_label = Gtk.Label(
             label=f"{target.name}  •  {target.protocol.upper()}  •  {target.endpoint}",
@@ -6876,7 +6902,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         self.progress_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         self.progress_box.get_style_context().add_class("diagnostic-progress")
         self.spinner = Gtk.Spinner()
-        self.progress_label = Gtk.Label(label="Controllo DNS, route, VPN e porta TCP…", xalign=0)
+        self.progress_label = Gtk.Label(label=tr("Controllo DNS, route, VPN e porta TCP…"), xalign=0)
         self.progress_box.pack_start(self.spinner, False, False, 0)
         self.progress_box.pack_start(self.progress_label, True, True, 0)
         content.pack_start(self.progress_box, False, False, 0)
@@ -6902,16 +6928,16 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         content.pack_start(scroller, True, True, 0)
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self.retry_button = Gtk.Button.new_with_mnemonic("_Ripeti controllo")
+        self.retry_button = Gtk.Button.new_with_mnemonic(tr("_Ripeti controllo"))
         self.retry_button.set_image(Gtk.Image.new_from_icon_name("view-refresh-symbolic", Gtk.IconSize.BUTTON))
         self.retry_button.set_always_show_image(True)
         self.retry_button.connect("clicked", lambda *_: self.start())
-        self.copy_button = Gtk.Button.new_with_mnemonic("_Copia report")
+        self.copy_button = Gtk.Button.new_with_mnemonic(tr("_Copia report"))
         self.copy_button.set_image(Gtk.Image.new_from_icon_name("edit-copy-symbolic", Gtk.IconSize.BUTTON))
         self.copy_button.set_always_show_image(True)
         self.copy_button.set_sensitive(False)
         self.copy_button.connect("clicked", self._copy_report)
-        self.export_button = Gtk.Button.new_with_mnemonic("_Esporta…")
+        self.export_button = Gtk.Button.new_with_mnemonic(tr("_Esporta…"))
         self.export_button.set_image(Gtk.Image.new_from_icon_name("document-save-symbolic", Gtk.IconSize.BUTTON))
         self.export_button.set_always_show_image(True)
         self.export_button.set_sensitive(False)
@@ -6936,14 +6962,14 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         if self._closed or self._running:
             return False
         if run_connection_diagnostics is None:
-            self._show_internal_error("Modulo diagnostico non disponibile.")
+            self._show_internal_error(tr("Modulo diagnostico non disponibile."))
             return False
         self._running = True
         self.report = None
         self._clear_results()
         self.summary_box.hide()
         self.progress_box.show_all()
-        self.progress_label.set_text("Controllo DNS, route, VPN e porta TCP…")
+        self.progress_label.set_text(tr("Controllo DNS, route, VPN e porta TCP…"))
         self.spinner.start()
         self.retry_button.set_sensitive(False)
         self.copy_button.set_sensitive(False)
@@ -6979,7 +7005,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         text_box.pack_start(title, False, False, 0)
         text_box.pack_start(summary, False, False, 0)
         if step.details:
-            expander = Gtk.Expander(label="Dettagli")
+            expander = Gtk.Expander(label=tr("Dettagli"))
             details = Gtk.Label(label=step.details, xalign=0)
             details.set_line_wrap(True)
             details.set_selectable(True)
@@ -7023,7 +7049,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         self.progress_box.hide()
         self._clear_results()
         self.summary_icon.set_from_icon_name("dialog-error-symbolic", Gtk.IconSize.DIALOG)
-        self.summary_text.set_text("Diagnostica non completata: " + message)
+        self.summary_text.set_text(tr("Diagnostica non completata: ") + message)
         self.summary_box.get_style_context().add_class("diagnostic-error")
         self.summary_box.show_all()
         self.retry_button.set_sensitive(True)
@@ -7034,7 +7060,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
             return
         clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         clipboard.set_text(self.report.to_text(), -1)
-        self.progress_label.set_text("Rapporto copiato negli appunti.")
+        self.progress_label.set_text(tr("Rapporto copiato negli appunti."))
         self.progress_box.show_all()
         self.spinner.stop()
         GLib.timeout_add(2200, lambda: (self.progress_box.hide(), False)[1])
@@ -7043,13 +7069,13 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
         if not self.report:
             return
         chooser = Gtk.FileChooserDialog(
-            title="Esporta diagnostica connessione",
+            title=tr("Esporta diagnostica connessione"),
             transient_for=self,
             action=Gtk.FileChooserAction.SAVE,
         )
         chooser.add_buttons(
-            "_Annulla", Gtk.ResponseType.CANCEL,
-            "_Salva", Gtk.ResponseType.OK,
+            tr("_Annulla"), Gtk.ResponseType.CANCEL,
+            tr("_Salva"), Gtk.ResponseType.OK,
         )
         safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", self.target.name).strip("-") or "sessione"
         chooser.set_current_name(f"fedtermhub-diagnostica-{safe_name}.txt")
@@ -7062,7 +7088,7 @@ class ConnectionDiagnosticsDialog(Gtk.Dialog):
                 transient_for=self,
                 message_type=Gtk.MessageType.ERROR,
                 buttons=Gtk.ButtonsType.CLOSE,
-                text="Esportazione non riuscita",
+                text=tr("Esportazione non riuscita"),
             )
             error.format_secondary_text(str(exc))
             try:
@@ -7104,11 +7130,11 @@ class SessionErrorTab(Gtk.Box):
 
         body = ""
         if command:
-            body += "Comando eseguito:\n" + command + "\n\n"
+            body += tr("Comando eseguito:\n") + command + "\n\n"
         if details:
-            body += "Dettagli tecnici:\n" + details.strip() + "\n"
+            body += tr("Dettagli tecnici:\n") + details.strip() + "\n"
         if not body:
-            body = "Nessun dettaglio tecnico disponibile. Controlla anche ~/.cache/fedtermhub/fedtermhub.log"
+            body = tr("Nessun dettaglio tecnico disponibile. Controlla anche ~/.cache/fedtermhub/fedtermhub.log")
 
         view = Gtk.TextView()
         view.set_editable(False)
@@ -7124,12 +7150,12 @@ class SessionErrorTab(Gtk.Box):
         if diagnostic_callback is not None:
             actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             actions.get_style_context().add_class("session-error-actions")
-            diagnostic_button = Gtk.Button.new_with_mnemonic("_Diagnostica connessione")
+            diagnostic_button = Gtk.Button.new_with_mnemonic(tr("_Diagnostica connessione"))
             diagnostic_button.set_image(
                 Gtk.Image.new_from_icon_name("network-transmit-receive-symbolic", Gtk.IconSize.BUTTON)
             )
             diagnostic_button.set_always_show_image(True)
-            diagnostic_button.set_tooltip_text("Controlla DNS, route, VPN e porta senza usare le credenziali")
+            diagnostic_button.set_tooltip_text(tr("Controlla DNS, route, VPN e porta senza usare le credenziali"))
             diagnostic_button.connect("clicked", lambda *_: diagnostic_callback())
             actions.pack_start(diagnostic_button, False, False, 0)
             self.pack_start(actions, False, False, 0)
@@ -7152,7 +7178,7 @@ class SplitTerminalTab(TerminalTab):
             else (os.environ.get("SHELL") or shutil.which("bash") or "/bin/sh")
         )
         cwd = preferences.terminal_start_directory.strip() or None
-        super().__init__("Split", [shell], cwd=cwd, theme=theme, settings=preferences)
+        super().__init__(tr("Split"), [shell], cwd=cwd, theme=theme, settings=preferences)
         # Divisione iniziale affiancata, una volta che il workspace è pronto.
         GLib.idle_add(lambda: (self.split(Gtk.Orientation.HORIZONTAL), False)[1])
 
@@ -7195,7 +7221,7 @@ class RdpTab(Gtk.Box):
         self.embedded = embedded
         self.stdin_secret = stdin_secret
         self.use_args_fd = bool(use_args_fd and stdin_secret is not None)
-        self.credential_transport = "args-from memfd" if self.use_args_fd else ("legacy argv" if stdin_secret is not None else "non necessario")
+        self.credential_transport = tr("args-from memfd") if self.use_args_fd else (tr("legacy argv") if stdin_secret is not None else tr("non necessario"))
         self.error_callback = error_callback
         self.state_callback = state_callback
 
@@ -7203,8 +7229,8 @@ class RdpTab(Gtk.Box):
         self.socket: Optional[Gtk.Widget] = None
         self.socket_xid = 0
         self.client_window_xid = 0
-        self.embed_method = "non collegato"
-        self.embed_token = f"FedTermHub-RDP-{uuid.uuid4().hex[:12]}"
+        self.embed_method = tr("non collegato")
+        self.embed_token = tr("FedTermHub-RDP-{v}").format(v=uuid.uuid4().hex[:12])
         self.keyboard_active = False
         self.log_lines: List[str] = []
         self.last_error_notified = False
@@ -7251,18 +7277,18 @@ class RdpTab(Gtk.Box):
         self.spinner.start()
         header.pack_start(self.spinner, False, False, 0)
 
-        self.state = Gtk.Label(label="Preparazione area RDP…", xalign=0)
+        self.state = Gtk.Label(label=tr("Preparazione area RDP…"), xalign=0)
         self.state.get_style_context().add_class("workspace-hint")
         header.pack_start(self.state, True, True, 0)
 
         actions = [
-            ("Attiva tastiera", "input-keyboard-symbolic", self.on_focus_clicked),
-            ("Aggiorna schermo", "view-refresh-symbolic", self.on_redraw_clicked),
-            ("Recupera finestra", "view-restore-symbolic", self.on_recover_clicked),
-            ("Riconnetti", "system-reboot-symbolic", self.on_restart_clicked),
-            ("Ferma", "media-playback-stop-symbolic", self.on_stop_clicked),
-            ("Diagnostica", "dialog-information-symbolic", self.on_diagnostics_clicked),
-            ("Esporta log", "document-save-symbolic", self.on_export_log_clicked),
+            (tr("Attiva tastiera"), "input-keyboard-symbolic", self.on_focus_clicked),
+            (tr("Aggiorna schermo"), "view-refresh-symbolic", self.on_redraw_clicked),
+            (tr("Recupera finestra"), "view-restore-symbolic", self.on_recover_clicked),
+            (tr("Riconnetti"), "system-reboot-symbolic", self.on_restart_clicked),
+            (tr("Ferma"), "media-playback-stop-symbolic", self.on_stop_clicked),
+            (tr("Diagnostica"), "dialog-information-symbolic", self.on_diagnostics_clicked),
+            (tr("Esporta log"), "document-save-symbolic", self.on_export_log_clicked),
         ]
         for label, icon, callback in actions:
             button = Gtk.Button()
@@ -7278,10 +7304,10 @@ class RdpTab(Gtk.Box):
 
         self.log_toggle = Gtk.ToggleButton()
         self.log_toggle.set_relief(Gtk.ReliefStyle.NONE)
-        self.log_toggle.set_tooltip_text("Mostra o nascondi il log interno")
+        self.log_toggle.set_tooltip_text(tr("Mostra o nascondi il log interno"))
         log_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         log_box.pack_start(Gtk.Image.new_from_icon_name("text-x-generic-symbolic", Gtk.IconSize.MENU), False, False, 0)
-        self.log_toggle_label = Gtk.Label(label="Log")
+        self.log_toggle_label = Gtk.Label(label=tr("Log"))
         log_box.pack_start(self.log_toggle_label, False, False, 0)
         self.log_toggle.add(log_box)
         self.log_toggle.get_style_context().add_class("mini-action")
@@ -7307,19 +7333,19 @@ class RdpTab(Gtk.Box):
         self.status_card.set_valign(Gtk.Align.CENTER)
         self.status_card.set_size_request(360, -1)
         self.status_card.get_style_context().add_class("rdp-status-card")
-        self.status_title = Gtk.Label(label="Preparazione desktop remoto")
+        self.status_title = Gtk.Label(label=tr("Preparazione desktop remoto"))
         self.status_title.get_style_context().add_class("panel-title")
-        self.status_message = Gtk.Label(label="Attendo che l’area grafica sia pronta…")
+        self.status_message = Gtk.Label(label=tr("Attendo che l’area grafica sia pronta…"))
         self.status_message.set_line_wrap(True)
         self.status_message.set_justify(Gtk.Justification.CENTER)
         self.status_card.pack_start(self.status_title, False, False, 0)
         self.status_card.pack_start(self.status_message, False, False, 0)
         self.status_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.status_actions.set_halign(Gtk.Align.CENTER)
-        self.compat_retry_button = Gtk.Button.new_with_mnemonic("Riprova modalità _compatibile")
+        self.compat_retry_button = Gtk.Button.new_with_mnemonic(tr("Riprova modalità _compatibile"))
         self.compat_retry_button.get_style_context().add_class("suggested-action")
         self.compat_retry_button.connect("clicked", self.on_compat_retry_clicked)
-        self.admin_retry_button = Gtk.Button.new_with_mnemonic("Riprova sessione _amministrativa")
+        self.admin_retry_button = Gtk.Button.new_with_mnemonic(tr("Riprova sessione _amministrativa"))
         self.admin_retry_button.connect("clicked", self.on_admin_retry_clicked)
         self.status_actions.pack_start(self.compat_retry_button, False, False, 0)
         self.status_actions.pack_start(self.admin_retry_button, False, False, 0)
@@ -7363,19 +7389,19 @@ class RdpTab(Gtk.Box):
             hint_box.set_valign(Gtk.Align.START)
             hint_box.get_style_context().add_class("rdp-focus-hint")
             hint_box.pack_start(Gtk.Image.new_from_icon_name("input-keyboard-symbolic", Gtk.IconSize.MENU), False, False, 0)
-            hint_box.pack_start(Gtk.Label(label="Clicca nel desktop remoto per attivare la tastiera"), False, False, 0)
+            hint_box.pack_start(Gtk.Label(label=tr("Clicca nel desktop remoto per attivare la tastiera")), False, False, 0)
             self.focus_hint.add(hint_box)
             self.focus_hint.set_reveal_child(False)
             self.overlay.add_overlay(self.focus_hint)
         else:
             placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin=24)
             placeholder.get_style_context().add_class("empty-state")
-            title_lbl = Gtk.Label(label="RDP integrato non disponibile", xalign=0)
+            title_lbl = Gtk.Label(label=tr("RDP integrato non disponibile"), xalign=0)
             title_lbl.get_style_context().add_class("panel-title")
             msg = Gtk.Label(
                 label=(
-                    "Per incorporare FreeRDP servono il client X11 xfreerdp e XWayland.\n\n"
-                    "Avvia FedTermHub con GDK_BACKEND=x11 e verifica il risultato di fedtermhub --doctor."
+                    tr("Per incorporare FreeRDP servono il client X11 xfreerdp e XWayland.\n\n"
+                    "Avvia FedTermHub con GDK_BACKEND=x11 e verifica il risultato di fedtermhub --doctor.")
                 ),
                 xalign=0,
             )
@@ -7384,8 +7410,8 @@ class RdpTab(Gtk.Box):
             placeholder.pack_start(title_lbl, False, False, 0)
             placeholder.pack_start(msg, False, False, 0)
             self.overlay.add(placeholder)
-            self._set_state("error", "RDP integrato non disponibile")
-            self._show_status("RDP integrato non disponibile", "Gtk.Socket/XEmbed non è disponibile.", error=True)
+            self._set_state("error", tr("RDP integrato non disponibile"))
+            self._show_status(tr("RDP integrato non disponibile"), tr("Gtk.Socket/XEmbed non è disponibile."), error=True)
 
         self.log_view = Gtk.TextView()
         self.log_view.set_editable(False)
@@ -7412,7 +7438,7 @@ class RdpTab(Gtk.Box):
         self.log_revealer.set_reveal_child(False)
         self.workspace.pack_end(self.log_revealer, False, True, 0)
 
-        self.append_log("Comando RDP: " + masked_command + "\n")
+        self.append_log(tr("Comando RDP: ") + masked_command + "\n")
         self.connect("map", self.on_tab_mapped)
         self.connect("destroy", self.on_destroyed)
 
@@ -7496,8 +7522,8 @@ class RdpTab(Gtk.Box):
             return False
         self._launch_requested = True
         self._start_attempts = 0
-        self._set_state("pending", "Preparazione connessione RDP…")
-        self._show_status("Connessione RDP", "Preparazione dell’area grafica interna…")
+        self._set_state("pending", tr("Preparazione connessione RDP…"))
+        self._show_status(tr("Connessione RDP"), tr("Preparazione dell’area grafica interna…"))
         self._schedule_start()
         return False
 
@@ -7519,14 +7545,14 @@ class RdpTab(Gtk.Box):
             self._launch_requested = False
             return False
         if self.socket is None:
-            self._fail_start("Gtk.Socket non disponibile", "Il backend grafico non supporta XEmbed.")
+            self._fail_start(tr("Gtk.Socket non disponibile"), tr("Il backend grafico non supporta XEmbed."))
             return False
 
         # Una tab non visibile può non avere ancora un XID. Restiamo in attesa
         # degli eventi map/realize anziché far scadere un timeout e poi partire
         # quando l'utente apre la scheda.
         if not self.get_mapped() or not self.socket.get_mapped():
-            self._set_state("pending", "In attesa che la scheda RDP sia visibile…")
+            self._set_state("pending", tr("In attesa che la scheda RDP sia visibile…"))
             return False
 
         self._start_attempts += 1
@@ -7540,9 +7566,9 @@ class RdpTab(Gtk.Box):
         if not ready:
             if self._start_attempts >= self.START_MAX_RETRIES:
                 self._fail_start(
-                    "Area RDP non pronta",
-                    "Il contenitore X11 è visibile ma non ha ottenuto un XID valido. "
-                    "Verifica XWayland oppure esegui fedtermhub --doctor.",
+                    tr("Area RDP non pronta"),
+                    tr("Il contenitore X11 è visibile ma non ha ottenuto un XID valido. "
+                    "Verifica XWayland oppure esegui fedtermhub --doctor."),
                 )
                 return False
             self._schedule_start(self.START_RETRY_MS)
@@ -7559,9 +7585,9 @@ class RdpTab(Gtk.Box):
         interattivo /from-stdin, che in varie release 3.x ha avuto regressioni.
         """
         if not hasattr(os, "memfd_create"):
-            raise RuntimeError("Il kernel/Python non espone os.memfd_create")
+            raise RuntimeError(tr("Il kernel/Python non espone os.memfd_create"))
         if "\n" in password or "\r" in password:
-            raise ValueError("La password contiene un ritorno a capo non supportato da FreeRDP")
+            raise ValueError(tr("La password contiene un ritorno a capo non supportato da FreeRDP"))
         fd = os.memfd_create("fedtermhub-rdp-args", flags=0)
         try:
             os.fchmod(fd, 0o600)
@@ -7594,9 +7620,9 @@ class RdpTab(Gtk.Box):
             payload = (secret + "\n").encode("utf-8", errors="surrogatepass")
             os.write(self._pty_master_fd, payload)
             self._secret_sent = True
-            GLib.idle_add(self.append_log, "Credenziale inviata tramite fallback PTY.\n")
+            GLib.idle_add(self.append_log, tr("Credenziale inviata tramite fallback PTY.\n"))
         except Exception as exc:
-            GLib.idle_add(self.append_log, f"ERRORE invio credenziale PTY: {exc}\n")
+            GLib.idle_add(self.append_log, tr("ERRORE invio credenziale PTY: {exc}\n").format(exc=exc))
 
     def _close_secret_pty(self) -> None:
         fd = self._pty_master_fd
@@ -7625,8 +7651,8 @@ class RdpTab(Gtk.Box):
             self._bump_notice_id = None
         self._set_status_actions(False)
         self._close_secret_pty()
-        self._set_state("pending", "Avvio FreeRDP…")
-        self._show_status("Connessione RDP", "Avvio del client FreeRDP e autenticazione in corso…")
+        self._set_state("pending", tr("Avvio FreeRDP…"))
+        self._show_status(tr("Connessione RDP"), tr("Avvio del client FreeRDP e autenticazione in corso…"))
         slave_fd: Optional[int] = None
         secure_fd: Optional[int] = None
         pass_fds: Tuple[int, ...] = ()
@@ -7636,9 +7662,9 @@ class RdpTab(Gtk.Box):
                 argv.append(f"/t:{self.embed_token}")
             if os.environ.get("FEDTERMHUB_RDP_SKIP_PARENT_WINDOW") != "1":
                 argv.append(f"/parent-window:{self.socket_xid}")
-                self.append_log(f"Avvio FreeRDP con parent-window XID={self.socket_xid}.\n")
+                self.append_log(tr("Avvio FreeRDP con parent-window XID={socket_xid}.\n").format(socket_xid=self.socket_xid))
             else:
-                self.append_log("Modalità test: /parent-window omesso; verrà usato il reparenting X11.\n")
+                self.append_log(tr("Modalità test: /parent-window omesso; verrà usato il reparenting X11.\n"))
 
             stdin_target: Union[int, object] = subprocess.DEVNULL
             launch_argv = argv
@@ -7646,14 +7672,14 @@ class RdpTab(Gtk.Box):
                 secure_fd, launch_argv = self._build_secure_args_fd(argv, self.stdin_secret)
                 pass_fds = (secure_fd,)
                 self._secure_args_fd_active = True
-                self.credential_transport = "memfd + /args-from:fd"
-                self.append_log("Credenziali e opzioni preparate in memfd anonimo protetto; password assente da argv.\n")
+                self.credential_transport = tr("memfd + /args-from:fd")
+                self.append_log(tr("Credenziali e opzioni preparate in memfd anonimo protetto; password assente da argv.\n"))
             elif self.stdin_secret is not None:
                 # Compatibilità esclusivamente per vecchie build. Le nuove sessioni
                 # usano sempre args-from:fd.
                 self._pty_master_fd, slave_fd = self._open_secret_pty()
                 stdin_target = slave_fd
-                self.credential_transport = "fallback PTY"
+                self.credential_transport = tr("fallback PTY")
 
             child_env = dict(os.environ)
             child_env.setdefault("LC_ALL", "C")
@@ -7685,7 +7711,7 @@ class RdpTab(Gtk.Box):
             self._manual_reparent_attempted = False
             self._watchdog_extensions = 0
             self.client_window_xid = 0
-            self.embed_method = "in attesa"
+            self.embed_method = tr("in attesa")
             if self.stdin_secret is not None and not self.use_args_fd:
                 # Fallback vecchio: un piccolo ritardo riduce la possibilità che
                 # FreeRDP svuoti il terminale dopo un invio troppo precoce.
@@ -7710,8 +7736,8 @@ class RdpTab(Gtk.Box):
             self._launching = False
             self._started = False
             details = traceback.format_exc()
-            self.append_log(f"ERRORE avvio RDP: {exc}\n{details}\n")
-            self._fail_start("Errore avvio RDP", str(exc), details)
+            self.append_log(tr("ERRORE avvio RDP: {exc}\n{details}\n").format(exc=exc, details=details))
+            self._fail_start(tr("Errore avvio RDP"), str(exc), details)
 
     def _start_reader_threads(self) -> None:
         if self.process is None:
@@ -7731,7 +7757,7 @@ class RdpTab(Gtk.Box):
                 self._last_output_at = time.monotonic()
                 GLib.idle_add(self._handle_freerdp_line, prefix, line)
         except Exception as exc:
-            GLib.idle_add(self.append_log, f"[LOG] Errore lettura {prefix}: {exc}\n")
+            GLib.idle_add(self.append_log, tr("[LOG] Errore lettura {prefix}: {exc}\n").format(prefix=prefix, exc=exc))
         finally:
             try:
                 stream.close()
@@ -7749,15 +7775,15 @@ class RdpTab(Gtk.Box):
             self._bump_options_seen = True
             if first:
                 self.append_log(
-                    "[FedTermHub] Windows segnala una sessione già attiva e richiede una scelta di subentro. "
-                    "Questo stato può lasciare xfreerdp su un framebuffer nero.\n"
+                    tr("[FedTermHub] Windows segnala una sessione già attiva e richiede una scelta di subentro. "
+                    "Questo stato può lasciare xfreerdp su un framebuffer nero.\n")
                 )
-                self._set_state("pending", "Windows attende conferma sulla sessione esistente")
+                self._set_state("pending", tr("Windows attende conferma sulla sessione esistente"))
                 self._show_status(
-                    "Sessione Windows già attiva",
-                    "Il server ha richiesto la schermata di scelta per subentrare a una sessione già aperta "
+                    tr("Sessione Windows già attiva"),
+                    tr("Il server ha richiesto la schermata di scelta per subentrare a una sessione già aperta "
                     "(LOGON_MSG_BUMP_OPTIONS). Se resta nero, prova la modalità compatibile; su un server "
-                    "Windows puoi anche tentare la sessione amministrativa.",
+                    "Windows puoi anche tentare la sessione amministrativa."),
                     error=False,
                     bottom=True,
                 )
@@ -7776,31 +7802,31 @@ class RdpTab(Gtk.Box):
         black = X11EmbedBridge.is_probably_black(self.client_window_xid)
         if black is False:
             self.append_log(
-                "[FedTermHub] LOGON_MSG_BUMP_OPTIONS rilevato, ma il framebuffer contiene immagine: "
-                "il prompt Windows dovrebbe essere visibile e interattivo.\n"
+                tr("[FedTermHub] LOGON_MSG_BUMP_OPTIONS rilevato, ma il framebuffer contiene immagine: "
+                "il prompt Windows dovrebbe essere visibile e interattivo.\n")
             )
-            self._set_state("pending", "Windows attende una scelta sulla sessione esistente")
+            self._set_state("pending", tr("Windows attende una scelta sulla sessione esistente"))
             self._hide_status()
             return False
         if black is True and not self._compatibility_mode:
             self.append_log(
-                "[FedTermHub] Framebuffer ancora nero dopo il ridisegno; avvio automatico del profilo "
-                "compatibile senza GFX e dynamic-resolution.\n"
+                tr("[FedTermHub] Framebuffer ancora nero dopo il ridisegno; avvio automatico del profilo "
+                "compatibile senza GFX e dynamic-resolution.\n")
             )
             self.retry_compatibility(admin=False)
             return False
-        self._set_state("pending", "Connesso, ma Windows attende una scelta di sessione")
+        self._set_state("pending", tr("Connesso, ma Windows attende una scelta di sessione"))
         detail = (
-            "Il framebuffer è ancora completamente nero anche nel profilo compatibile. "
+            tr("Il framebuffer è ancora completamente nero anche nel profilo compatibile. ")
             if black is True else
-            "Non è stato possibile campionare il framebuffer X11. "
+            tr("Non è stato possibile campionare il framebuffer X11. ")
         )
         self._show_status(
-            "Schermata di subentro Windows non visibile",
+            tr("Schermata di subentro Windows non visibile"),
             detail +
-            "La rete, l’autenticazione e XEmbed hanno funzionato, ma il server sta aspettando una scelta "
+            tr("La rete, l’autenticazione e XEmbed hanno funzionato, ma il server sta aspettando una scelta "
             "relativa a una sessione Windows già attiva. Puoi tentare la sessione amministrativa oppure "
-            "chiudere/disconnettere la sessione Windows già aperta e riconnettere.",
+            "chiudere/disconnettere la sessione Windows già aperta e riconnettere."),
             error=False,
             bottom=True,
         )
@@ -7832,19 +7858,19 @@ class RdpTab(Gtk.Box):
         if allocation is not None:
             X11EmbedBridge.resize(self.client_window_xid, allocation.width, allocation.height)
         if first:
-            self.append_log(f"FreeRDP incorporato con metodo: {method}; window XID={client_xid}.\n")
+            self.append_log(tr("FreeRDP incorporato con metodo: {method}; window XID={client_xid}.\n").format(method=method, client_xid=client_xid))
         if self._bump_options_seen:
-            self._set_state("pending", "Windows attende conferma sulla sessione esistente")
+            self._set_state("pending", tr("Windows attende conferma sulla sessione esistente"))
             self._show_status(
-                "Sessione Windows già attiva",
-                "La finestra RDP è incorporata, ma il server richiede una scelta di subentro. "
-                "Se il desktop resta nero usa una delle azioni qui sotto.",
+                tr("Sessione Windows già attiva"),
+                tr("La finestra RDP è incorporata, ma il server richiede una scelta di subentro. "
+                "Se il desktop resta nero usa una delle azioni qui sotto."),
                 error=False,
                 bottom=True,
             )
             self._set_status_actions(True)
         else:
-            self._set_state("ok", "Connesso")
+            self._set_state("ok", tr("Connesso"))
             self._hide_status()
         if hasattr(self, "focus_hint"):
             self.focus_hint.set_reveal_child(True)
@@ -7870,7 +7896,7 @@ class RdpTab(Gtk.Box):
         # ricevuto plug-added. La presenza di un figlio X11 è prova sufficiente.
         direct = X11EmbedBridge.direct_client(self.socket_xid, self.process.pid)
         if direct:
-            self._mark_embedded(direct, "figlio X11 rilevato")
+            self._mark_embedded(direct, tr("figlio X11 rilevato"))
             return False
 
         # Secondo percorso: la finestra è stata creata top-level. Dopo un breve
@@ -7887,15 +7913,14 @@ class RdpTab(Gtk.Box):
                 allocation = self.socket.get_allocation()
                 self._manual_reparent_attempted = True
                 self.append_log(
-                    f"Compatibilità: trovata finestra FreeRDP XID={candidate}; "
-                    "tentativo di reparenting X11.\n"
+                    tr("Compatibilità: trovata finestra FreeRDP XID={candidate}; tentativo di reparenting X11.\n").format(candidate=candidate)
                 )
                 if X11EmbedBridge.reparent(
                     candidate, self.socket_xid, allocation.width, allocation.height
                 ):
-                    self._mark_embedded(candidate, "reparenting X11 automatico")
+                    self._mark_embedded(candidate, tr("reparenting X11 automatico"))
                     return False
-                self.append_log("Compatibilità: reparenting X11 non riuscito, nuovo tentativo in corso.\n")
+                self.append_log(tr("Compatibilità: reparenting X11 non riuscito, nuovo tentativo in corso.\n"))
         return True
 
     def _embed_watchdog(self) -> bool:
@@ -7908,7 +7933,7 @@ class RdpTab(Gtk.Box):
 
         direct = X11EmbedBridge.direct_client(self.socket_xid, self.process.pid)
         if direct:
-            self._mark_embedded(direct, "figlio X11 rilevato al watchdog")
+            self._mark_embedded(direct, tr("figlio X11 rilevato al watchdog"))
             return False
         candidate = X11EmbedBridge.find_process_window(
             self.process.pid, self.embed_token, self.socket_xid
@@ -7916,38 +7941,37 @@ class RdpTab(Gtk.Box):
         if candidate and self.socket is not None:
             allocation = self.socket.get_allocation()
             if X11EmbedBridge.reparent(candidate, self.socket_xid, allocation.width, allocation.height):
-                self._mark_embedded(candidate, "reparenting X11 di recupero")
+                self._mark_embedded(candidate, tr("reparenting X11 di recupero"))
                 return False
 
         elapsed_ms = int((time.monotonic() - self._process_started_at) * 1000)
         quiet_ms = int((time.monotonic() - self._last_output_at) * 1000)
         if elapsed_ms < self.EMBED_MAX_WAIT_MS:
             self._watchdog_extensions += 1
-            self._set_state("pending", "Autenticazione RDP ancora in corso…")
+            self._set_state("pending", tr("Autenticazione RDP ancora in corso…"))
             self._show_status(
-                "Connessione RDP in corso",
-                "FreeRDP è attivo ma il desktop non è stato ancora creato. "
-                "FedTermHub continua automaticamente ad attendere e cercare la finestra.",
+                tr("Connessione RDP in corso"),
+                tr("FreeRDP è attivo ma il desktop non è stato ancora creato. "
+                "FedTermHub continua automaticamente ad attendere e cercare la finestra."),
                 error=False,
             )
             self.append_log(
-                f"Watchdog: nessuna finestra dopo {elapsed_ms // 1000}s; "
-                f"ultimo output {quiet_ms // 1000}s fa. Attesa prolungata.\n"
+                tr("Watchdog: nessuna finestra dopo {v}s; ultimo output {v2}s fa. Attesa prolungata.\n").format(v=elapsed_ms // 1000, v2=quiet_ms // 1000)
             )
             self._watchdog_id = GLib.timeout_add(12000, self._embed_watchdog)
             return False
 
         message = (
-            "FreeRDP è rimasto attivo ma non ha creato una finestra grafica entro 65 secondi. "
+            tr("FreeRDP è rimasto attivo ma non ha creato una finestra grafica entro 65 secondi. "
             "Apri il log: normalmente indica autenticazione bloccata, opzioni non supportate "
-            "oppure un problema della build xfreerdp con /parent-window."
+            "oppure un problema della build xfreerdp con /parent-window.")
         )
         self.append_log(
-            "ERRORE incorporamento: nessuna finestra FreeRDP trovata tramite XEmbed, "
-            "figlio X11 o _NET_WM_PID dopo l'attesa completa.\n"
+            tr("ERRORE incorporamento: nessuna finestra FreeRDP trovata tramite XEmbed, "
+            "figlio X11 o _NET_WM_PID dopo l'attesa completa.\n")
         )
-        self._set_state("error", "Desktop RDP non visualizzato")
-        self._show_status("RDP non incorporato", message, error=True)
+        self._set_state("error", tr("Desktop RDP non visualizzato"))
+        self._show_status(tr("RDP non incorporato"), message, error=True)
         self.set_log_visible(True)
         return False
 
@@ -7968,18 +7992,18 @@ class RdpTab(Gtk.Box):
         )
         if not client:
             client = self.socket_xid
-        method = "reparenting X11 automatico" if self._manual_reparent_attempted else "XEmbed nativo"
+        method = tr("reparenting X11 automatico") if self._manual_reparent_attempted else tr("XEmbed nativo")
         self._mark_embedded(client, method)
 
     def on_plug_removed(self, _socket: Gtk.Widget) -> bool:
         self.keyboard_active = False
         self._plug_seen = False
         if not self._stopping and self.process is not None and self.process.poll() is None:
-            self.append_log("Avviso: la finestra FreeRDP è stata scollegata dal contenitore.\n")
-            self._set_state("error", "Desktop remoto scollegato")
+            self.append_log(tr("Avviso: la finestra FreeRDP è stata scollegata dal contenitore.\n"))
+            self._set_state("error", tr("Desktop remoto scollegato"))
             self._show_status(
-                "Desktop remoto scollegato",
-                "La connessione è ancora attiva ma la finestra grafica non è più incorporata. Premi Riconnetti.",
+                tr("Desktop remoto scollegato"),
+                tr("La connessione è ancora attiva ma la finestra grafica non è più incorporata. Premi Riconnetti."),
                 error=True,
             )
         return True
@@ -7998,7 +8022,7 @@ class RdpTab(Gtk.Box):
         return False
 
     def on_focus_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Attiva tastiera", self.activate_keyboard)
+        self._safe_action(tr("Attiva tastiera"), self.activate_keyboard)
 
     def _schedule_focus_retry(self, delay_ms: int) -> None:
         holder: Dict[str, int] = {}
@@ -8034,7 +8058,7 @@ class RdpTab(Gtk.Box):
     def refresh_framebuffer(self, silent: bool = False) -> None:
         if self.socket is None or not self._plug_seen or self.client_window_xid <= 0:
             if not silent:
-                self._set_state("error", "Desktop RDP non ancora pronto")
+                self._set_state("error", tr("Desktop RDP non ancora pronto"))
             return
         allocation = self.socket.get_allocation()
         ok = X11EmbedBridge.refresh(
@@ -8042,14 +8066,14 @@ class RdpTab(Gtk.Box):
         )
         if ok:
             if not silent:
-                self._set_state("ok", "Ridisegno schermo richiesto")
-                self.append_log("Ridisegno X11 del framebuffer RDP richiesto.\n")
+                self._set_state("ok", tr("Ridisegno schermo richiesto"))
+                self.append_log(tr("Ridisegno X11 del framebuffer RDP richiesto.\n"))
             self._schedule_focus_retry(120)
         elif not silent:
-            self._set_state("error", "Impossibile aggiornare il framebuffer")
+            self._set_state("error", tr("Impossibile aggiornare il framebuffer"))
 
     def on_redraw_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Aggiorna schermo", self.refresh_framebuffer)
+        self._safe_action(tr("Aggiorna schermo"), self.refresh_framebuffer)
 
     def _build_compatibility_argv(self, admin: bool = False) -> List[str]:
         """Crea un profilo conservativo per XEmbed e schermate di logon.
@@ -8088,30 +8112,29 @@ class RdpTab(Gtk.Box):
         self.argv = self._build_compatibility_argv(admin=admin)
         self._compatibility_mode = True
         self._admin_retry = bool(admin)
-        profile = "compatibile + amministrativa" if admin else "compatibile"
+        profile = tr("compatibile + amministrativa") if admin else "compatibile"
         self.masked_command = " ".join(shlex.quote(arg) for arg in self.argv)
         if self.use_args_fd:
-            self.masked_command += "  [password protetta via /args-from:fd su memfd]"
+            self.masked_command += tr("  [password protetta via /args-from:fd su memfd]")
         self.append_log(
-            f"[FedTermHub] Riavvio con profilo RDP {profile}: GFX e dynamic-resolution disattivati, "
-            "dimensione iniziale fissa e smart-sizing attivo.\n"
+            tr("[FedTermHub] Riavvio con profilo RDP {profile}: GFX e dynamic-resolution disattivati, dimensione iniziale fissa e smart-sizing attivo.\n").format(profile=profile)
         )
         self._set_status_actions(False)
         self.stop(restart=True)
 
     def on_compat_retry_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Riprova modalità compatibile", self.retry_compatibility)
+        self._safe_action(tr("Riprova modalità compatibile"), self.retry_compatibility)
 
     def on_admin_retry_clicked(self, _button: Gtk.Button) -> None:
         self._safe_action(
-            "Riprova sessione amministrativa",
+            tr("Riprova sessione amministrativa"),
             lambda: self.retry_compatibility(admin=True),
         )
 
     def activate_keyboard(self, silent: bool = False) -> None:
         if self.socket is None or not self._plug_seen:
             if not silent:
-                self._set_state("error", "Desktop RDP non ancora pronto")
+                self._set_state("error", tr("Desktop RDP non ancora pronto"))
             return
         try:
             self.socket.grab_focus()
@@ -8127,33 +8150,33 @@ class RdpTab(Gtk.Box):
             if hasattr(self, "focus_hint"):
                 self.focus_hint.set_reveal_child(False)
             if not silent:
-                suffix = " — focus X11 assegnato" if x11_ok else ""
-                self._set_state("ok", "Tastiera attiva" + suffix)
-                self.append_log("Focus tastiera richiesto al desktop remoto.\n")
+                suffix = tr(" — focus X11 assegnato") if x11_ok else ""
+                self._set_state("ok", tr("Tastiera attiva") + suffix)
+                self.append_log(tr("Focus tastiera richiesto al desktop remoto.\n"))
         except Exception as exc:
             if not silent:
-                self._set_state("error", f"Errore focus tastiera: {exc}")
-                self.append_log(f"ERRORE focus tastiera: {exc}\n")
+                self._set_state("error", tr("Errore focus tastiera: {exc}").format(exc=exc))
+                self.append_log(tr("ERRORE focus tastiera: {exc}\n").format(exc=exc))
 
     def _safe_action(self, name: str, callback: Callable[[], None]) -> None:
         try:
             callback()
         except Exception as exc:
-            self._set_state("error", f"Errore {name}: {exc}")
+            self._set_state("error", tr("Errore {name}: {exc}").format(name=name, exc=exc))
             details = traceback.format_exc()
-            self.append_log(f"ERRORE callback {name}: {exc}\n{details}\n")
-            self.notify_error(f"Errore {name}", str(exc), details)
+            self.append_log(tr("ERRORE callback {name}: {exc}\n{details}\n").format(name=name, exc=exc, details=details))
+            self.notify_error(tr("Errore {name}").format(name=name), str(exc), details)
 
     def recover_embedding(self) -> None:
         if self.process is None or self.process.poll() is not None:
-            self._set_state("error", "FreeRDP non è in esecuzione")
-            self.append_log("Recupero finestra: processo FreeRDP non attivo.\n")
+            self._set_state("error", tr("FreeRDP non è in esecuzione"))
+            self.append_log(tr("Recupero finestra: processo FreeRDP non attivo.\n"))
             return
         if not self.socket_xid:
             self._refresh_socket_xid()
         direct = X11EmbedBridge.direct_client(self.socket_xid, self.process.pid)
         if direct:
-            self._mark_embedded(direct, "figlio X11 recuperato manualmente")
+            self._mark_embedded(direct, tr("figlio X11 recuperato manualmente"))
             return
         candidate = X11EmbedBridge.find_process_window(
             self.process.pid, self.embed_token, self.socket_xid
@@ -8164,25 +8187,25 @@ class RdpTab(Gtk.Box):
             if X11EmbedBridge.reparent(
                 candidate, self.socket_xid, allocation.width, allocation.height
             ):
-                self._mark_embedded(candidate, "reparenting X11 manuale")
+                self._mark_embedded(candidate, tr("reparenting X11 manuale"))
                 return
-        self._set_state("error", "Finestra FreeRDP non ancora trovata")
+        self._set_state("error", tr("Finestra FreeRDP non ancora trovata"))
         self._show_status(
-            "Finestra RDP non disponibile",
-            "FreeRDP è attivo ma non ha ancora creato una finestra agganciabile. "
-            "Controlla il log per eventuali richieste di autenticazione e riprova.",
+            tr("Finestra RDP non disponibile"),
+            tr("FreeRDP è attivo ma non ha ancora creato una finestra agganciabile. "
+            "Controlla il log per eventuali richieste di autenticazione e riprova."),
             error=True,
         )
-        self.append_log("Recupero finestra: nessuna finestra associata al PID trovata.\n")
+        self.append_log(tr("Recupero finestra: nessuna finestra associata al PID trovata.\n"))
 
     def on_recover_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Recupera finestra", self.recover_embedding)
+        self._safe_action(tr("Recupera finestra"), self.recover_embedding)
 
     def on_restart_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Riconnetti", self.restart)
+        self._safe_action(tr("Riconnetti"), self.restart)
 
     def on_stop_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Ferma", self.stop)
+        self._safe_action(tr("Ferma"), self.stop)
 
     def on_log_toggled(self, button: Gtk.ToggleButton) -> None:
         # Importante: questa funzione gestisce soltanto la visibilità del drawer.
@@ -8190,65 +8213,65 @@ class RdpTab(Gtk.Box):
         self.set_log_visible(button.get_active(), sync_button=False)
 
     def on_diagnostics_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Diagnostica", self.show_diagnostics)
+        self._safe_action(tr("Diagnostica"), self.show_diagnostics)
 
     def on_export_log_clicked(self, _button: Gtk.Button) -> None:
-        self._safe_action("Esporta log", self.export_log)
+        self._safe_action(tr("Esporta log"), self.export_log)
 
     def set_log_visible(self, visible: bool, sync_button: bool = True) -> None:
         self.log_revealer.set_reveal_child(bool(visible))
-        self.log_toggle_label.set_text("Nascondi log" if visible else "Log")
+        self.log_toggle_label.set_text(tr("Nascondi log") if visible else tr("Log"))
         if sync_button and self.log_toggle.get_active() != bool(visible):
             self.log_toggle.handler_block_by_func(self.on_log_toggled)
             self.log_toggle.set_active(bool(visible))
             self.log_toggle.handler_unblock_by_func(self.on_log_toggled)
 
     def show_diagnostics(self) -> None:
-        proc_state = "non avviato"
+        proc_state = tr("non avviato")
         if self.process is not None:
             rc = self.process.poll()
-            proc_state = f"PID {self.process.pid}, {'in esecuzione' if rc is None else 'terminato rc=' + str(rc)}"
+            proc_state = tr("PID {pid}, {v}").format(pid=self.process.pid, v=tr('in esecuzione') if rc is None else tr('terminato rc={rc}').format(rc=rc))
         alloc = self.socket.get_allocation() if self.socket is not None else None
         allocation = f"{alloc.width}x{alloc.height}" if alloc is not None else "n/d"
         lines = [
-            "Diagnostica RDP interna",
+            tr("Diagnostica RDP interna"),
             "=======================",
-            f"Stato processo: {proc_state}",
-            f"Avvio richiesto: {self._launch_requested}",
-            f"Avviato: {self._started}",
-            f"Avviato almeno una volta: {self._has_ever_started}",
-            f"Desktop incorporato: {self._plug_seen}",
-            f"Metodo incorporamento: {self.embed_method}",
-            f"Finestra client XID: {self.client_window_xid}",
-            f"Reparenting manuale tentato: {self._manual_reparent_attempted}",
-            f"Incorporato almeno una volta: {self._has_ever_embedded}",
-            f"Canale credenziale: {self.credential_transport}",
-            f"args-from memfd richiesto: {self.use_args_fd}",
-            f"Framebuffer GDI inizializzato: {self._gdi_ready_seen}",
-            f"LOGON_MSG_BUMP_OPTIONS rilevato: {self._bump_options_seen}",
-            f"Profilo compatibilità attivo: {self._compatibility_mode}",
-            f"Tentativo amministrativo: {self._admin_retry}",
-            f"Output ultimo evento: {int(time.monotonic() - self._last_output_at) if self._last_output_at else -1}s fa",
-            f"Gtk.Socket XID: {self.socket_xid}",
-            f"Socket realizzato: {self.socket.get_realized() if self.socket is not None else False}",
-            f"Socket mappato: {self.socket.get_mapped() if self.socket is not None else False}",
-            f"Allocazione: {allocation}",
-            f"DISPLAY: {os.environ.get('DISPLAY', '-')}",
-            f"GDK_BACKEND: {os.environ.get('GDK_BACKEND', '-')}",
+            tr("Stato processo: {proc_state}").format(proc_state=proc_state),
+            tr("Avvio richiesto: {launch_requested}").format(launch_requested=self._launch_requested),
+            tr("Avviato: {started}").format(started=self._started),
+            tr("Avviato almeno una volta: {has_ever_started}").format(has_ever_started=self._has_ever_started),
+            tr("Desktop incorporato: {plug_seen}").format(plug_seen=self._plug_seen),
+            tr("Metodo incorporamento: {embed_method}").format(embed_method=self.embed_method),
+            tr("Finestra client XID: {client_window_xid}").format(client_window_xid=self.client_window_xid),
+            tr("Reparenting manuale tentato: {manual_reparent_attempted}").format(manual_reparent_attempted=self._manual_reparent_attempted),
+            tr("Incorporato almeno una volta: {has_ever_embedded}").format(has_ever_embedded=self._has_ever_embedded),
+            tr("Canale credenziale: {credential_transport}").format(credential_transport=self.credential_transport),
+            tr("args-from memfd richiesto: {use_args_fd}").format(use_args_fd=self.use_args_fd),
+            tr("Framebuffer GDI inizializzato: {gdi_ready_seen}").format(gdi_ready_seen=self._gdi_ready_seen),
+            tr("LOGON_MSG_BUMP_OPTIONS rilevato: {bump_options_seen}").format(bump_options_seen=self._bump_options_seen),
+            tr("Profilo compatibilità attivo: {compatibility_mode}").format(compatibility_mode=self._compatibility_mode),
+            tr("Tentativo amministrativo: {admin_retry}").format(admin_retry=self._admin_retry),
+            tr("Output ultimo evento: {v}s fa").format(v=int(time.monotonic() - self._last_output_at) if self._last_output_at else -1),
+            tr("Gtk.Socket XID: {socket_xid}").format(socket_xid=self.socket_xid),
+            tr("Socket realizzato: {v}").format(v=self.socket.get_realized() if self.socket is not None else False),
+            tr("Socket mappato: {v}").format(v=self.socket.get_mapped() if self.socket is not None else False),
+            tr("Allocazione: {allocation}").format(allocation=allocation),
+            tr("DISPLAY: {get}").format(get=os.environ.get('DISPLAY', '-')),
+            tr("GDK_BACKEND: {get}").format(get=os.environ.get('GDK_BACKEND', '-')),
             "",
-            "Comando:",
+            tr("Comando:"),
             self.masked_command,
             "",
-            "Ultimo log:",
+            tr("Ultimo log:"),
             self.get_log_text()[-5000:],
         ]
         parent = self.get_toplevel()
         dialog = Gtk.Dialog(
-            title="Diagnostica RDP",
+            title=tr("Diagnostica RDP"),
             transient_for=parent if isinstance(parent, Gtk.Window) else None,
             flags=0,
         )
-        dialog.add_button("Chiudi", Gtk.ResponseType.CLOSE)
+        dialog.add_button(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         dialog.set_default_size(760, 520)
         view = Gtk.TextView()
         view.set_editable(False)
@@ -8266,10 +8289,11 @@ class RdpTab(Gtk.Box):
         finally:
             dialog.destroy()
 
-    def notify_error(self, title: str, message: str, details: str = "") -> None:
+    def notify_error(self, title: str, message: str, details: str = "", process_exit: bool = False) -> None:
         if self.error_callback is None:
             return
-        if self.last_error_notified and "terminato con codice" in title.lower():
+        # Dopo un errore gia' segnalato, l'uscita del processo che ne consegue non si notifica due volte.
+        if self.last_error_notified and process_exit:
             return
         self.last_error_notified = True
         GLib.idle_add(self.error_callback, title, message, details, self.masked_command)
@@ -8314,38 +8338,38 @@ class RdpTab(Gtk.Box):
         low = text.lower()
         notes: List[str] = []
         if "tcgetattr" in low or "tcsetattr" in low or "ioctl non appropriata" in low:
-            notes.append("Il client ha tentato il vecchio canale stdin. La 1.8 usa /args-from:fd su memfd e non dovrebbe generare questo avviso.")
+            notes.append(tr("Il client ha tentato il vecchio canale stdin. La 1.8 usa /args-from:fd su memfd e non dovrebbe generare questo avviso."))
         if "no rdp scancode found" in low:
-            notes.append("Sono presenti avvisi XKB su tasti speciali non mappati; non impediscono la connessione.")
+            notes.append(tr("Sono presenti avvisi XKB su tasti speciali non mappati; non impediscono la connessione."))
         if "certificate not checked" in low or "/cert:ignore" in low:
-            notes.append("Il controllo certificato è disabilitato per questa sessione.")
+            notes.append(tr("Il controllo certificato è disabilitato per questa sessione."))
         if "logon_msg_bump_options" in low:
             return (
-                "Windows ha rilevato una sessione già attiva e attende una scelta di subentro; "
-                "questa condizione può produrre una schermata nera in xfreerdp.",
+                tr("Windows ha rilevato una sessione già attiva e attende una scelta di subentro; "
+                "questa condizione può produrre una schermata nera in xfreerdp."),
                 notes,
             )
         if "errinfo_logoff_by_user" in low:
-            return "La connessione è riuscita, poi Windows ha eseguito il logoff della sessione.", notes
+            return tr("La connessione è riuscita, poi Windows ha eseguito il logoff della sessione."), notes
         if "errconnect_logon_failure" in low or "logon failure" in low:
-            return "Credenziali rifiutate dal server Windows.", notes
+            return tr("Credenziali rifiutate dal server Windows."), notes
         if "errconnect_password_must_change" in low or "password must change" in low:
-            return "La password deve essere cambiata prima di poter accedere via RDP.", notes
+            return tr("La password deve essere cambiata prima di poter accedere via RDP."), notes
         if "errconnect_password_certainly_expired" in low or "password expired" in low:
-            return "La password dell’account è scaduta.", notes
+            return tr("La password dell’account è scaduta."), notes
         if "errconnect_account_locked_out" in low or "account locked" in low:
-            return "L’account risulta bloccato.", notes
+            return tr("L’account risulta bloccato."), notes
         if "errconnect_account_disabled" in low or "account disabled" in low:
-            return "L’account risulta disabilitato.", notes
+            return tr("L’account risulta disabilitato."), notes
         if "credssp" in low or "authentication failure" in low:
-            return "Autenticazione NLA/CredSSP non riuscita.", notes
+            return tr("Autenticazione NLA/CredSSP non riuscita."), notes
         if "connection refused" in low:
-            return "La porta RDP ha rifiutato la connessione.", notes
+            return tr("La porta RDP ha rifiutato la connessione."), notes
         if "transport_connect" in low or "unable to connect" in low or "timeout" in low:
-            return "Il server RDP non è raggiungibile o non risponde entro il timeout.", notes
+            return tr("Il server RDP non è raggiungibile o non risponde entro il timeout."), notes
         if "tls_verify_certificate" in low and "denied" in low:
-            return "Il certificato del server non è stato accettato.", notes
-        return "La sessione RDP è terminata; consulta i dettagli tecnici nel log.", notes
+            return tr("Il certificato del server non è stato accettato."), notes
+        return tr("La sessione RDP è terminata; consulta i dettagli tecnici nel log."), notes
 
     def _poll_process(self) -> bool:
         if self._destroyed or self.process is None:
@@ -8368,47 +8392,47 @@ class RdpTab(Gtk.Box):
             except Exception:
                 pass
             self._watchdog_id = None
-        self.append_log(f"Processo FreeRDP PID {proc.pid} terminato con codice {rc}.\n")
+        self.append_log(tr("Processo FreeRDP PID {pid} terminato con codice {rc}.\n").format(pid=proc.pid, rc=rc))
         log_text = self.get_log_text()
         if self._stopping:
-            self._set_state("off", "Sessione RDP chiusa")
-            self._show_status("Sessione chiusa", "La connessione RDP è stata chiusa.")
+            self._set_state("off", tr("Sessione RDP chiusa"))
+            self._show_status(tr("Sessione chiusa"), tr("La connessione RDP è stata chiusa."))
         elif self._is_normal_remote_close(rc, log_text):
             summary, notes = self._summarize_freerdp_log(log_text)
-            self._set_state("off", "Sessione terminata dal server")
-            self._show_status("Sessione RDP terminata", summary)
-            self.append_log("\nEsito: " + summary + "\n")
+            self._set_state("off", tr("Sessione terminata dal server"))
+            self._show_status(tr("Sessione RDP terminata"), summary)
+            self.append_log(tr("\nEsito: ") + summary + "\n")
             for note in notes:
-                self.append_log("Nota: " + note + "\n")
+                self.append_log(tr("Nota: ") + note + "\n")
             # Un logoff Windows è un evento normale: niente popup rosso e niente
             # falsa diagnosi di rete. Il pulsante Riconnetti resta disponibile.
         else:
             hint = self.explain_freerdp_exit(rc, log_text)
             _summary, notes = self._summarize_freerdp_log(log_text)
-            self.append_log("\nSuggerimento: " + hint + "\n")
+            self.append_log(tr("\nSuggerimento: ") + hint + "\n")
             for note in notes:
-                self.append_log("Nota: " + note + "\n")
-            self._set_state("error", f"RDP terminato con codice {rc}")
-            self._show_status("Connessione RDP fallita", hint, error=True)
+                self.append_log(tr("Nota: ") + note + "\n")
+            self._set_state("error", tr("RDP terminato con codice {rc}").format(rc=rc))
+            self._show_status(tr("Connessione RDP fallita"), hint, error=True)
             self.set_log_visible(True)
-            self.notify_error(f"RDP terminato con codice {rc}", hint, self.get_log_text())
+            self.notify_error(tr("RDP terminato con codice {rc}").format(rc=rc), hint, self.get_log_text(), process_exit=True)
         return False
 
     def export_log(self) -> None:
         parent = self.get_toplevel()
         dialog = Gtk.FileChooserDialog(
-            title="Esporta log RDP",
+            title=tr("Esporta log RDP"),
             parent=parent if isinstance(parent, Gtk.Window) else None,
             action=Gtk.FileChooserAction.SAVE,
         )
-        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Salva"), Gtk.ResponseType.OK)
         dialog.set_current_name("fedtermhub-rdp.log")
         dialog.set_do_overwrite_confirmation(True)
         try:
             if dialog.run() == Gtk.ResponseType.OK:
                 path = Path(dialog.get_filename())
                 atomic_write_text(path, self.get_log_text())
-                self._set_state("ok", f"Log salvato: {path.name}")
+                self._set_state("ok", tr("Log salvato: {name}").format(name=path.name))
         finally:
             dialog.destroy()
 
@@ -8417,36 +8441,36 @@ class RdpTab(Gtk.Box):
         low = text.lower()
         if "logon_msg_bump_options" in low:
             return (
-                "Windows sta aspettando una scelta relativa a una sessione già attiva. "
-                "Riprova con il profilo compatibile oppure, se appropriato, con +admin."
+                tr("Windows sta aspettando una scelta relativa a una sessione già attiva. "
+                "Riprova con il profilo compatibile oppure, se appropriato, con +admin.")
             )
         if "errinfo_logoff_by_user" in low or "user logging off" in low:
-            return "La connessione ha funzionato, ma Windows ha chiuso la sessione con un logoff lato server/utente."
+            return tr("La connessione ha funzionato, ma Windows ha chiuso la sessione con un logoff lato server/utente.")
         if "errconnect_logon_failure" in low or "logon failure" in low or "authentication failure" in low:
-            return "Autenticazione fallita: verifica utente, password, dominio e autorizzazione Desktop remoto."
+            return tr("Autenticazione fallita: verifica utente, password, dominio e autorizzazione Desktop remoto.")
         if "password_must_change" in low or "password must change" in low:
-            return "La password deve essere cambiata. Accedi localmente o usa un metodo che consenta il cambio password."
+            return tr("La password deve essere cambiata. Accedi localmente o usa un metodo che consenta il cambio password.")
         if "password_certainly_expired" in low or "password expired" in low:
-            return "Password scaduta: aggiornala prima di riprovare la connessione RDP."
+            return tr("Password scaduta: aggiornala prima di riprovare la connessione RDP.")
         if "account_locked" in low or "account locked" in low:
-            return "Account bloccato: sbloccalo in Active Directory o attendi il tempo previsto dalla policy."
+            return tr("Account bloccato: sbloccalo in Active Directory o attendi il tempo previsto dalla policy.")
         if "account_disabled" in low or "account disabled" in low:
-            return "Account disabilitato: verifica lo stato dell’utente in Active Directory."
+            return tr("Account disabilitato: verifica lo stato dell’utente in Active Directory.")
         if "credssp" in low:
-            return "Errore NLA/CredSSP: controlla dominio, orario, DNS, policy NLA e compatibilità del server."
+            return tr("Errore NLA/CredSSP: controlla dominio, orario, DNS, policy NLA e compatibilità del server.")
         if "connection refused" in low:
-            return "Connessione rifiutata: verifica che Desktop remoto sia attivo e che firewall/NAT consentano la porta configurata."
+            return tr("Connessione rifiutata: verifica che Desktop remoto sia attivo e che firewall/NAT consentano la porta configurata.")
         if "unable to connect" in low or "transport_connect" in low or "timeout" in low:
-            return "Server non raggiungibile: verifica rete, VPN, routing, firewall e porta RDP."
+            return tr("Server non raggiungibile: verifica rete, VPN, routing, firewall e porta RDP.")
         if "certificate" in low and ("denied" in low or "verify" in low):
-            return "Problema certificato RDP: verifica identità e certificato del server."
+            return tr("Problema certificato RDP: verifica identità e certificato del server.")
         if "tcgetattr" in low or "tcsetattr" in low or "ioctl non appropriata" in low:
-            return "Errore nel vecchio canale password: la 1.8 usa /args-from:fd su memfd e non dipende dal terminale."
+            return tr("Errore nel vecchio canale password: la 1.8 usa /args-from:fd su memfd e non dipende dal terminale.")
         if "parent-window" in low or "xembed" in low:
-            return "Problema XEmbed: verifica XWayland, backend X11 e supporto /parent-window del client FreeRDP."
+            return tr("Problema XEmbed: verifica XWayland, backend X11 e supporto /parent-window del client FreeRDP.")
         if rc == 127:
-            return "FreeRDP non trovato: installa il pacchetto freerdp."
-        return "La sessione RDP è terminata. Apri il log interno per il dettaglio tecnico."
+            return tr("FreeRDP non trovato: installa il pacchetto freerdp.")
+        return tr("La sessione RDP è terminata. Apri il log interno per il dettaglio tecnico.")
 
     def restart(self) -> None:
         self.stop(restart=True)
@@ -8462,7 +8486,7 @@ class RdpTab(Gtk.Box):
         self._start_attempts = 0
         self._plug_seen = False
         self.client_window_xid = 0
-        self.embed_method = "in attesa"
+        self.embed_method = tr("in attesa")
         self._manual_reparent_attempted = False
         if hasattr(self, "focus_hint"):
             self.focus_hint.set_reveal_child(False)
@@ -8481,21 +8505,21 @@ class RdpTab(Gtk.Box):
         self.keyboard_active = False
         self._plug_seen = False
         self.client_window_xid = 0
-        self.embed_method = "non collegato"
+        self.embed_method = tr("non collegato")
         if proc is not None and proc.poll() is None:
             try:
                 try:
                     os.killpg(proc.pid, signal.SIGTERM)
                 except Exception:
                     proc.terminate()
-                self._set_state("off", "Chiusura RDP in corso…")
-                self.append_log("Richiesta chiusura inviata a FreeRDP.\n")
+                self._set_state("off", tr("Chiusura RDP in corso…"))
+                self.append_log(tr("Richiesta chiusura inviata a FreeRDP.\n"))
                 threading.Thread(target=self._wait_and_kill, args=(proc, restart), daemon=True).start()
                 return
             except Exception as exc:
-                self._set_state("error", f"Errore chiusura RDP: {exc}")
+                self._set_state("error", tr("Errore chiusura RDP: {exc}").format(exc=exc))
         else:
-            self._set_state("off", "Sessione RDP ferma")
+            self._set_state("off", tr("Sessione RDP ferma"))
         if restart:
             GLib.idle_add(self._restart_after_stop)
 
@@ -8508,7 +8532,7 @@ class RdpTab(Gtk.Box):
                     os.killpg(proc.pid, signal.SIGKILL)
                 except Exception:
                     proc.kill()
-                GLib.idle_add(self.append_log, "Processo FreeRDP terminato forzatamente.\n")
+                GLib.idle_add(self.append_log, tr("Processo FreeRDP terminato forzatamente.\n"))
             except Exception:
                 pass
         finally:
@@ -8578,7 +8602,7 @@ class RdpDetachedWindow(Gtk.ApplicationWindow):
         start_backend: bool = True,
     ) -> None:
         app = owner.get_application()
-        super().__init__(application=app, title=f"FedTermHub RDP — {getattr(tab, 'title', 'Sessione')}")
+        super().__init__(application=app, title=tr("FedTermHub RDP — {getattr}").format(getattr=getattr(tab, 'title', tr('Sessione'))))
         self.owner = owner
         self.tab = tab
         self.monitor_selector = str(monitor_selector or "current")
@@ -8654,13 +8678,13 @@ class RdpDetachedWindow(Gtk.ApplicationWindow):
             if callable(append_log):
                 if descriptor is not None:
                     append_log(
-                        f"[FedTermHub] Finestra RDP indipendente fullscreen su {descriptor.label}."
-                        + ("\n" if exact else " Fallback monitor applicato.\n")
+                        tr("[FedTermHub] Finestra RDP indipendente fullscreen su {label}.").format(label=descriptor.label)
+                        + ("\n" if exact else tr(" Fallback monitor applicato.\n"))
                     )
                 else:
-                    append_log("[FedTermHub] Finestra RDP indipendente fullscreen sul monitor disponibile.\n")
+                    append_log(tr("[FedTermHub] Finestra RDP indipendente fullscreen sul monitor disponibile.\n"))
             self.owner.set_status(
-                "RDP indipendente a schermo intero — FedTermHub rimane disponibile"
+                tr("RDP indipendente a schermo intero — FedTermHub rimane disponibile")
             )
         else:
             self.fullscreen_active = False
@@ -8669,7 +8693,7 @@ class RdpDetachedWindow(Gtk.ApplicationWindow):
             except Exception:
                 pass
             self.tab.set_fullscreen_state(False)
-            self.owner.set_status("Sessione RDP indipendente ripristinata in finestra")
+            self.owner.set_status(tr("Sessione RDP indipendente ripristinata in finestra"))
         GLib.timeout_add(360, lambda: (self.tab.canvas.grab_focus(), False)[1])
 
     def _on_key_press(self, _window: Gtk.Window, event: Gdk.EventKey) -> bool:
@@ -8774,7 +8798,7 @@ class AppWindow(Gtk.ApplicationWindow):
         GLib.timeout_add_seconds(1, self.start_auto_tunnels)
         if self.store.load_warning:
             warning = self.store.load_warning
-            GLib.idle_add(lambda: (self.report_session_error("Sessioni non leggibili", warning, ""), False)[1])
+            GLib.idle_add(lambda: (self.report_session_error(tr("Sessioni non leggibili"), warning, ""), False)[1])
 
     def apply_icon_theme(self) -> None:
         chosen = resolve_icon_theme(self.settings.icon_theme, self.settings.theme)
@@ -8950,7 +8974,7 @@ class AppWindow(Gtk.ApplicationWindow):
             ["weather-clear-symbolic", "weather-clear"],
             self.settings.toolbar_icon_size,
         )
-        self.theme_toggle_caption = Gtk.Label(label="Tema")
+        self.theme_toggle_caption = Gtk.Label(label=tr("Tema"))
         self.theme_toggle_caption.set_ellipsize(Pango.EllipsizeMode.END)
         self.theme_toggle_caption.set_max_width_chars(10)
         self.theme_toggle_caption.get_style_context().add_class("ribbon-caption")
@@ -8982,9 +9006,9 @@ class AppWindow(Gtk.ApplicationWindow):
         icon_name = first_available_icon(icon_names)
         image.set_from_icon_name(icon_name, Gtk.IconSize.DIALOG)
         image.set_pixel_size(max(18, min(int(self.settings.toolbar_icon_size), 32)))
-        caption.set_text("Chiaro" if switch_to_light else "Scuro")
+        caption.set_text(tr("Chiaro") if switch_to_light else tr("Scuro"))
         button.set_tooltip_text(
-            "Passa al tema chiaro" if switch_to_light else "Passa al tema scuro"
+            tr("Passa al tema chiaro") if switch_to_light else tr("Passa al tema scuro")
         )
 
     def make_ribbon_group(self, title: str, items: List[Tuple[str, Union[str, List[str], Tuple[str, ...]], object]]) -> Gtk.Box:
@@ -9075,7 +9099,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if new_state:
             self.paned.set_position(max(190, min(int(self.settings.sidebar_width), 520)))
         self.settings.save(SETTINGS_FILE)
-        self.set_status("Pannello sessioni visibile" if new_state else "Pannello sessioni nascosto")
+        self.set_status(tr("Pannello sessioni visibile") if new_state else tr("Pannello sessioni nascosto"))
 
     def focus_session_search(self) -> None:
         if not getattr(self, "sidebar", None):
@@ -9101,7 +9125,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.ribbon.set_no_show_all(not new_state)
         self.ribbon.set_visible(new_state)
         self.settings.save(SETTINGS_FILE)
-        self.set_status("Barra comandi visibile" if new_state else "Barra comandi nascosta")
+        self.set_status(tr("Barra comandi visibile") if new_state else tr("Barra comandi nascosta"))
 
     def toggle_menubar(self, visible: Optional[bool] = None) -> None:
         if not hasattr(self, "menubar"):
@@ -9131,7 +9155,8 @@ class AppWindow(Gtk.ApplicationWindow):
         self.settings.save(SETTINGS_FILE)
 
     def _menu_icon_for_label(self, text: str) -> List[str]:
-        low = text.lower()
+        # Le parole chiave sono italiane: si confronta l'etichetta originale anche in inglese.
+        low = original(text).lower()
         mapping = [
             (("nuovo terminale", "term"), ["utilities-terminal-symbolic", "utilities-terminal"]),
             (("quick connect",), ["system-search-symbolic", "system-search"]),
@@ -9215,86 +9240,86 @@ class AppWindow(Gtk.ApplicationWindow):
         menubar = Gtk.MenuBar()
         self.menubar = menubar
         menubar.set_name("main-menubar")
-        menubar.append(self.make_menu("Terminale", [
-            ("Nuovo terminale locale", lambda *_: self.open_local_terminal()),
-            ("Terminale diviso", lambda *_: self.open_split_terminal()),
-            ("MultiExec", lambda *_: self.show_multiexec_dialog()),
-            ("Quick connect", lambda *_: self.on_quick_connect()),
+        menubar.append(self.make_menu(tr("Terminale"), [
+            (tr("Nuovo terminale locale"), lambda *_: self.open_local_terminal()),
+            (tr("Terminale diviso"), lambda *_: self.open_split_terminal()),
+            (tr("MultiExec"), lambda *_: self.show_multiexec_dialog()),
+            (tr("Quick connect"), lambda *_: self.on_quick_connect()),
             ("---", None),
-            ("Esci", lambda *_: self.close()),
+            (tr("Esci"), lambda *_: self.close()),
         ]))
-        menubar.append(self.make_menu("Sessioni", [
-            ("Nuova sessione", lambda *_: self.on_add_session(None)),
-            ("Nuova SSH", lambda *_: self.on_add_proto_session("ssh")),
-            ("Nuova RDP", lambda *_: self.on_add_proto_session("rdp")),
-            ("Nuova VNC", lambda *_: self.on_add_proto_session("vnc")),
-            ("Nuova Telnet", lambda *_: self.on_add_proto_session("telnet")),
-            ("Nuova seriale", lambda *_: self.on_add_proto_session("serial")),
-            ("Nuova cartella", lambda *_: self.on_add_folder(None)),
+        menubar.append(self.make_menu(tr("Sessioni"), [
+            (tr("Nuova sessione"), lambda *_: self.on_add_session(None)),
+            (tr("Nuova SSH"), lambda *_: self.on_add_proto_session("ssh")),
+            (tr("Nuova RDP"), lambda *_: self.on_add_proto_session("rdp")),
+            (tr("Nuova VNC"), lambda *_: self.on_add_proto_session("vnc")),
+            (tr("Nuova Telnet"), lambda *_: self.on_add_proto_session("telnet")),
+            (tr("Nuova seriale"), lambda *_: self.on_add_proto_session("serial")),
+            (tr("Nuova cartella"), lambda *_: self.on_add_folder(None)),
             ("---", None),
-            ("Modifica selezionata", lambda *_: self.on_edit_selected(None)),
-            ("Duplica selezionata", lambda *_: self.on_duplicate_selected(None)),
-            ("Sposta selezionata", lambda *_: self.on_move_selected(None)),
-            ("Elimina selezionata", lambda *_: self.on_delete_selected(None)),
+            (tr("Modifica selezionata"), lambda *_: self.on_edit_selected(None)),
+            (tr("Duplica selezionata"), lambda *_: self.on_duplicate_selected(None)),
+            (tr("Sposta selezionata"), lambda *_: self.on_move_selected(None)),
+            (tr("Elimina selezionata"), lambda *_: self.on_delete_selected(None)),
             ("---", None),
             # Prima erano sei voci, tre coppie che facevano quasi la stessa cosa in formati
             # diversi. L'importazione legge anche il formato vecchio.
-            ("Esporta tutte le sessioni", lambda *_: self.export_home_session()),
-            ("Esporta la selezione", lambda *_: self.export_selected_node()),
-            ("Importa sessioni nella cartella selezionata", lambda *_: self.import_into_selected_folder()),
-            ("Sostituisci tutte le sessioni con un file", lambda *_: self.import_home_session()),
+            (tr("Esporta tutte le sessioni"), lambda *_: self.export_home_session()),
+            (tr("Esporta la selezione"), lambda *_: self.export_selected_node()),
+            (tr("Importa sessioni nella cartella selezionata"), lambda *_: self.import_into_selected_folder()),
+            (tr("Sostituisci tutte le sessioni con un file"), lambda *_: self.import_home_session()),
         ]))
-        menubar.append(self.make_menu("Rete", [
-            ("Server locali", lambda *_: self.open_network_tools("services")),
-            ("FTP / SFTP share", lambda *_: self.open_network_tools("shares")),
-            ("Porte locali in ascolto", lambda *_: self.open_network_tools("listeners")),
+        menubar.append(self.make_menu(tr("Rete"), [
+            (tr("Server locali"), lambda *_: self.open_network_tools("services")),
+            (tr("FTP / SFTP share"), lambda *_: self.open_network_tools("shares")),
+            (tr("Porte locali in ascolto"), lambda *_: self.open_network_tools("listeners")),
             ("Wake-on-LAN", lambda *_: self.open_network_tools("wol")),
-            ("Network scanner", lambda *_: self.open_network_tools("network-scan")),
-            ("Port scanner", lambda *_: self.open_network_tools("port-scan")),
-            ("Cattura pacchetti", lambda *_: self.open_network_tools("capture")),
+            (tr("Network scanner"), lambda *_: self.open_network_tools("network-scan")),
+            (tr("Port scanner"), lambda *_: self.open_network_tools("port-scan")),
+            (tr("Cattura pacchetti"), lambda *_: self.open_network_tools("capture")),
             ("---", None),
             ("Ping", lambda *_: self.run_quick_tool("Ping", self.quick_tool_commands()["Ping"])),
             ("Traceroute", lambda *_: self.run_quick_tool("Traceroute", self.quick_tool_commands()["Traceroute"])),
             ("DNS lookup", lambda *_: self.run_quick_tool("DNS lookup", self.quick_tool_commands()["DNS lookup"])),
-            ("Check porta TCP", lambda *_: self.run_quick_tool("Check porta TCP", self.quick_tool_commands()["Check porta TCP"])),
-            ("Connessione Telnet", lambda *_: self.start_quick_telnet()),
+            (tr("Check porta TCP"), lambda *_: self.run_quick_tool("Check porta TCP", self.quick_tool_commands()["Check porta TCP"])),
+            (tr("Connessione Telnet"), lambda *_: self.start_quick_telnet()),
             ("Route", lambda *_: self.run_quick_tool("Route", self.quick_tool_commands()["Route"])),
-            ("Socket aperti", lambda *_: self.run_quick_tool("Socket aperti", self.quick_tool_commands()["Socket aperti"])),
+            (tr("Socket aperti"), lambda *_: self.run_quick_tool("Socket aperti", self.quick_tool_commands()["Socket aperti"])),
         ]))
-        menubar.append(self.make_menu("Strumenti", [
-            ("Tunneling SSH", lambda *_: self.on_tunnel_manager(None)),
-            ("Password Manager", lambda *_: self.on_password_manager(None)),
-            ("Esporta backup cifrato delle password", lambda *_: self.export_vault_encrypted()),
-            ("Importa backup cifrato delle password", lambda *_: self.import_vault_encrypted()),
-            ("Blocca password", lambda *_: self.on_lock_vault(None)),
+        menubar.append(self.make_menu(tr("Strumenti"), [
+            (tr("Tunneling SSH"), lambda *_: self.on_tunnel_manager(None)),
+            (tr("Password Manager"), lambda *_: self.on_password_manager(None)),
+            (tr("Esporta backup cifrato delle password"), lambda *_: self.export_vault_encrypted()),
+            (tr("Importa backup cifrato delle password"), lambda *_: self.import_vault_encrypted()),
+            (tr("Blocca password"), lambda *_: self.on_lock_vault(None)),
             ("---", None),
-            ("Chiavi SSH", lambda *_: self.run_quick_tool("Chiavi SSH", self.quick_tool_commands()["Chiavi SSH"])),
+            (tr("Chiavi SSH"), lambda *_: self.run_quick_tool("Chiavi SSH", self.quick_tool_commands()["Chiavi SSH"])),
             ("Known hosts", lambda *_: self.run_quick_tool("Known hosts", self.quick_tool_commands()["Known hosts"])),
             ("Journal", lambda *_: self.run_quick_tool("Journal", self.quick_tool_commands()["Journal"])),
-            ("Info sistema", lambda *_: self.run_quick_tool("Info sistema", self.quick_tool_commands()["Info sistema"])),
-            ("Log applicazione", lambda *_: self.open_application_log()),
-            ("Diagnostica compatibilità", lambda *_: self.show_diagnostics_dialog()),
+            (tr("Info sistema"), lambda *_: self.run_quick_tool("Info sistema", self.quick_tool_commands()["Info sistema"])),
+            (tr("Log applicazione"), lambda *_: self.open_application_log()),
+            (tr("Diagnostica compatibilità"), lambda *_: self.show_diagnostics_dialog()),
         ]))
-        menubar.append(self.make_menu("Vista", [
-            ("Mostra/nascondi menu", lambda *_: self.toggle_menubar()),
-            ("Mostra/nascondi barra comandi", lambda *_: self.toggle_ribbon()),
-            ("Mostra/nascondi pannello sessioni", lambda *_: self.toggle_sidebar()),
-            ("Mostra/nascondi barra verticale", lambda *_: self.toggle_left_rail()),
-            ("Mostra/nascondi barra di stato", lambda *_: self.toggle_statusbar()),
-            ("Mostra/nascondi suggerimento area lavoro", lambda *_: self.toggle_workspace_hint()),
+        menubar.append(self.make_menu(tr("Vista"), [
+            (tr("Mostra/nascondi menu"), lambda *_: self.toggle_menubar()),
+            (tr("Mostra/nascondi barra comandi"), lambda *_: self.toggle_ribbon()),
+            (tr("Mostra/nascondi pannello sessioni"), lambda *_: self.toggle_sidebar()),
+            (tr("Mostra/nascondi barra verticale"), lambda *_: self.toggle_left_rail()),
+            (tr("Mostra/nascondi barra di stato"), lambda *_: self.toggle_statusbar()),
+            (tr("Mostra/nascondi suggerimento area lavoro"), lambda *_: self.toggle_workspace_hint()),
             ("---", None),
-            ("Espandi cartelle", lambda *_: self.session_tree.expand_all()),
-            ("Comprimi cartelle", lambda *_: self.session_tree.collapse_all()),
+            (tr("Espandi cartelle"), lambda *_: self.session_tree.expand_all()),
+            (tr("Comprimi cartelle"), lambda *_: self.session_tree.collapse_all()),
         ]))
-        menubar.append(self.make_menu("Impostazioni", [
-            ("Apri impostazioni", lambda *_: self.show_settings_dialog()),
-            ("Esporta impostazioni", lambda *_: self.export_settings()),
-            ("Importa impostazioni", lambda *_: self.import_settings()),
+        menubar.append(self.make_menu(tr("Impostazioni"), [
+            (tr("Apri impostazioni"), lambda *_: self.show_settings_dialog()),
+            (tr("Esporta impostazioni"), lambda *_: self.export_settings()),
+            (tr("Importa impostazioni"), lambda *_: self.import_settings()),
         ]))
-        menubar.append(self.make_menu("Aiuto", [
-            ("Guida", lambda *_: self.open_user_guide()),
-            ("Scorciatoie da tastiera", lambda *_: self.show_shortcuts_dialog()),
-            ("Informazioni", lambda *_: self.show_about_dialog()),
+        menubar.append(self.make_menu(tr("Aiuto"), [
+            (tr("Guida"), lambda *_: self.open_user_guide()),
+            (tr("Scorciatoie da tastiera"), lambda *_: self.show_shortcuts_dialog()),
+            (tr("Informazioni"), lambda *_: self.show_about_dialog()),
         ]))
         root.pack_start(menubar, False, False, 0)
 
@@ -9309,20 +9334,20 @@ class AppWindow(Gtk.ApplicationWindow):
             reg = getattr(self, "_registered_app_icons", set())
             return app_name if app_name in reg else fallback
 
-        ribbon.pack_start(self.make_ribbon_group("Menu principali", [
-            ("Terminale", tb("fth-tb-terminale", ["utilities-terminal", "utilities-terminal-symbolic"]), lambda b: self.show_hud_menu(b, "terminal")),
-            ("Sessioni", tb("fth-tb-sessioni", ["network-server", "network-server-symbolic"]), lambda b: self.show_hud_menu(b, "sessions")),
-            ("Rete", tb("fth-tb-rete", ["network-workgroup", "preferences-system-network", "network-workgroup-symbolic"]), lambda b: self.show_hud_menu(b, "network")),
-            ("Strumenti", tb("fth-tb-strumenti", ["applications-system", "applications-system-symbolic"]), lambda b: self.show_hud_menu(b, "tools")),
-            ("Password", tb("fth-tb-password", ["dialog-password-symbolic", "dialog-password"]), lambda _b: self.on_password_manager(None)),
-            ("Vista", tb("fth-tb-vista", ["view-grid-symbolic", "preferences-desktop"]), lambda b: self.show_hud_menu(b, "view")),
-            ("Sistema", tb("fth-tb-sistema", ["preferences-system", "emblem-system", "preferences-system-symbolic"]), lambda b: self.show_hud_menu(b, "system")),
+        ribbon.pack_start(self.make_ribbon_group(tr("Menu principali"), [
+            (tr("Terminale"), tb("fth-tb-terminale", ["utilities-terminal", "utilities-terminal-symbolic"]), lambda b: self.show_hud_menu(b, "terminal")),
+            (tr("Sessioni"), tb("fth-tb-sessioni", ["network-server", "network-server-symbolic"]), lambda b: self.show_hud_menu(b, "sessions")),
+            (tr("Rete"), tb("fth-tb-rete", ["network-workgroup", "preferences-system-network", "network-workgroup-symbolic"]), lambda b: self.show_hud_menu(b, "network")),
+            (tr("Strumenti"), tb("fth-tb-strumenti", ["applications-system", "applications-system-symbolic"]), lambda b: self.show_hud_menu(b, "tools")),
+            (tr("Password"), tb("fth-tb-password", ["dialog-password-symbolic", "dialog-password"]), lambda _b: self.on_password_manager(None)),
+            (tr("Vista"), tb("fth-tb-vista", ["view-grid-symbolic", "preferences-desktop"]), lambda b: self.show_hud_menu(b, "view")),
+            (tr("Sistema"), tb("fth-tb-sistema", ["preferences-system", "emblem-system", "preferences-system-symbolic"]), lambda b: self.show_hud_menu(b, "system")),
         ]), False, False, 0)
         # Il Lab è una funzione autonoma e ad alta utilità: accesso diretto,
         # senza aggiungere un altro pannello permanente o mescolarlo ai menu rete.
         ribbon.pack_start(
             self.make_ribbon_button(
-                "Lab",
+                tr("Lab"),
                 tb("fth-tb-lab", ["computer-symbolic", "computer", "system-run-symbolic"]),
                 lambda _button: self.open_ephemeral_lab(),
                 css_class="ribbon-button",
@@ -9349,12 +9374,12 @@ class AppWindow(Gtk.ApplicationWindow):
         body.pack_start(rail, False, False, 0)
         # Barra sinistra ridotta a strumenti di navigazione, non a doppione
         # dell'HUD superiore.
-        rail.pack_start(self.make_rail_button("Pannello sessioni", ["view-list-symbolic", "folder-symbolic"], lambda _b: self.focus_session_search()), False, False, 3)
-        rail.pack_start(self.make_rail_button("Nascondi/mostra pannello", ["sidebar-show-symbolic", "pan-start-symbolic"], lambda _b: self.toggle_sidebar()), False, False, 3)
-        rail.pack_start(self.make_rail_button("Log applicazione", ["text-x-log-symbolic", "text-x-generic-symbolic"], lambda _b: self.open_application_log()), False, False, 3)
+        rail.pack_start(self.make_rail_button(tr("Pannello sessioni"), ["view-list-symbolic", "folder-symbolic"], lambda _b: self.focus_session_search()), False, False, 3)
+        rail.pack_start(self.make_rail_button(tr("Nascondi/mostra pannello"), ["sidebar-show-symbolic", "pan-start-symbolic"], lambda _b: self.toggle_sidebar()), False, False, 3)
+        rail.pack_start(self.make_rail_button(tr("Log applicazione"), ["text-x-log-symbolic", "text-x-generic-symbolic"], lambda _b: self.open_application_log()), False, False, 3)
         rail_spacer = Gtk.Box()
         rail.pack_start(rail_spacer, True, True, 0)
-        rail.pack_start(self.make_rail_button("Blocca password", ["changes-prevent", "dialog-password", "changes-prevent-symbolic"], lambda _b: self.on_lock_vault(None)), False, False, 3)
+        rail.pack_start(self.make_rail_button(tr("Blocca password"), ["changes-prevent", "dialog-password", "changes-prevent-symbolic"], lambda _b: self.on_lock_vault(None)), False, False, 3)
 
         self.paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         body.pack_start(self.paned, True, True, 0)
@@ -9370,14 +9395,14 @@ class AppWindow(Gtk.ApplicationWindow):
         quick_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         quick_box.get_style_context().add_class("quick-box")
         self.quick = Gtk.Entry()
-        self.quick.set_placeholder_text("Quick connect…")
+        self.quick.set_placeholder_text(tr("Quick connect…"))
         self.quick.set_hexpand(True)
         self.quick.get_style_context().add_class("quick-entry")
         self.quick.connect("activate", self.on_quick_connect)
         quick_box.pack_start(self.quick, True, True, 0)
         btn_quick = Gtk.Button.new_from_icon_name("network-transmit-receive-symbolic", Gtk.IconSize.MENU)
         btn_quick.set_relief(Gtk.ReliefStyle.NONE)
-        btn_quick.set_tooltip_text("Connetti")
+        btn_quick.set_tooltip_text(tr("Connetti"))
         btn_quick.get_style_context().add_class("quick-connect-button")
         btn_quick.connect("clicked", self.on_quick_connect)
         quick_box.pack_start(btn_quick, False, False, 0)
@@ -9394,7 +9419,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
         session_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.sidebar_sessions_page = session_page
-        self.sidebar_notebook.append_page(session_page, Gtk.Label(label="Sessioni"))
+        self.sidebar_notebook.append_page(session_page, Gtk.Label(label=tr("Sessioni")))
 
         if RemoteFilesSidebar is not None:
             self.remote_files_sidebar = RemoteFilesSidebar(self)
@@ -9402,7 +9427,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 self.settings.follow_remote_directory
             )
             self.remote_files_sidebar.on_follow_changed = self._on_follow_remote_changed
-            self.remote_files_tab_label = Gtk.Label(label="File remoti")
+            self.remote_files_tab_label = Gtk.Label(label=tr("File remoti"))
             self.remote_files_tab_label.set_no_show_all(True)
             self.remote_files_tab_label.hide()
             self.remote_files_page_num = self.sidebar_notebook.append_page(
@@ -9417,7 +9442,7 @@ class AppWindow(Gtk.ApplicationWindow):
         side_titlebar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         side_titlebar.get_style_context().add_class("side-titlebar")
         session_page.pack_start(side_titlebar, False, False, 0)
-        side_title = Gtk.Label(label="Sessioni", xalign=0)
+        side_title = Gtk.Label(label=tr("Sessioni"), xalign=0)
         side_title.get_style_context().add_class("side-title")
         side_titlebar.pack_start(side_title, True, True, 0)
         # Il conteggio non occupa spazio nella sidebar: è disponibile da
@@ -9426,13 +9451,13 @@ class AppWindow(Gtk.ApplicationWindow):
         self.session_count_label.set_no_show_all(True)
         collapse_sidebar = Gtk.Button.new_from_icon_name("pan-start-symbolic", Gtk.IconSize.MENU)
         collapse_sidebar.set_relief(Gtk.ReliefStyle.NONE)
-        collapse_sidebar.set_tooltip_text("Nascondi pannello sessioni")
+        collapse_sidebar.set_tooltip_text(tr("Nascondi pannello sessioni"))
         collapse_sidebar.get_style_context().add_class("sidebar-collapse")
         collapse_sidebar.connect("clicked", lambda *_: self.toggle_sidebar(False))
         side_titlebar.pack_start(collapse_sidebar, False, False, 0)
 
         self.session_filter = Gtk.SearchEntry()
-        self.session_filter.set_placeholder_text("Cerca sessioni…")
+        self.session_filter.set_placeholder_text(tr("Cerca sessioni…"))
         self.session_filter.connect("search-changed", self.on_session_filter_changed)
         self.session_filter.get_style_context().add_class("session-search")
         session_page.pack_start(self.session_filter, False, False, 0)
@@ -9446,19 +9471,20 @@ class AppWindow(Gtk.ApplicationWindow):
             return app_name if app_name in registered else fallback
 
         for label, icon, cb in [
-            ("Nuova sessione", action_icon("fth-act-new", "list-add-symbolic"), self.on_add_session),
-            ("Nuova cartella", action_icon("fth-act-folder-new", "folder-new-symbolic"), self.on_add_folder),
-            ("Modifica", action_icon("fth-act-edit", "document-edit-symbolic"), self.on_edit_selected),
-            ("Duplica", action_icon("fth-act-duplicate", "edit-copy-symbolic"), self.on_duplicate_selected),
-            ("Sposta", "go-jump-symbolic", self.on_move_selected),
-            ("Elimina", action_icon("fth-act-delete", "user-trash-symbolic"), self.on_delete_selected),
+            (tr("Nuova sessione"), action_icon("fth-act-new", "list-add-symbolic"), self.on_add_session),
+            (tr("Nuova cartella"), action_icon("fth-act-folder-new", "folder-new-symbolic"), self.on_add_folder),
+            (tr("Modifica"), action_icon("fth-act-edit", "document-edit-symbolic"), self.on_edit_selected),
+            (tr("Duplica"), action_icon("fth-act-duplicate", "edit-copy-symbolic"), self.on_duplicate_selected),
+            (tr("Sposta"), "go-jump-symbolic", self.on_move_selected),
+            (tr("Elimina"), action_icon("fth-act-delete", "user-trash-symbolic"), self.on_delete_selected),
         ]:
             action = Gtk.Button.new_from_icon_name(icon, Gtk.IconSize.MENU)
             action.set_relief(Gtk.ReliefStyle.NONE)
             action.set_tooltip_text(label)
             action.get_style_context().add_class("mini-action")
             action.connect("clicked", cb)
-            self.session_action_buttons[label] = action
+            # Chiave stabile (testo italiano) qualunque sia la lingua dell'interfaccia.
+            self.session_action_buttons[original(label)] = action
             session_toolbar.pack_start(action, True, True, 0)
         session_page.pack_start(session_toolbar, False, False, 0)
 
@@ -9471,8 +9497,8 @@ class AppWindow(Gtk.ApplicationWindow):
         self.session_tree.set_enable_tree_lines(False)
         self.session_tree.set_activate_on_single_click(False)
         self.session_tree.set_tooltip_text(
-            "Doppio clic per aprire. Trascina una sessione sopra una cartella per spostarla; "
-            "trascinala prima o dopo un'altra voce per riordinarla."
+            tr("Doppio clic per aprire. Trascina una sessione sopra una cartella per spostarla; "
+            "trascinala prima o dopo un'altra voce per riordinarla.")
         )
         self.session_tree.connect("row-activated", self.on_session_activated)
         self.session_tree.connect("button-press-event", self.on_tree_button_press)
@@ -9510,7 +9536,7 @@ class AppWindow(Gtk.ApplicationWindow):
         renderer_name.set_property("ellipsize", Pango.EllipsizeMode.END)
         renderer_name.set_property("ypad", 2)
         renderer_name.set_property("xpad", 3)
-        col_name = Gtk.TreeViewColumn("Sessione")
+        col_name = Gtk.TreeViewColumn(tr("Sessione"))
         col_name.pack_start(renderer_icon, False)
         col_name.set_cell_data_func(renderer_icon, self._session_tree_icon_data)
         col_name.pack_start(renderer_name, True)
@@ -9530,12 +9556,12 @@ class AppWindow(Gtk.ApplicationWindow):
         side_footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         side_footer.get_style_context().add_class("side-footer")
         btn_expand = Gtk.Button.new_from_icon_name("pan-down-symbolic", Gtk.IconSize.MENU)
-        btn_expand.set_tooltip_text("Espandi tutte le cartelle")
+        btn_expand.set_tooltip_text(tr("Espandi tutte le cartelle"))
         btn_expand.set_relief(Gtk.ReliefStyle.NONE)
         btn_expand.get_style_context().add_class("mini-action")
         btn_expand.connect("clicked", lambda _b: self.session_tree.expand_all())
         btn_collapse = Gtk.Button.new_from_icon_name("pan-end-symbolic", Gtk.IconSize.MENU)
-        btn_collapse.set_tooltip_text("Comprimi tutte le cartelle")
+        btn_collapse.set_tooltip_text(tr("Comprimi tutte le cartelle"))
         btn_collapse.set_relief(Gtk.ReliefStyle.NONE)
         btn_collapse.get_style_context().add_class("mini-action")
         btn_collapse.connect("clicked", lambda _b: self.session_tree.collapse_all())
@@ -9559,7 +9585,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.notification_text.set_ellipsize(Pango.EllipsizeMode.END)
         close_notification = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
         close_notification.set_relief(Gtk.ReliefStyle.NONE)
-        close_notification.set_tooltip_text("Chiudi questa notifica")
+        close_notification.set_tooltip_text(tr("Chiudi questa notifica"))
         close_notification.connect("clicked", lambda *_: self.hide_notification())
         notification.pack_start(self.notification_icon, False, False, 0)
         notification.pack_start(self.notification_text, True, True, 0)
@@ -9573,7 +9599,7 @@ class AppWindow(Gtk.ApplicationWindow):
         terminal_icon = Gtk.Label(label="▸")
         terminal_icon.get_style_context().add_class("green-dot")
         tabbar_hint.pack_start(terminal_icon, False, False, 0)
-        hint = Gtk.Label(label="Doppio clic per aprire una sessione", xalign=0)
+        hint = Gtk.Label(label=tr("Doppio clic per aprire una sessione"), xalign=0)
         hint.get_style_context().add_class("workspace-hint")
         tabbar_hint.pack_start(hint, True, True, 0)
         workspace.pack_start(tabbar_hint, False, False, 0)
@@ -9589,53 +9615,53 @@ class AppWindow(Gtk.ApplicationWindow):
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.footer = footer
         footer.set_name("bottom-status")
-        self.status = Gtk.Label(label="Pronto.", xalign=0)
+        self.status = Gtk.Label(label=tr("Pronto."), xalign=0)
         self.status.set_ellipsize(Pango.EllipsizeMode.END)
         footer.pack_start(self.status, True, True, 6)
-        version = Gtk.Label(label=f"{APP_NAME} {APP_VERSION}  •  Fedora workstation tools" + ("  •  SAFE MODE" if SAFE_MODE else ""))
+        version = Gtk.Label(label=tr("{APP_NAME} {APP_VERSION}  •  Fedora workstation tools").format(APP_NAME=APP_NAME, APP_VERSION=APP_VERSION) + (tr("  •  SAFE MODE") if SAFE_MODE else ""))
         version.get_style_context().add_class("footer-version")
         footer.pack_start(version, False, False, 8)
         root.pack_start(footer, False, False, 0)
 
     def build_diagnostics_text(self) -> str:
         lines = [
-            f"FedTermHub {APP_VERSION} - Diagnostica",
+            tr("FedTermHub {APP_VERSION} - Diagnostica").format(APP_VERSION=APP_VERSION),
             "=" * 38,
-            f"Python: {sys.version.split()[0]} ({sys.executable})",
-            f"Sistema: {platform.platform()}",
-            f"Sessione: {os.environ.get('XDG_SESSION_TYPE', '-')}",
-            f"Desktop: {os.environ.get('XDG_CURRENT_DESKTOP', '-')}",
-            f"DISPLAY: {os.environ.get('DISPLAY', '-')}",
-            f"WAYLAND_DISPLAY: {os.environ.get('WAYLAND_DISPLAY', '-')}",
-            f"Safe mode: {'ON' if SAFE_MODE else 'OFF'}",
-            f"Animazioni: {'ON' if self.settings.animations else 'OFF'}",
-            f"Popup errori: {'ON' if self.settings.show_error_popups else 'OFF'}",
-            f"Schede errore: {'ON' if self.settings.open_error_tabs else 'OFF'}",
-            f"Preflight RDP: {'ON' if self.settings.rdp_preflight else 'OFF'}",
-            f"Timeout connessioni: {self.settings.connection_timeout_seconds}s",
-            f"SSH keepalive: {self.settings.ssh_keepalive_interval}s x {self.settings.ssh_keepalive_count}",
-            f"Vault auto-lock: {self.settings.vault_auto_lock_minutes} min",
-            f"Tema icone richiesto: {self.settings.icon_theme}",
-            f"Tema icone attivo: {getattr(self, 'active_icon_theme', '-')}",
-            f"Layout: icone {self.settings.toolbar_icon_size}px, sidebar {self.settings.sidebar_width}px",
-            f"Terminale: {self.settings.terminal_font_family} {self.settings.terminal_font_size}, scrollback {self.settings.terminal_scrollback_lines}",
-            f"Temi icone disponibili: {', '.join(available_icon_themes()[:18]) or '-'}",
-            f"Config: {CONFIG_DIR}",
-            f"Log: {LOG_FILE}",
+            tr("Python: {v} ({executable})").format(v=sys.version.split()[0], executable=sys.executable),
+            tr("Sistema: {platform}").format(platform=platform.platform()),
+            tr("Sessione: {get}").format(get=os.environ.get('XDG_SESSION_TYPE', '-')),
+            tr("Desktop: {get}").format(get=os.environ.get('XDG_CURRENT_DESKTOP', '-')),
+            tr("DISPLAY: {get}").format(get=os.environ.get('DISPLAY', '-')),
+            tr("WAYLAND_DISPLAY: {get}").format(get=os.environ.get('WAYLAND_DISPLAY', '-')),
+            tr("Safe mode: {v}").format(v='ON' if SAFE_MODE else 'OFF'),
+            tr("Animazioni: {v}").format(v='ON' if self.settings.animations else 'OFF'),
+            tr("Popup errori: {v}").format(v='ON' if self.settings.show_error_popups else 'OFF'),
+            tr("Schede errore: {v}").format(v='ON' if self.settings.open_error_tabs else 'OFF'),
+            tr("Preflight RDP: {v}").format(v='ON' if self.settings.rdp_preflight else 'OFF'),
+            tr("Timeout connessioni: {connection_timeout_seconds}s").format(connection_timeout_seconds=self.settings.connection_timeout_seconds),
+            tr("SSH keepalive: {ssh_keepalive_interval}s x {ssh_keepalive_count}").format(ssh_keepalive_interval=self.settings.ssh_keepalive_interval, ssh_keepalive_count=self.settings.ssh_keepalive_count),
+            tr("Vault auto-lock: {vault_auto_lock_minutes} min").format(vault_auto_lock_minutes=self.settings.vault_auto_lock_minutes),
+            tr("Tema icone richiesto: {icon_theme}").format(icon_theme=self.settings.icon_theme),
+            tr("Tema icone attivo: {getattr}").format(getattr=getattr(self, 'active_icon_theme', '-')),
+            tr("Layout: icone {toolbar_icon_size}px, sidebar {sidebar_width}px").format(toolbar_icon_size=self.settings.toolbar_icon_size, sidebar_width=self.settings.sidebar_width),
+            tr("Terminale: {terminal_font_family} {terminal_font_size}, scrollback {terminal_scrollback_lines}").format(terminal_font_family=self.settings.terminal_font_family, terminal_font_size=self.settings.terminal_font_size, terminal_scrollback_lines=self.settings.terminal_scrollback_lines),
+            tr("Temi icone disponibili: {v}").format(v=', '.join(available_icon_themes()[:18]) or '-'),
+            tr("Config: {CONFIG_DIR}").format(CONFIG_DIR=CONFIG_DIR),
+            tr("Log: {LOG_FILE}").format(LOG_FILE=LOG_FILE),
             "",
-            "Dipendenze Python:",
-            "  GTK/GObject: OK",
-            "  VTE: OK",
-            f"  cryptography: {'OK' if CRYPTO_AVAILABLE else 'MANCANTE'}",
+            tr("Dipendenze Python:"),
+            tr("  GTK/GObject: OK"),
+            tr("  VTE: OK"),
+            tr("  cryptography: {v}").format(v='OK' if CRYPTO_AVAILABLE else tr('MANCANTE')),
         ]
         try:
             import serial
             serial_ok = serial is not None
         except Exception:
             serial_ok = False
-        lines.append(f"  pyserial: {'OK' if serial_ok else 'MANCANTE'}")
+        lines.append(tr("  pyserial: {v}").format(v='OK' if serial_ok else tr('MANCANTE')))
         lines.append("")
-        lines.append("Binari esterni:")
+        lines.append(tr("Binari esterni:"))
         for binary, pkg in [
             ("ssh", "openssh-clients"),
             ("sftp", "openssh-clients"),
@@ -9663,26 +9689,26 @@ class AppWindow(Gtk.ApplicationWindow):
             ("qemu-img", "qemu-img"),
         ]:
             path = shutil.which(binary)
-            lines.append(f"  {binary:<10} {'OK  ' + path if path else 'MANCANTE  sudo dnf install ' + pkg}")
+            lines.append(f"  {binary:<10} {'OK  ' + path if path else tr('MANCANTE') + '  sudo dnf install ' + pkg}")
         lines.append("")
-        lines.append(f"Bridge focus X11: {'OK' if X11FocusBridge._load() else 'NON DISPONIBILE'}")
+        lines.append(tr("Bridge focus X11: {v}").format(v='OK' if X11FocusBridge._load() else tr('NON DISPONIBILE')))
         lines.append("")
-        lines.append("Porte seriali rilevate:")
+        lines.append(tr("Porte seriali rilevate:"))
         ports = detect_serial_ports()
         if ports:
             lines.extend([f"  {port}" for port in ports[:40]])
         else:
-            lines.append("  Nessuna porta seriale rilevata ora.")
+            lines.append(tr("  Nessuna porta seriale rilevata ora."))
         lines.append("")
-        lines.append("Avvio safe mode:")
-        lines.append("  fedtermhub --safe-mode")
-        lines.append("Doctor da terminale:")
-        lines.append("  fedtermhub --doctor")
+        lines.append(tr("Avvio safe mode:"))
+        lines.append(tr("  fedtermhub --safe-mode"))
+        lines.append(tr("Doctor da terminale:"))
+        lines.append(tr("  fedtermhub --doctor"))
         return "\n".join(lines)
 
     def show_diagnostics_dialog(self) -> None:
         """Show a diagnostics viewer robust on KDE/X11/Wayland using a ListBox."""
-        dialog = Gtk.Dialog(title="Diagnostica compatibilità", transient_for=self, flags=0)
+        dialog = Gtk.Dialog(title=tr("Diagnostica compatibilità"), transient_for=self, flags=0)
         dialog.set_modal(True)
         dialog.set_resizable(True)
         dialog.set_default_size(900, 640)
@@ -9704,10 +9730,10 @@ class AppWindow(Gtk.ApplicationWindow):
         icon = self.make_icon_image([APP_ICON_NAME, "dialog-information-symbolic"], 42)
         header.pack_start(icon, False, False, 0)
         title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        title = Gtk.Label(label="Diagnostica compatibilità", xalign=0)
+        title = Gtk.Label(label=tr("Diagnostica compatibilità"), xalign=0)
         title.get_style_context().add_class("dialog-heading")
         subtitle = Gtk.Label(
-            label="Controlli di sistema, dipendenze, backend RDP, strumenti esterni e porte seriali.",
+            label=tr("Controlli di sistema, dipendenze, backend RDP, strumenti esterni e porte seriali."),
             xalign=0,
         )
         subtitle.set_line_wrap(True)
@@ -9720,12 +9746,12 @@ class AppWindow(Gtk.ApplicationWindow):
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
         toolbar.get_style_context().add_class("diagnostics-toolbar")
         search = Gtk.SearchEntry()
-        search.set_placeholder_text("Cerca nel rapporto diagnostico…")
+        search.set_placeholder_text(tr("Cerca nel rapporto diagnostico…"))
         search.set_hexpand(True)
         toolbar.pack_start(search, True, True, 0)
-        refresh_button = self.make_button("Aggiorna", ["view-refresh-symbolic", "view-refresh"])
-        copy_button = self.make_button("Copia rapporto", ["edit-copy-symbolic", "edit-copy"])
-        export_button = self.make_button("Esporta", ["document-save-symbolic", "document-save"])
+        refresh_button = self.make_button(tr("Aggiorna"), ["view-refresh-symbolic", "view-refresh"])
+        copy_button = self.make_button(tr("Copia rapporto"), ["edit-copy-symbolic", "edit-copy"])
+        export_button = self.make_button(tr("Esporta"), ["document-save-symbolic", "document-save"])
         toolbar.pack_start(refresh_button, False, False, 0)
         toolbar.pack_start(copy_button, False, False, 0)
         toolbar.pack_start(export_button, False, False, 0)
@@ -9778,11 +9804,13 @@ class AppWindow(Gtk.ApplicationWindow):
                 if not stripped:
                     label.set_text(" ")
                 elif raw_line == first_line:
-                    label.set_markup(f'<span size="large" weight="bold">{GLib.markup_escape_text(raw_line)}</span>')
+                    label.set_markup(tr("<span size=\"large\" weight=\"bold\">{markup_escape_text}</span>").format(markup_escape_text=GLib.markup_escape_text(raw_line)))
                 elif stripped.endswith(":") and not raw_line.startswith("  "):
-                    label.set_markup(f'<span weight="bold">{GLib.markup_escape_text(stripped)}</span>')
-                elif "MANCANTE" in stripped or "ERRORE" in stripped or "NON DISPONIBILE" in stripped:
-                    label.set_markup(f'<span weight="bold">⚠ {GLib.markup_escape_text(raw_line)}</span>')
+                    label.set_markup(tr("<span weight=\"bold\">{markup_escape_text}</span>").format(markup_escape_text=GLib.markup_escape_text(stripped)))
+                elif any(word in stripped for word in (
+                    "MANCANTE", "ERRORE", tr("NON DISPONIBILE"), tr("MANCANTE"), tr("ERRORE"), tr("NON DISPONIBILE"),
+                )):
+                    label.set_markup(tr("<span weight=\"bold\">⚠ {markup_escape_text}</span>").format(markup_escape_text=GLib.markup_escape_text(raw_line)))
                 elif "OK" in stripped or "ON" in stripped:
                     label.set_markup(f'✓ {GLib.markup_escape_text(raw_line)}')
                 else:
@@ -9800,20 +9828,20 @@ class AppWindow(Gtk.ApplicationWindow):
 
         def copy_report(_button) -> None:
             Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(report_holder["text"], -1)
-            self.show_notification("Rapporto diagnostico copiato negli appunti.", "success", 3000)
+            self.show_notification(tr("Rapporto diagnostico copiato negli appunti."), "success", 3000)
 
         def export_report(_button) -> None:
-            chooser = Gtk.FileChooserDialog(title="Esporta diagnostica", transient_for=dialog, action=Gtk.FileChooserAction.SAVE)
+            chooser = Gtk.FileChooserDialog(title=tr("Esporta diagnostica"), transient_for=dialog, action=Gtk.FileChooserAction.SAVE)
             apply_window_icon(chooser)
-            chooser.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Salva", Gtk.ResponseType.OK)
+            chooser.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Salva"), Gtk.ResponseType.OK)
             chooser.set_current_name(f"fedtermhub-diagnostica-{APP_VERSION}.txt")
             chooser.set_do_overwrite_confirmation(True)
             try:
                 if chooser.run() == Gtk.ResponseType.OK:
                     Path(chooser.get_filename()).write_text(report_holder["text"] + "\n", encoding="utf-8")
-                    self.show_notification("Rapporto diagnostico esportato.", "success", 3000)
+                    self.show_notification(tr("Rapporto diagnostico esportato."), "success", 3000)
             except Exception as exc:
-                self.show_notification(f"Esportazione diagnostica non riuscita: {exc}", "error", 6000)
+                self.show_notification(tr("Esportazione diagnostica non riuscita: {exc}").format(exc=exc), "error", 6000)
             finally:
                 chooser.destroy()
 
@@ -9822,7 +9850,7 @@ class AppWindow(Gtk.ApplicationWindow):
         copy_button.connect("clicked", copy_report)
         export_button.connect("clicked", export_report)
 
-        dialog.add_button("Chiudi", Gtk.ResponseType.CLOSE)
+        dialog.add_button(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         populate()
         dialog.show_all()
         try:
@@ -9836,7 +9864,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.refresh_icon_theme_runtime()
         self.apply_theme(theme)
         self.refresh_theme_toggle_button()
-        self.set_status(f"Tema applicato: {'Scuro' if theme == 'dark' else 'Chiaro'} — icone: {getattr(self, 'active_icon_theme', '-')}")
+        self.set_status(tr("Tema applicato: {v} — icone: {getattr}").format(v=tr('Scuro') if theme == 'dark' else tr('Chiaro'), getattr=getattr(self, 'active_icon_theme', '-')))
 
     def cycle_theme(self) -> None:
         self.set_theme_from_menu("light" if self.settings.theme == "dark" else "dark")
@@ -9844,9 +9872,9 @@ class AppWindow(Gtk.ApplicationWindow):
     def show_about_dialog(self) -> None:
         # Gtk.AboutDialog con website button può restare appeso su alcuni temi/WM;
         # usiamo un Dialog normale con chiusura esplicita e delete-event gestito.
-        dialog = Gtk.Dialog(title=f"Informazioni su {APP_NAME}", transient_for=self, flags=0)
+        dialog = Gtk.Dialog(title=tr("Informazioni su {APP_NAME}").format(APP_NAME=APP_NAME), transient_for=self, flags=0)
         dialog.set_modal(True)
-        dialog.add_buttons("Chiudi", Gtk.ResponseType.CLOSE)
+        dialog.add_buttons(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         dialog.set_default_size(520, 260)
         dialog.connect("delete-event", lambda d, _e: (d.response(Gtk.ResponseType.CLOSE), True)[1])
         box = dialog.get_content_area()
@@ -9857,9 +9885,9 @@ class AppWindow(Gtk.ApplicationWindow):
         outer.pack_start(title, False, False, 0)
         text = Gtk.Label(
             label=(
-                "Gestore integrato di terminali e connessioni remote per Fedora.\n\n"
+                tr("Gestore integrato di terminali e connessioni remote per Fedora.\n\n"
                 "Funzioni: SSH, RDP integrato con focus tastiera, VNC, SFTP, seriale, Password Manager cifrato, tunnel SSH, split terminal e MultiExec.\n\n"
-                "Configurazione locale: ~/.config/fedtermhub"
+                "Configurazione locale: ~/.config/fedtermhub")
             ),
             xalign=0,
         )
@@ -9872,9 +9900,9 @@ class AppWindow(Gtk.ApplicationWindow):
             dialog.destroy()
 
     def show_shortcuts_dialog(self) -> None:
-        dialog = Gtk.Dialog(title="Scorciatoie da tastiera", transient_for=self, flags=0)
+        dialog = Gtk.Dialog(title=tr("Scorciatoie da tastiera"), transient_for=self, flags=0)
         dialog.set_modal(True)
-        dialog.add_buttons("Chiudi", Gtk.ResponseType.CLOSE)
+        dialog.add_buttons(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         dialog.set_default_size(560, 640)
         dialog.get_style_context().add_class("modern-dialog")
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=18)
@@ -9883,7 +9911,7 @@ class AppWindow(Gtk.ApplicationWindow):
         scroller.set_vexpand(True)
         scroller.add(outer)
         dialog.get_content_area().pack_start(scroller, True, True, 0)
-        title = Gtk.Label(label="Scorciatoie da tastiera", xalign=0)
+        title = Gtk.Label(label=tr("Scorciatoie da tastiera"), xalign=0)
         title.get_style_context().add_class("dialog-heading")
         outer.pack_start(title, False, False, 0)
         grid = Gtk.Grid(column_spacing=20, row_spacing=9)
@@ -9892,31 +9920,31 @@ class AppWindow(Gtk.ApplicationWindow):
         # Stesso elenco della guida (docs/GUIDA.md): prima qui mancavano Ctrl+K, Ctrl+H e tutte le
         # scorciatoie del terminale.
         sections = [
-            ("Applicazione (con il fuoco fuori dal terminale)", [
-                ("Ctrl+K", "Cerca e apri una sessione"),
-                ("Ctrl+Shift+N", "Nuova sessione"),
-                ("Ctrl+L", "Connessione rapida"),
-                ("Ctrl+T", "Nuovo terminale locale"),
-                ("Ctrl+W", "Chiudi la scheda"),
-                ("Ctrl+B", "Mostra o nascondi il pannello sessioni"),
-                ("Ctrl+H", "File remoti: mostra i file nascosti"),
-                ("Ctrl+Shift+T", "Gestore tunnel SSH"),
-                ("Ctrl+Shift+V", "Password Manager"),
-                ("Ctrl+,", "Impostazioni"),
-                ("F11", "Schermo intero"),
+            (tr("Applicazione (con il fuoco fuori dal terminale)"), [
+                (tr("Ctrl+K"), tr("Cerca e apri una sessione")),
+                (tr("Ctrl+Shift+N"), tr("Nuova sessione")),
+                (tr("Ctrl+L"), tr("Connessione rapida")),
+                (tr("Ctrl+T"), tr("Nuovo terminale locale")),
+                (tr("Ctrl+W"), tr("Chiudi la scheda")),
+                (tr("Ctrl+B"), tr("Mostra o nascondi il pannello sessioni")),
+                (tr("Ctrl+H"), tr("File remoti: mostra i file nascosti")),
+                (tr("Ctrl+Shift+T"), tr("Gestore tunnel SSH")),
+                (tr("Ctrl+Shift+V"), tr("Password Manager")),
+                (tr("Ctrl+,"), tr("Impostazioni")),
+                ("F11", tr("Schermo intero")),
             ]),
-            ("Nel terminale", [
-                ("Ctrl+Shift+C / V", "Copia / incolla"),
-                ("Ctrl+Shift+O / E", "Dividi affiancato / sopra e sotto"),
-                ("Ctrl+Shift+Invio", "Nuovo riquadro"),
-                ("Ctrl+Shift+W", "Chiudi il riquadro (l'ultimo chiude la scheda)"),
-                ("Ctrl+Shift+[ / ]", "Riquadro precedente / successivo"),
-                ("Ctrl+Shift+L", "Cambia disposizione dei riquadri"),
-                ("Ctrl+Shift+P", "Scrivi in tutti i riquadri insieme"),
-                ("Ctrl+Shift+F", "Cerca nel testo"),
-                ("Ctrl+Shift+H", "Apri un indirizzo web da tastiera"),
-                ("Ctrl+Shift+R", "Riconnetti"),
-                ("Ctrl + / - / 0", "Ingrandisci / riduci / dimensione normale"),
+            (tr("Nel terminale"), [
+                (tr("Ctrl+Shift+C / V"), tr("Copia / incolla")),
+                (tr("Ctrl+Shift+O / E"), tr("Dividi affiancato / sopra e sotto")),
+                (tr("Ctrl+Shift+Invio"), tr("Nuovo riquadro")),
+                (tr("Ctrl+Shift+W"), tr("Chiudi il riquadro (l'ultimo chiude la scheda)")),
+                (tr("Ctrl+Shift+[ / ]"), tr("Riquadro precedente / successivo")),
+                (tr("Ctrl+Shift+L"), tr("Cambia disposizione dei riquadri")),
+                (tr("Ctrl+Shift+P"), tr("Scrivi in tutti i riquadri insieme")),
+                (tr("Ctrl+Shift+F"), tr("Cerca nel testo")),
+                (tr("Ctrl+Shift+H"), tr("Apri un indirizzo web da tastiera")),
+                (tr("Ctrl+Shift+R"), tr("Riconnetti")),
+                (tr("Ctrl + / - / 0"), tr("Ingrandisci / riduci / dimensione normale")),
             ]),
         ]
         row = 0
@@ -9931,7 +9959,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 grid.attach(key_lbl, 0, row, 1, 1)
                 grid.attach(Gtk.Label(label=action, xalign=0), 1, row, 1, 1)
                 row += 1
-        note = Gtk.Label(label="Nel terminale le combinazioni Ctrl+lettera vanno al programma (bash, nano, tmux). Nella sessione RDP F11 ed Esc controllano lo schermo intero; gli altri tasti vanno al desktop remoto.", xalign=0)
+        note = Gtk.Label(label=tr("Nel terminale le combinazioni Ctrl+lettera vanno al programma (bash, nano, tmux). Nella sessione RDP F11 ed Esc controllano lo schermo intero; gli altri tasti vanno al desktop remoto."), xalign=0)
         note.set_line_wrap(True)
         note.get_style_context().add_class("info-card")
         outer.pack_start(note, False, False, 0)
@@ -9947,18 +9975,18 @@ class AppWindow(Gtk.ApplicationWindow):
             Path("/usr/share/doc/fedtermhub/GUIDA.md"),
             Path(__file__).resolve().parent.parent / "docs" / "GUIDA.md",
         ]
-        uri = next((c.as_uri() for c in candidates if c.is_file()), "https://github.com/Crash-FD01/FedTermHub/blob/main/docs/GUIDA.md")
+        uri = next((c.as_uri() for c in candidates if c.is_file()), tr("https://github.com/Crash-FD01/FedTermHub/blob/main/docs/GUIDA.md"))
         try:
             Gio.AppInfo.launch_default_for_uri(uri, None)
         except Exception as exc:
-            self.set_status(f"Impossibile aprire la guida: {exc}")
+            self.set_status(tr("Impossibile aprire la guida: {exc}").format(exc=exc))
 
     def open_application_log(self) -> None:
         try:
-            text = LOG_FILE.read_text(encoding="utf-8") if LOG_FILE.exists() else "Il log applicativo è ancora vuoto."
+            text = LOG_FILE.read_text(encoding="utf-8") if LOG_FILE.exists() else tr("Il log applicativo è ancora vuoto.")
         except Exception as exc:
-            text = f"Impossibile leggere il log: {exc}"
-        self.add_text_tab("Log FedTermHub", text)
+            text = tr("Impossibile leggere il log: {exc}").format(exc=exc)
+        self.add_text_tab(tr("Log FedTermHub"), text)
 
     def show_settings_dialog(self) -> None:
         # Gtk.Dialog.run() rende la finestra modale con un grab sugli input:
@@ -9987,25 +10015,26 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def quick_tool_commands(self) -> Dict[str, str]:
         return {
-            "Ping": 'read -rp \'Host da pingare [8.8.8.8]: \' h; h=${h:-8.8.8.8}; ping -c 5 "$h"; echo; read -rp \'Invio per chiudere...\' _',
-            "Traceroute": 'read -rp \'Host traceroute [8.8.8.8]: \' h; h=${h:-8.8.8.8}; tracepath "$h" || traceroute "$h"; echo; read -rp \'Invio per chiudere...\' _',
-            "DNS lookup": 'read -rp \'Nome DNS [example.com]: \' h; h=${h:-example.com}; dig "$h" || nslookup "$h"; echo; read -rp \'Invio per chiudere...\' _',
-            "Check porta TCP": 'read -rp \'Host: \' h; read -rp \'Porta: \' p; timeout 4 bash -c "</dev/tcp/$h/$p" && echo \'Porta aperta\' || echo \'Porta chiusa/non raggiungibile\'; echo; read -rp \'Invio per chiudere...\' _',
-            "IP locale": "ip -br addr; echo; read -rp 'Invio per chiudere...' _",
-            "Route": "ip route; echo; read -rp 'Invio per chiudere...' _",
-            "Socket aperti": "ss -tulpen; echo; read -rp 'Invio per chiudere...' _",
-            "Chiavi SSH": "ls -lah ~/.ssh; echo; ssh-add -l 2>/dev/null || true; echo; read -rp 'Invio per chiudere...' _",
-            "Known hosts": "${EDITOR:-nano} ~/.ssh/known_hosts",
-            "Journal": "journalctl -f",
-            "Info sistema": "hostnamectl; echo; lsb_release -a 2>/dev/null || cat /etc/os-release; echo; read -rp 'Invio per chiudere...' _",
-            "Doctor FedTermHub": "fedtermhub --doctor; echo; read -rp 'Invio per chiudere...' _",
+            "Ping": tr('read -rp \'Host da pingare [8.8.8.8]: \' h; h=${h:-8.8.8.8}; ping -c 5 "$h"; echo; read -rp \'Invio per chiudere...\' _'),
+            "Traceroute": tr('read -rp \'Host traceroute [8.8.8.8]: \' h; h=${h:-8.8.8.8}; tracepath "$h" || traceroute "$h"; echo; read -rp \'Invio per chiudere...\' _'),
+            "DNS lookup": tr('read -rp \'Nome DNS [example.com]: \' h; h=${h:-example.com}; dig "$h" || nslookup "$h"; echo; read -rp \'Invio per chiudere...\' _'),
+            "Check porta TCP": tr('read -rp \'Host: \' h; read -rp \'Porta: \' p; timeout 4 bash -c "</dev/tcp/$h/$p" && echo \'Porta aperta\' || echo \'Porta chiusa/non raggiungibile\'; echo; read -rp \'Invio per chiudere...\' _'),
+            "IP locale": tr("ip -br addr; echo; read -rp 'Invio per chiudere...' _"),
+            "Route": tr("ip route; echo; read -rp 'Invio per chiudere...' _"),
+            "Socket aperti": tr("ss -tulpen; echo; read -rp 'Invio per chiudere...' _"),
+            "Chiavi SSH": tr("ls -lah ~/.ssh; echo; ssh-add -l 2>/dev/null || true; echo; read -rp 'Invio per chiudere...' _"),
+            "Known hosts": tr("${EDITOR:-nano} ~/.ssh/known_hosts"),
+            "Journal": tr("journalctl -f"),
+            "Info sistema": tr("hostnamectl; echo; lsb_release -a 2>/dev/null || cat /etc/os-release; echo; read -rp 'Invio per chiudere...' _"),
+            "Doctor FedTermHub": tr("fedtermhub --doctor; echo; read -rp 'Invio per chiudere...' _"),
         }
 
     def run_quick_tool(self, label: str, command: str) -> None:
         # I comandi sono scritti per bash (read -rp, /dev/tcp): con la shell dell'utente fallivano
         # su zsh (dove read -p e' un'altra cosa) e su fish.
         shell = shutil.which("bash") or os.environ.get("SHELL") or "/bin/sh"
-        self.add_terminal_tab(label, [shell, "-lc", command], close_on_exit="always")
+        # I nomi degli strumenti restano in italiano come chiavi: la scheda mostra quello tradotto.
+        self.add_terminal_tab(tr(label), [shell, "-lc", command], close_on_exit="always")
 
     def show_tools_dialog(self) -> None:
         self.show_tools_menu(None)
@@ -10045,71 +10074,71 @@ class AppWindow(Gtk.ApplicationWindow):
             menu.append(Gtk.SeparatorMenuItem())
 
         if category == "terminal":
-            self._add_popup_heading(menu, "Terminale")
-            self._add_popup_item(menu, "Nuovo terminale locale", ["utilities-terminal-symbolic", "utilities-terminal"], self.open_local_terminal)
-            self._add_popup_item(menu, "Terminale diviso", ["view-split-left-right", "view-dual-symbolic"], self.open_split_terminal)
-            self._add_popup_item(menu, "MultiExec", ["system-run-symbolic", "system-run"], self.show_multiexec_dialog)
-            self._add_popup_item(menu, "Quick connect", ["network-transmit-receive-symbolic", "system-search-symbolic"], lambda: self.on_quick_connect())
+            self._add_popup_heading(menu, tr("Terminale"))
+            self._add_popup_item(menu, tr("Nuovo terminale locale"), ["utilities-terminal-symbolic", "utilities-terminal"], self.open_local_terminal)
+            self._add_popup_item(menu, tr("Terminale diviso"), ["view-split-left-right", "view-dual-symbolic"], self.open_split_terminal)
+            self._add_popup_item(menu, tr("MultiExec"), ["system-run-symbolic", "system-run"], self.show_multiexec_dialog)
+            self._add_popup_item(menu, tr("Quick connect"), ["network-transmit-receive-symbolic", "system-search-symbolic"], lambda: self.on_quick_connect())
         elif category == "sessions":
-            self._add_popup_heading(menu, "Crea sessione")
-            self._add_popup_item(menu, "Nuova sessione", ["list-add-symbolic", "network-server-symbolic"], lambda: self.on_add_session(None))
-            self._add_popup_item(menu, "Nuova SSH", ["network-workgroup-symbolic", "network-workgroup"], lambda: self.on_add_proto_session("ssh"))
-            self._add_popup_item(menu, "Nuova RDP", ["video-display-symbolic", "video-display"], lambda: self.on_add_proto_session("rdp"))
-            self._add_popup_item(menu, "Nuova VNC", ["computer-symbolic", "video-display-symbolic"], lambda: self.on_add_proto_session("vnc"))
-            self._add_popup_item(menu, "Nuova Telnet", ["network-wired-symbolic", "utilities-terminal-symbolic"], lambda: self.on_add_proto_session("telnet"))
-            self._add_popup_item(menu, "Nuova seriale", ["network-wired-symbolic", "input-keyboard-symbolic"], lambda: self.on_add_proto_session("serial"))
-            self._add_popup_item(menu, "Nuova cartella", ["folder-new-symbolic", "folder-new"], lambda: self.on_add_folder(None))
+            self._add_popup_heading(menu, tr("Crea sessione"))
+            self._add_popup_item(menu, tr("Nuova sessione"), ["list-add-symbolic", "network-server-symbolic"], lambda: self.on_add_session(None))
+            self._add_popup_item(menu, tr("Nuova SSH"), ["network-workgroup-symbolic", "network-workgroup"], lambda: self.on_add_proto_session("ssh"))
+            self._add_popup_item(menu, tr("Nuova RDP"), ["video-display-symbolic", "video-display"], lambda: self.on_add_proto_session("rdp"))
+            self._add_popup_item(menu, tr("Nuova VNC"), ["computer-symbolic", "video-display-symbolic"], lambda: self.on_add_proto_session("vnc"))
+            self._add_popup_item(menu, tr("Nuova Telnet"), ["network-wired-symbolic", "utilities-terminal-symbolic"], lambda: self.on_add_proto_session("telnet"))
+            self._add_popup_item(menu, tr("Nuova seriale"), ["network-wired-symbolic", "input-keyboard-symbolic"], lambda: self.on_add_proto_session("serial"))
+            self._add_popup_item(menu, tr("Nuova cartella"), ["folder-new-symbolic", "folder-new"], lambda: self.on_add_folder(None))
             sep()
-            self._add_popup_heading(menu, "Organizza")
-            self._add_popup_item(menu, "Modifica selezionata", ["document-edit-symbolic", "document-edit"], lambda: self.on_edit_selected(None))
-            self._add_popup_item(menu, "Duplica selezionata", ["edit-copy-symbolic", "edit-copy"], lambda: self.on_duplicate_selected(None))
-            self._add_popup_item(menu, "Sposta selezionata", ["go-jump-symbolic", "go-next-symbolic"], lambda: self.on_move_selected(None))
-            self._add_popup_item(menu, "Elimina selezionata", ["edit-delete-symbolic", "user-trash-symbolic"], lambda: self.on_delete_selected(None))
+            self._add_popup_heading(menu, tr("Organizza"))
+            self._add_popup_item(menu, tr("Modifica selezionata"), ["document-edit-symbolic", "document-edit"], lambda: self.on_edit_selected(None))
+            self._add_popup_item(menu, tr("Duplica selezionata"), ["edit-copy-symbolic", "edit-copy"], lambda: self.on_duplicate_selected(None))
+            self._add_popup_item(menu, tr("Sposta selezionata"), ["go-jump-symbolic", "go-next-symbolic"], lambda: self.on_move_selected(None))
+            self._add_popup_item(menu, tr("Elimina selezionata"), ["edit-delete-symbolic", "user-trash-symbolic"], lambda: self.on_delete_selected(None))
         elif category == "network":
-            self._add_popup_heading(menu, "Server e servizi")
-            self._add_popup_item(menu, "Server locali", ["network-server-symbolic", "network-server"], lambda: self.open_network_tools("services"))
-            self._add_popup_item(menu, "FTP / SFTP share", ["folder-remote-symbolic", "folder-publicshare"], lambda: self.open_network_tools("shares"))
-            self._add_popup_item(menu, "Porte locali in ascolto", ["network-transmit-receive-symbolic", "network-wired-symbolic"], lambda: self.open_network_tools("listeners"))
+            self._add_popup_heading(menu, tr("Server e servizi"))
+            self._add_popup_item(menu, tr("Server locali"), ["network-server-symbolic", "network-server"], lambda: self.open_network_tools("services"))
+            self._add_popup_item(menu, tr("FTP / SFTP share"), ["folder-remote-symbolic", "folder-publicshare"], lambda: self.open_network_tools("shares"))
+            self._add_popup_item(menu, tr("Porte locali in ascolto"), ["network-transmit-receive-symbolic", "network-wired-symbolic"], lambda: self.open_network_tools("listeners"))
             sep()
-            self._add_popup_heading(menu, "Analisi rete")
+            self._add_popup_heading(menu, tr("Analisi rete"))
             self._add_popup_item(menu, "Wake-on-LAN", ["system-run-symbolic", "media-playback-start-symbolic"], lambda: self.open_network_tools("wol"))
-            self._add_popup_item(menu, "Network scanner", ["system-search-symbolic", "edit-find-symbolic"], lambda: self.open_network_tools("network-scan"))
-            self._add_popup_item(menu, "Port scanner", ["network-workgroup-symbolic", "system-search-symbolic"], lambda: self.open_network_tools("port-scan"))
-            self._add_popup_item(menu, "Cattura pacchetti", ["network-transmit-receive-symbolic", "document-save-symbolic"], lambda: self.open_network_tools("capture"))
+            self._add_popup_item(menu, tr("Network scanner"), ["system-search-symbolic", "edit-find-symbolic"], lambda: self.open_network_tools("network-scan"))
+            self._add_popup_item(menu, tr("Port scanner"), ["network-workgroup-symbolic", "system-search-symbolic"], lambda: self.open_network_tools("port-scan"))
+            self._add_popup_item(menu, tr("Cattura pacchetti"), ["network-transmit-receive-symbolic", "document-save-symbolic"], lambda: self.open_network_tools("capture"))
             sep()
-            self._add_popup_heading(menu, "Test rapidi")
+            self._add_popup_heading(menu, tr("Test rapidi"))
             commands = self.quick_tool_commands()
             for name in ("Ping", "Traceroute", "DNS lookup", "Check porta TCP", "Route", "Socket aperti"):
-                self._add_popup_item(menu, name, ["system-run-symbolic", "applications-system-symbolic"], lambda n=name, c=commands[name]: self.run_quick_tool(n, c))
-            self._add_popup_item(menu, "Connessione Telnet", ["utilities-terminal-symbolic", "network-wired-symbolic"], self.start_quick_telnet)
+                self._add_popup_item(menu, tr(name), ["system-run-symbolic", "applications-system-symbolic"], lambda n=name, c=commands[name]: self.run_quick_tool(n, c))
+            self._add_popup_item(menu, tr("Connessione Telnet"), ["utilities-terminal-symbolic", "network-wired-symbolic"], self.start_quick_telnet)
         elif category == "tools":
-            self._add_popup_heading(menu, "Strumenti")
-            self._add_popup_item(menu, "Tunneling SSH", ["network-vpn-symbolic", "network-transmit-receive-symbolic"], lambda: self.on_tunnel_manager(None))
-            self._add_popup_item(menu, "Chiavi SSH", ["dialog-password-symbolic", "emblem-key-symbolic"], lambda: self.run_quick_tool("Chiavi SSH", self.quick_tool_commands()["Chiavi SSH"]))
+            self._add_popup_heading(menu, tr("Strumenti"))
+            self._add_popup_item(menu, tr("Tunneling SSH"), ["network-vpn-symbolic", "network-transmit-receive-symbolic"], lambda: self.on_tunnel_manager(None))
+            self._add_popup_item(menu, tr("Chiavi SSH"), ["dialog-password-symbolic", "emblem-key-symbolic"], lambda: self.run_quick_tool("Chiavi SSH", self.quick_tool_commands()["Chiavi SSH"]))
             self._add_popup_item(menu, "Known hosts", ["text-x-generic-symbolic", "document-open-symbolic"], lambda: self.run_quick_tool("Known hosts", self.quick_tool_commands()["Known hosts"]))
             self._add_popup_item(menu, "Journal", ["text-x-log-symbolic", "text-x-generic-symbolic"], lambda: self.run_quick_tool("Journal", self.quick_tool_commands()["Journal"]))
-            self._add_popup_item(menu, "Info sistema", ["dialog-information-symbolic", "computer-symbolic"], lambda: self.run_quick_tool("Info sistema", self.quick_tool_commands()["Info sistema"]))
+            self._add_popup_item(menu, tr("Info sistema"), ["dialog-information-symbolic", "computer-symbolic"], lambda: self.run_quick_tool("Info sistema", self.quick_tool_commands()["Info sistema"]))
         elif category == "view":
-            self._add_popup_heading(menu, "Vista")
-            self._add_popup_item(menu, "Mostra/nascondi pannello sessioni", ["sidebar-show-symbolic", "view-list-symbolic"], self.toggle_sidebar)
-            self._add_popup_item(menu, "Mostra/nascondi barra verticale", ["view-sidebar-symbolic", "view-list-symbolic"], self.toggle_left_rail)
-            self._add_popup_item(menu, "Mostra/nascondi barra di stato", ["view-list-symbolic", "format-justify-fill-symbolic"], self.toggle_statusbar)
-            self._add_popup_item(menu, "Espandi cartelle", ["pan-down-symbolic", "go-down-symbolic"], self.session_tree.expand_all)
-            self._add_popup_item(menu, "Comprimi cartelle", ["pan-end-symbolic", "go-next-symbolic"], self.session_tree.collapse_all)
+            self._add_popup_heading(menu, tr("Vista"))
+            self._add_popup_item(menu, tr("Mostra/nascondi pannello sessioni"), ["sidebar-show-symbolic", "view-list-symbolic"], self.toggle_sidebar)
+            self._add_popup_item(menu, tr("Mostra/nascondi barra verticale"), ["view-sidebar-symbolic", "view-list-symbolic"], self.toggle_left_rail)
+            self._add_popup_item(menu, tr("Mostra/nascondi barra di stato"), ["view-list-symbolic", "format-justify-fill-symbolic"], self.toggle_statusbar)
+            self._add_popup_item(menu, tr("Espandi cartelle"), ["pan-down-symbolic", "go-down-symbolic"], self.session_tree.expand_all)
+            self._add_popup_item(menu, tr("Comprimi cartelle"), ["pan-end-symbolic", "go-next-symbolic"], self.session_tree.collapse_all)
         elif category == "system":
-            self._add_popup_heading(menu, "Sicurezza")
-            self._add_popup_item(menu, "Password Manager", ["dialog-password-symbolic", "dialog-password"], lambda: self.on_password_manager(None))
-            self._add_popup_item(menu, "Blocca password", ["changes-prevent-symbolic", "changes-prevent"], lambda: self.on_lock_vault(None))
+            self._add_popup_heading(menu, tr("Sicurezza"))
+            self._add_popup_item(menu, tr("Password Manager"), ["dialog-password-symbolic", "dialog-password"], lambda: self.on_password_manager(None))
+            self._add_popup_item(menu, tr("Blocca password"), ["changes-prevent-symbolic", "changes-prevent"], lambda: self.on_lock_vault(None))
             sep()
-            self._add_popup_heading(menu, "Sistema")
-            self._add_popup_item(menu, "Impostazioni", ["preferences-system-symbolic", "preferences-system"], self.show_settings_dialog)
-            self._add_popup_item(menu, "Diagnostica compatibilità", ["dialog-information-symbolic", "help-about-symbolic"], self.show_diagnostics_dialog)
-            self._add_popup_item(menu, "Log applicazione", ["text-x-log-symbolic", "text-x-generic-symbolic"], self.open_application_log)
-            self._add_popup_item(menu, "Guida", ["help-browser-symbolic", "help-contents"], self.open_user_guide)
-            self._add_popup_item(menu, "Scorciatoie da tastiera", ["input-keyboard-symbolic", "preferences-desktop-keyboard"], self.show_shortcuts_dialog)
-            self._add_popup_item(menu, "Informazioni", ["help-about-symbolic", "help-about"], self.show_about_dialog)
+            self._add_popup_heading(menu, tr("Sistema"))
+            self._add_popup_item(menu, tr("Impostazioni"), ["preferences-system-symbolic", "preferences-system"], self.show_settings_dialog)
+            self._add_popup_item(menu, tr("Diagnostica compatibilità"), ["dialog-information-symbolic", "help-about-symbolic"], self.show_diagnostics_dialog)
+            self._add_popup_item(menu, tr("Log applicazione"), ["text-x-log-symbolic", "text-x-generic-symbolic"], self.open_application_log)
+            self._add_popup_item(menu, tr("Guida"), ["help-browser-symbolic", "help-contents"], self.open_user_guide)
+            self._add_popup_item(menu, tr("Scorciatoie da tastiera"), ["input-keyboard-symbolic", "preferences-desktop-keyboard"], self.show_shortcuts_dialog)
+            self._add_popup_item(menu, tr("Informazioni"), ["help-about-symbolic", "help-about"], self.show_about_dialog)
         else:
-            self._add_popup_item(menu, "Impostazioni", ["preferences-system-symbolic"], self.show_settings_dialog)
+            self._add_popup_item(menu, tr("Impostazioni"), ["preferences-system-symbolic"], self.show_settings_dialog)
 
         self._show_popup_at_button(menu, button)
 
@@ -10117,8 +10146,8 @@ class AppWindow(Gtk.ApplicationWindow):
         menu = Gtk.Menu()
         menu.set_name("tools-dropdown")
         sections = [
-            ("Analisi rapida", ["Ping", "Traceroute", "DNS lookup", "Check porta TCP", "IP locale", "Route", "Socket aperti"]),
-            ("Sistema", ["Chiavi SSH", "Known hosts", "Journal", "Info sistema", "Doctor FedTermHub"]),
+            (tr("Analisi rapida"), ["Ping", "Traceroute", "DNS lookup", "Check porta TCP", "IP locale", "Route", "Socket aperti"]),
+            (tr("Sistema"), ["Chiavi SSH", "Known hosts", "Journal", "Info sistema", "Doctor FedTermHub"]),
         ]
         commands = self.quick_tool_commands()
         for section_index, (title, names) in enumerate(sections):
@@ -10129,7 +10158,7 @@ class AppWindow(Gtk.ApplicationWindow):
             heading.get_style_context().add_class("dropdown-heading")
             menu.append(heading)
             for name in names:
-                item = self.make_image_menu_item(name, ["system-run-symbolic", "applications-system-symbolic"], 14)
+                item = self.make_image_menu_item(tr(name), ["system-run-symbolic", "applications-system-symbolic"], 14)
                 item.connect("activate", lambda _i, n=name: self.run_quick_tool(n, commands[n]))
                 menu.append(item)
         menu.show_all()
@@ -10145,12 +10174,12 @@ class AppWindow(Gtk.ApplicationWindow):
         if not self.sidebar.get_visible():
             self.toggle_sidebar(True)
         labels = {
-            "sessions": "Vista Explorer: sessioni e cartelle",
-            "network": "Vista Rete: apro il centro strumenti di rete",
-            "monitor": "Vista Monitor: tunnel e diagnostica",
-            "logs": "Vista Log: registro applicazione",
+            "sessions": tr("Vista Explorer: sessioni e cartelle"),
+            "network": tr("Vista Rete: apro il centro strumenti di rete"),
+            "monitor": tr("Vista Monitor: tunnel e diagnostica"),
+            "logs": tr("Vista Log: registro applicazione"),
         }
-        self.set_status(labels.get(view, "Vista aggiornata"))
+        self.set_status(labels.get(view, tr("Vista aggiornata")))
         if view == "sessions":
             self.focus_session_search()
         elif view == "network":
@@ -10162,29 +10191,29 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def build_command_palette_actions(self) -> List[Tuple[str, str, Callable[[], None]]]:
         actions: List[Tuple[str, str, Callable[[], None]]] = [
-            ("Nuovo terminale locale", "terminal shell locale", lambda: self.open_local_terminal()),
-            ("Nuova sessione", "crea connessione generica", lambda: self.on_add_session(None)),
-            ("Nuova SSH", "crea sessione ssh", lambda: self.on_add_proto_session("ssh")),
-            ("Nuova RDP", "crea sessione desktop remoto", lambda: self.on_add_proto_session("rdp")),
-            ("Nuova VNC", "crea sessione vnc", lambda: self.on_add_proto_session("vnc")),
-            ("Nuova Telnet", "crea sessione telnet switch router", lambda: self.on_add_proto_session("telnet")),
-            ("Connessione Telnet", "telnet al volo host porta", lambda: self.start_quick_telnet()),
-            ("Nuova seriale", "crea console seriale", lambda: self.on_add_proto_session("serial")),
-            ("Gestore tunnel SSH", "tunnel port forwarding socks", lambda: self.on_tunnel_manager(None)),
-            ("Password Manager", "vault credenziali password", lambda: self.on_password_manager(None)),
-            ("Lab temporaneo Linux", "vm kvm libvirt qcow2 usa e getta", lambda: self.open_ephemeral_lab()),
-            ("Server locali", "ssh sftp ftp http tftp nfs vnc", lambda: self.open_network_tools("services")),
-            ("Porte locali in ascolto", "ss socket ascolto", lambda: self.open_network_tools("listeners")),
-            ("Wake-on-LAN", "magic packet wol", lambda: self.open_network_tools("wol")),
-            ("Network scanner", "scan rete subnet", lambda: self.open_network_tools("network-scan")),
-            ("Port scanner", "scan porte host", lambda: self.open_network_tools("port-scan")),
-            ("Packet capture", "tcpdump pcap cattura", lambda: self.open_network_tools("capture")),
-            ("Impostazioni", "preferenze applicazione", lambda: self.show_settings_dialog()),
-            ("Diagnostica", "doctor compatibilità", lambda: self.show_diagnostics_dialog()),
-            ("Log applicazione", "registro errori", lambda: self.open_application_log()),
+            (tr("Nuovo terminale locale"), tr("terminal shell locale"), lambda: self.open_local_terminal()),
+            (tr("Nuova sessione"), tr("crea connessione generica"), lambda: self.on_add_session(None)),
+            (tr("Nuova SSH"), tr("crea sessione ssh"), lambda: self.on_add_proto_session("ssh")),
+            (tr("Nuova RDP"), tr("crea sessione desktop remoto"), lambda: self.on_add_proto_session("rdp")),
+            (tr("Nuova VNC"), tr("crea sessione vnc"), lambda: self.on_add_proto_session("vnc")),
+            (tr("Nuova Telnet"), tr("crea sessione telnet switch router"), lambda: self.on_add_proto_session("telnet")),
+            (tr("Connessione Telnet"), tr("telnet al volo host porta"), lambda: self.start_quick_telnet()),
+            (tr("Nuova seriale"), tr("crea console seriale"), lambda: self.on_add_proto_session("serial")),
+            (tr("Gestore tunnel SSH"), tr("tunnel port forwarding socks"), lambda: self.on_tunnel_manager(None)),
+            (tr("Password Manager"), tr("vault credenziali password"), lambda: self.on_password_manager(None)),
+            (tr("Lab temporaneo Linux"), tr("vm kvm libvirt qcow2 usa e getta"), lambda: self.open_ephemeral_lab()),
+            (tr("Server locali"), tr("ssh sftp ftp http tftp nfs vnc"), lambda: self.open_network_tools("services")),
+            (tr("Porte locali in ascolto"), tr("ss socket ascolto"), lambda: self.open_network_tools("listeners")),
+            ("Wake-on-LAN", tr("magic packet wol"), lambda: self.open_network_tools("wol")),
+            (tr("Network scanner"), tr("scan rete subnet"), lambda: self.open_network_tools("network-scan")),
+            (tr("Port scanner"), tr("scan porte host"), lambda: self.open_network_tools("port-scan")),
+            (tr("Packet capture"), tr("tcpdump pcap cattura"), lambda: self.open_network_tools("capture")),
+            (tr("Impostazioni"), tr("preferenze applicazione"), lambda: self.show_settings_dialog()),
+            (tr("Diagnostica"), tr("doctor compatibilità"), lambda: self.show_diagnostics_dialog()),
+            (tr("Log applicazione"), tr("registro errori"), lambda: self.open_application_log()),
         ]
         for name, command in self.quick_tool_commands().items():
-            actions.append((name, f"strumento rapido {name.lower()}", lambda n=name, c=command: self.run_quick_tool(n, c)))
+            actions.append((name, tr("strumento rapido {lower}").format(lower=name.lower()), lambda n=name, c=command: self.run_quick_tool(n, c)))
         return actions
 
     def show_command_palette(self) -> None:
@@ -10208,11 +10237,11 @@ class AppWindow(Gtk.ApplicationWindow):
                 kind = sess.protocol.upper()
                 default = sess.protocol.lower() in {"ssh"}
             elif isinstance(page, SplitTerminalTab):
-                kind, default = "terminale diviso", False
+                kind, default = tr("terminale diviso"), False
             else:
-                kind, default = "terminale locale" if getattr(page, "title", "") == "Locale" else "strumento", False
+                kind, default = tr("terminale locale") if getattr(page, "is_local_shell", False) else "strumento", False
             # Il titolo scelto all'apertura (nome della sessione) sta nel tooltip dell'etichetta.
-            title = getattr(page, "title", "") or "Terminale"
+            title = getattr(page, "title", "") or tr("Terminale")
             label_widget = self.notebook.get_tab_label(page)
             if label_widget is not None:
                 for child in getattr(label_widget, "get_children", lambda: [])():
@@ -10221,7 +10250,7 @@ class AppWindow(Gtk.ApplicationWindow):
                         break
             targets.append((page, title, kind, default))
         if not targets:
-            self.set_status("Nessuna scheda terminale aperta per MultiExec.")
+            self.set_status(tr("Nessuna scheda terminale aperta per MultiExec."))
             return
         if not any(default for *_rest, default in targets):
             targets = [(t, title, kind, True) for t, title, kind, _d in targets]
@@ -10243,7 +10272,7 @@ class AppWindow(Gtk.ApplicationWindow):
                                 sent += 1
                         except Exception:
                             pass
-                    self.set_status(f"MultiExec: comando inviato a {sent} terminali.")
+                    self.set_status(tr("MultiExec: comando inviato a {sent} terminali.").format(sent=sent))
         finally:
             dialog.destroy()
 
@@ -10253,7 +10282,7 @@ class AppWindow(Gtk.ApplicationWindow):
         # raggiungerà tutti i riquadri, presenti e futuri.
         if split not in self.terminal_tabs:
             self.terminal_tabs.append(split)
-        self.add_widget_tab("Split", split)
+        self.add_widget_tab(tr("Split"), split)
 
     def add_text_tab(self, title: str, text: str) -> None:
         self.add_widget_tab(title, TextInfoTab(text, theme=self.settings.theme))
@@ -10265,7 +10294,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 handle.write(f"\n--- {title} ---\n")
                 handle.write(message + "\n")
                 if command:
-                    handle.write("Comando: " + command + "\n")
+                    handle.write(tr("Comando: ") + command + "\n")
                 if details:
                     handle.write(details.strip() + "\n")
         except Exception:
@@ -10302,7 +10331,7 @@ class AppWindow(Gtk.ApplicationWindow):
         target = self.diagnostic_target_for_session(session)
         if target is None:
             self.show_notification(
-                "La diagnostica è disponibile per sessioni RDP, SSH, SFTP e VNC con un host configurato.",
+                tr("La diagnostica è disponibile per sessioni RDP, SSH, SFTP e VNC con un host configurato."),
                 "warning",
                 4500,
             )
@@ -10332,7 +10361,7 @@ class AppWindow(Gtk.ApplicationWindow):
         Ritorna False così può essere usata direttamente con GLib.idle_add.
         """
         self.append_app_log(title, message, details, command)
-        self.set_status(f"Errore: {title}")
+        self.set_status(tr("Errore: {title}").format(title=title))
         self.show_notification(f"{title}: {message}", "error", 0)
         if self.settings.open_error_tabs:
             try:
@@ -10355,7 +10384,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 secondary = message
                 if details:
                     short_details = details.strip().splitlines()[-8:]
-                    secondary += "\n\nUltime righe log:\n" + "\n".join(short_details)[:1400]
+                    secondary += tr("\n\nUltime righe log:\n") + "\n".join(short_details)[:1400]
                 dialog.format_secondary_text(secondary)
                 dialog.connect("delete-event", lambda d, _e: (d.response(Gtk.ResponseType.CLOSE), True)[1])
                 try:
@@ -10363,7 +10392,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 finally:
                     dialog.destroy()
             except Exception as exc:
-                self.set_status(f"Errore sessione: {title} / errore popup: {exc}")
+                self.set_status(tr("Errore sessione: {title} / errore popup: {exc}").format(title=title, exc=exc))
         return False
 
     def _remote_files_connection(self, sess: Session):
@@ -10479,7 +10508,7 @@ class AppWindow(Gtk.ApplicationWindow):
         label = Gtk.Label(label=title[:32])
         label.set_tooltip_text(title)
         close = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
-        close.set_tooltip_text("Chiudi tab")
+        close.set_tooltip_text(tr("Chiudi tab"))
         close.set_relief(Gtk.ReliefStyle.NONE)
         close.set_can_focus(False)
         close.get_style_context().add_class("tab-close")
@@ -10499,18 +10528,18 @@ class AppWindow(Gtk.ApplicationWindow):
         close.connect("clicked", lambda _b: self.close_specific_tab(widget))
         widget.show_all()
         self.notebook.set_current_page(page)
-        self.set_status(f"Aperto: {title}")
+        self.set_status(tr("Aperto: {title}").format(title=title))
 
     def on_add_proto_session(self, proto: str) -> None:
         defaults = {
-            "ssh": Session(name="Nuova SSH", protocol="ssh", port="22"),
-            "rdp": Session(name="Nuova RDP", protocol="rdp", port="3389"),
-            "serial": Session(name="Nuova seriale", protocol="serial", host="/dev/ttyUSB0", port="115200"),
-            "telnet": Session(name="Nuova Telnet", protocol="telnet", port="23"),
-            "vnc": Session(name="Nuova VNC", protocol="vnc"),
-            "sftp": Session(name="Nuova SFTP", protocol="sftp", port="22"),
+            "ssh": Session(name=tr("Nuova SSH"), protocol="ssh", port="22"),
+            "rdp": Session(name=tr("Nuova RDP"), protocol="rdp", port="3389"),
+            "serial": Session(name=tr("Nuova seriale"), protocol="serial", host="/dev/ttyUSB0", port="115200"),
+            "telnet": Session(name=tr("Nuova Telnet"), protocol="telnet", port="23"),
+            "vnc": Session(name=tr("Nuova VNC"), protocol="vnc"),
+            "sftp": Session(name=tr("Nuova SFTP"), protocol="sftp", port="22"),
         }
-        dialog = SessionDialog(self, defaults.get(proto, Session(name="Nuova sessione", protocol=proto)), credentials=self.credential_options_for_dialog(), tunnels=self.tunnel_options_for_dialog())
+        dialog = SessionDialog(self, defaults.get(proto, Session(name=tr("Nuova sessione"), protocol=proto)), credentials=self.credential_options_for_dialog(), tunnels=self.tunnel_options_for_dialog())
         session: Optional[Session] = None
         save_password = False
         transient_password = ""
@@ -10527,8 +10556,8 @@ class AppWindow(Gtk.ApplicationWindow):
     def open_ephemeral_lab(self) -> None:
         """Apre il laboratorio Linux usa e getta senza duplicare controlli nella UI."""
         if EphemeralLabDialog is None or self.lab_controller is None:
-            detail = str(EPHEMERAL_LAB_IMPORT_ERROR or "modulo non disponibile")
-            self.show_notification(f"Lab temporaneo non disponibile: {detail}", "error", 7000)
+            detail = str(EPHEMERAL_LAB_IMPORT_ERROR or tr("modulo non disponibile"))
+            self.show_notification(tr("Lab temporaneo non disponibile: {detail}").format(detail=detail), "error", 7000)
             return
         if self.lab_dialog is None:
             self.lab_dialog = EphemeralLabDialog(self, self.lab_controller)
@@ -10538,9 +10567,9 @@ class AppWindow(Gtk.ApplicationWindow):
     def open_network_tools(self, page: str = "services") -> None:
         if NetworkToolsDialog is None:
             self.report_session_error(
-                "Strumenti di rete non disponibili",
-                "Il modulo degli strumenti di rete non è stato caricato.",
-                str(NETWORK_TOOLS_IMPORT_ERROR or "errore sconosciuto"),
+                tr("Strumenti di rete non disponibili"),
+                tr("Il modulo degli strumenti di rete non è stato caricato."),
+                str(NETWORK_TOOLS_IMPORT_ERROR or tr("errore sconosciuto")),
             )
             return
         dialog = NetworkToolsDialog(self, start_page=page, create_session=self.create_session_from_network_tool)
@@ -10550,13 +10579,13 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def create_session_from_network_tool(self, protocol: str, host: str, port: str = "") -> None:
         defaults = {
-            "ssh": Session(name=f"SSH {host}", protocol="ssh", host=host, port="22"),
-            "rdp": Session(name=f"RDP {host}", protocol="rdp", host=host, port="3389"),
-            "vnc": Session(name=f"VNC {host}", protocol="vnc", host=host, port="5900"),
-            "sftp": Session(name=f"SFTP {host}", protocol="sftp", host=host, port="22"),
-            "telnet": Session(name=f"Telnet {host}", protocol="telnet", host=host, port="23"),
+            "ssh": Session(name=tr("SSH {host}").format(host=host), protocol="ssh", host=host, port="22"),
+            "rdp": Session(name=tr("RDP {host}").format(host=host), protocol="rdp", host=host, port="3389"),
+            "vnc": Session(name=tr("VNC {host}").format(host=host), protocol="vnc", host=host, port="5900"),
+            "sftp": Session(name=tr("SFTP {host}").format(host=host), protocol="sftp", host=host, port="22"),
+            "telnet": Session(name=tr("Telnet {host}").format(host=host), protocol="telnet", host=host, port="23"),
         }
-        session_template = defaults.get(protocol, Session(name=f"Sessione {host}", protocol=protocol, host=host))
+        session_template = defaults.get(protocol, Session(name=tr("Sessione {host}").format(host=host), protocol=protocol, host=host))
         if port:
             # Porta trovata dal port scanner (SSH sulla 2222, VNC sulla 5901...).
             session_template.port = port
@@ -10608,24 +10637,24 @@ class AppWindow(Gtk.ApplicationWindow):
         pid = proc.pid if proc is not None and proc.poll() is None else "—"
         exit_code = self.tunnel_exit_codes.get(tunnel.id)
         lines = [
-            f"Tunnel: {tunnel.name}",
-            f"Stato: {state}",
-            f"PID: {pid}",
-            f"Tipo: {tunnel.type_label()}",
-            f"Instradamento: {tunnel.summary()}",
-            f"Auto-avvio: {'sì' if tunnel.auto_start else 'no'}",
-            f"Riconnessione automatica: {'sì' if tunnel.auto_restart else 'no'}",
+            tr("Tunnel: {name}").format(name=tunnel.name),
+            tr("Stato: {state}").format(state=state),
+            tr("PID: {pid}").format(pid=pid),
+            tr("Tipo: {type_label}").format(type_label=tunnel.type_label()),
+            tr("Instradamento: {summary}").format(summary=tunnel.summary()),
+            tr("Auto-avvio: {v}").format(v=tr('sì') if tunnel.auto_start else tr('no')),
+            tr("Riconnessione automatica: {v}").format(v=tr('sì') if tunnel.auto_restart else tr('no')),
         ]
         if exit_code is not None:
-            lines.append(f"Ultimo codice di uscita: {exit_code}")
+            lines.append(tr("Ultimo codice di uscita: {exit_code}").format(exit_code=exit_code))
         try:
             argv, _env = self.build_tunnel_command(tunnel, allow_unlock=False)
-            lines.append(f"Comando: {self.mask_args(argv)}")
+            lines.append(tr("Comando: {mask_args}").format(mask_args=self.mask_args(argv)))
         except Exception as exc:
-            lines.append(f"Comando non disponibile: {exc}")
-        lines.extend(["", "Log:"])
+            lines.append(tr("Comando non disponibile: {exc}").format(exc=exc))
+        lines.extend(["", tr("Log:")])
         log = self.tunnel_logs.get(tunnel.id, [])
-        lines.extend(log if log else ["Nessun evento registrato."])
+        lines.extend(log if log else [tr("Nessun evento registrato.")])
         return "\n".join(lines)
 
     @staticmethod
@@ -10639,28 +10668,28 @@ class AppWindow(Gtk.ApplicationWindow):
     def validate_tunnel(self, tunnel: TunnelSession, check_local_bind: bool = False) -> List[str]:
         errors: List[str] = []
         if tunnel.tunnel_type not in {"local", "remote", "dynamic"}:
-            errors.append("tipo di tunnel non valido")
+            errors.append(tr("tipo di tunnel non valido"))
         if not tunnel.ssh_host.strip():
-            errors.append("host SSH mancante")
+            errors.append(tr("host SSH mancante"))
         if not self._valid_port(tunnel.ssh_port):
-            errors.append("porta SSH non valida")
+            errors.append(tr("porta SSH non valida"))
         if not tunnel.bind_address.strip():
-            errors.append("indirizzo di bind mancante")
+            errors.append(tr("indirizzo di bind mancante"))
         if not self._valid_port(tunnel.local_port):
-            errors.append("porta di inoltro non valida")
+            errors.append(tr("porta di inoltro non valida"))
         if tunnel.tunnel_type != "dynamic":
             if not tunnel.remote_host.strip():
-                errors.append("host destinazione mancante")
+                errors.append(tr("host destinazione mancante"))
             if not self._valid_port(tunnel.remote_port):
-                errors.append("porta destinazione non valida")
+                errors.append(tr("porta destinazione non valida"))
         if tunnel.identity_file:
             identity = Path(os.path.expanduser(tunnel.identity_file))
             if not identity.is_file():
-                errors.append("chiave privata non trovata")
+                errors.append(tr("chiave privata non trovata"))
         try:
             shlex.split(tunnel.options)
         except ValueError as exc:
-            errors.append(f"opzioni SSH non valide: {exc}")
+            errors.append(tr("opzioni SSH non valide: {exc}").format(exc=exc))
         if check_local_bind and tunnel.tunnel_type in {"local", "dynamic"} and not errors:
             bind_error = self._check_tunnel_bind_available(tunnel.bind_address, int(tunnel.local_port))
             if bind_error:
@@ -10679,7 +10708,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 flags=net_socket.AI_PASSIVE,
             )
         except OSError as exc:
-            return f"indirizzo di bind non valido: {exc}"
+            return tr("indirizzo di bind non valido: {exc}").format(exc=exc)
         last_error: Optional[BaseException] = None
         for family, socktype, proto, _canon, sockaddr in infos:
             sock = net_socket.socket(family, socktype, proto)
@@ -10691,7 +10720,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 last_error = exc
             finally:
                 sock.close()
-        return f"porta {address}:{port} non disponibile: {last_error or 'errore sconosciuto'}"
+        return tr("porta {address}:{port} non disponibile: {v}").format(address=address, port=port, v=last_error or tr('errore sconosciuto'))
 
     def _resolve_tunnel_identity(
         self, tunnel: TunnelSession, allow_unlock: bool
@@ -10704,10 +10733,10 @@ class AppWindow(Gtk.ApplicationWindow):
             if not allow_unlock:
                 return user, password
             if not self.ensure_vault_unlocked(create_if_missing=False):
-                raise RuntimeError("Password Manager non sbloccato")
+                raise RuntimeError(tr("Password Manager non sbloccato"))
         credential = self.vault.get(tunnel.credential_id) if self.vault.unlocked else None
         if credential is None:
-            raise RuntimeError("credenziale collegata non trovata nel Password Manager")
+            raise RuntimeError(tr("credenziale collegata non trovata nel Password Manager"))
         user = credential.username or user
         if tunnel.use_credential_password:
             password = credential.password
@@ -10721,13 +10750,13 @@ class AppWindow(Gtk.ApplicationWindow):
             raise ValueError("; ".join(errors))
         ssh_binary = shutil.which("ssh") or "ssh"
         argv = [ssh_binary, "-N", "-T"] + self.ssh_common_options()
-        argv += ["-o", "ControlMaster=no", "-o", "NumberOfPasswordPrompts=1"]
+        argv += ["-o", tr("ControlMaster=no"), "-o", tr("NumberOfPasswordPrompts=1")]
         if tunnel.exit_on_forward_failure:
-            argv += ["-o", "ExitOnForwardFailure=yes"]
+            argv += ["-o", tr("ExitOnForwardFailure=yes")]
         if tunnel.server_alive_interval > 0:
             argv += [
-                "-o", f"ServerAliveInterval={tunnel.server_alive_interval}",
-                "-o", f"ServerAliveCountMax={tunnel.server_alive_count}",
+                "-o", tr("ServerAliveInterval={server_alive_interval}").format(server_alive_interval=tunnel.server_alive_interval),
+                "-o", tr("ServerAliveCountMax={server_alive_count}").format(server_alive_count=tunnel.server_alive_count),
             ]
         if tunnel.compression and "-C" not in argv:
             argv.append("-C")
@@ -10751,14 +10780,14 @@ class AppWindow(Gtk.ApplicationWindow):
             argv += shlex.split(tunnel.options)
         user, password = self._resolve_tunnel_identity(tunnel, allow_unlock)
         if not password:
-            argv += ["-o", "BatchMode=yes"]
+            argv += ["-o", tr("BatchMode=yes")]
         target = f"{user}@{tunnel.ssh_host}" if user else tunnel.ssh_host
         argv += ["--", target]
         env: Dict[str, str] = {}
         if password:
             sshpass = shutil.which("sshpass")
             if not sshpass:
-                raise RuntimeError("sshpass non installato: sudo dnf install sshpass")
+                raise RuntimeError(tr("sshpass non installato: sudo dnf install sshpass"))
             argv = [sshpass, "-e"] + argv
             env["SSHPASS"] = password
         return argv, env
@@ -10773,9 +10802,9 @@ class AppWindow(Gtk.ApplicationWindow):
         ssh_binary = shutil.which("ssh") or "ssh"
         argv = [ssh_binary, "-T"] + self.ssh_common_options()
         argv += [
-            "-o", "ControlMaster=no",
-            "-o", "NumberOfPasswordPrompts=1",
-            "-o", f"ConnectTimeout={max(3, self.settings.connection_timeout_seconds)}",
+            "-o", tr("ControlMaster=no"),
+            "-o", tr("NumberOfPasswordPrompts=1"),
+            "-o", tr("ConnectTimeout={max}").format(max=max(3, self.settings.connection_timeout_seconds)),
             "-p", tunnel.ssh_port,
         ]
         if tunnel.address_family == "ipv4":
@@ -10788,14 +10817,14 @@ class AppWindow(Gtk.ApplicationWindow):
             argv.append("-v")
         user, password = self._resolve_tunnel_identity(tunnel, allow_unlock=True)
         if not password:
-            argv += ["-o", "BatchMode=yes"]
+            argv += ["-o", tr("BatchMode=yes")]
         target = f"{user}@{tunnel.ssh_host}" if user else tunnel.ssh_host
-        argv += ["--", target, "printf FEDTERMHUB_TUNNEL_OK"]
+        argv += ["--", target, tr("printf FEDTERMHUB_TUNNEL_OK")]
         env: Dict[str, str] = {}
         if password:
             sshpass = shutil.which("sshpass")
             if not sshpass:
-                raise RuntimeError("sshpass non installato: sudo dnf install sshpass")
+                raise RuntimeError(tr("sshpass non installato: sudo dnf install sshpass"))
             argv = [sshpass, "-e"] + argv
             env["SSHPASS"] = password
         return argv, env
@@ -10809,7 +10838,7 @@ class AppWindow(Gtk.ApplicationWindow):
         try:
             argv, extra_env = self._build_tunnel_probe_command(tunnel)
         except Exception as exc:
-            message = f"Impossibile preparare la verifica: {exc}"
+            message = tr("Impossibile preparare la verifica: {exc}").format(exc=exc)
             if callback:
                 callback(False, message, "")
             else:
@@ -10834,17 +10863,17 @@ class AppWindow(Gtk.ApplicationWindow):
                 output = (completed.stdout or "").strip()
                 success = completed.returncode == 0 and "FEDTERMHUB_TUNNEL_OK" in output
                 if success:
-                    message = f"Connessione SSH riuscita in {elapsed} ms."
+                    message = tr("Connessione SSH riuscita in {elapsed} ms.").format(elapsed=elapsed)
                 else:
-                    message = f"Verifica SSH fallita (codice {completed.returncode})."
+                    message = tr("Verifica SSH fallita (codice {returncode}).").format(returncode=completed.returncode)
                 details = output.replace("FEDTERMHUB_TUNNEL_OK", "").strip()
             except subprocess.TimeoutExpired as exc:
                 success = False
-                message = "Timeout durante la verifica SSH."
+                message = tr("Timeout durante la verifica SSH.")
                 details = str(exc)
             except Exception as exc:
                 success = False
-                message = f"Impossibile verificare il tunnel: {exc}"
+                message = tr("Impossibile verificare il tunnel: {exc}").format(exc=exc)
                 details = traceback.format_exc()
             if callback:
                 GLib.idle_add(callback, success, message, details)
@@ -10868,17 +10897,17 @@ class AppWindow(Gtk.ApplicationWindow):
                 self.tunnel_states[tunnel.id] = "locked"
                 self.append_tunnel_log(
                     tunnel.id,
-                    "Auto-avvio sospeso: sblocca il Password Manager e avvia il tunnel manualmente.",
+                    tr("Auto-avvio sospeso: sblocca il Password Manager e avvia il tunnel manualmente."),
                 )
                 blocked += 1
                 continue
             if self.start_tunnel(tunnel, interactive=False, quiet=True):
                 started += 1
         if started:
-            self.show_notification(f"Avviati automaticamente {started} tunnel SSH.", "success", 4000)
+            self.show_notification(tr("Avviati automaticamente {started} tunnel SSH.").format(started=started), "success", 4000)
         if blocked:
             self.show_notification(
-                f"{blocked} tunnel automatici attendono lo sblocco del Password Manager.",
+                tr("{blocked} tunnel automatici attendono lo sblocco del Password Manager.").format(blocked=blocked),
                 "warning",
                 6000,
             )
@@ -10893,7 +10922,7 @@ class AppWindow(Gtk.ApplicationWindow):
         old = self.tunnel_processes.get(tunnel.id)
         if old is not None and old.poll() is None:
             if not quiet:
-                self.set_status(f"Tunnel già attivo: {tunnel.name}")
+                self.set_status(tr("Tunnel già attivo: {name}").format(name=tunnel.name))
             return False
         restart_source = self._tunnel_restart_sources.pop(tunnel.id, None)
         if restart_source:
@@ -10906,9 +10935,9 @@ class AppWindow(Gtk.ApplicationWindow):
         if errors:
             message = "; ".join(errors)
             self.tunnel_states[tunnel.id] = "error"
-            self.append_tunnel_log(tunnel.id, f"Configurazione non valida: {message}")
+            self.append_tunnel_log(tunnel.id, tr("Configurazione non valida: {message}").format(message=message))
             if interactive:
-                self.show_notification(f"Tunnel {tunnel.name}: {message}", "error", 7000)
+                self.show_notification(tr("Tunnel {name}: {message}").format(name=tunnel.name, message=message), "error", 7000)
             return False
         try:
             argv, extra_env = self.build_tunnel_command(tunnel, allow_unlock=interactive)
@@ -10916,7 +10945,7 @@ class AppWindow(Gtk.ApplicationWindow):
             env.update(extra_env)
             self.tunnel_states[tunnel.id] = "starting"
             self.tunnel_exit_codes.pop(tunnel.id, None)
-            self.append_tunnel_log(tunnel.id, f"Avvio: {self.mask_args(argv)}")
+            self.append_tunnel_log(tunnel.id, tr("Avvio: {command}").format(command=self.mask_args(argv)))
             proc = subprocess.Popen(
                 argv,
                 env=env,
@@ -10935,13 +10964,13 @@ class AppWindow(Gtk.ApplicationWindow):
             ).start()
             GLib.timeout_add(650, self._confirm_tunnel_started, tunnel.id, proc.pid)
             if not quiet:
-                self.set_status(f"Avvio tunnel: {tunnel.name}")
+                self.set_status(tr("Avvio tunnel: {name}").format(name=tunnel.name))
             return True
         except Exception as exc:
             self.tunnel_states[tunnel.id] = "error"
-            self.append_tunnel_log(tunnel.id, f"Errore di avvio: {exc}")
+            self.append_tunnel_log(tunnel.id, tr("Errore di avvio: {exc}").format(exc=exc))
             if interactive:
-                self.show_notification(f"Errore tunnel {tunnel.name}: {exc}", "error", 7000)
+                self.show_notification(tr("Errore tunnel {name}: {exc}").format(name=tunnel.name, exc=exc), "error", 7000)
             return False
 
     def _confirm_tunnel_started(self, tunnel_id: str, pid: int) -> bool:
@@ -10952,8 +10981,8 @@ class AppWindow(Gtk.ApplicationWindow):
             self.tunnel_states[tunnel_id] = "running"
             tunnel = self.tunnel_store.get(tunnel_id)
             if tunnel:
-                self.append_tunnel_log(tunnel_id, f"Tunnel attivo: {tunnel.summary()}")
-                self.show_notification(f"Tunnel attivo: {tunnel.name}", "success", 3000)
+                self.append_tunnel_log(tunnel_id, tr("Tunnel attivo: {summary}").format(summary=tunnel.summary()))
+                self.show_notification(tr("Tunnel attivo: {name}").format(name=tunnel.name), "success", 3000)
         return False
 
     def _read_tunnel_output(self, tunnel_id: str, proc: subprocess.Popen) -> None:
@@ -10964,7 +10993,7 @@ class AppWindow(Gtk.ApplicationWindow):
                         break
                     self.append_tunnel_log(tunnel_id, line)
         except Exception as exc:
-            self.append_tunnel_log(tunnel_id, f"Errore lettura log: {exc}")
+            self.append_tunnel_log(tunnel_id, tr("Errore lettura log: {exc}").format(exc=exc))
         finally:
             try:
                 code = proc.wait()
@@ -10982,19 +11011,19 @@ class AppWindow(Gtk.ApplicationWindow):
         tunnel = self.tunnel_store.get(tunnel_id)
         if manual:
             self.tunnel_states[tunnel_id] = "stopped"
-            self.append_tunnel_log(tunnel_id, f"Tunnel fermato (codice {code}).")
+            self.append_tunnel_log(tunnel_id, tr("Tunnel fermato (codice {code}).").format(code=code))
             return False
         self.tunnel_states[tunnel_id] = "error" if code else "stopped"
-        self.append_tunnel_log(tunnel_id, f"Processo terminato con codice {code}.")
+        self.append_tunnel_log(tunnel_id, tr("Processo terminato con codice {code}.").format(code=code))
         if tunnel and tunnel.auto_restart:
             self.tunnel_states[tunnel_id] = "restarting"
             delay = max(1, min(tunnel.restart_delay, 300))
-            self.append_tunnel_log(tunnel_id, f"Nuovo tentativo tra {delay} secondi.")
+            self.append_tunnel_log(tunnel_id, tr("Nuovo tentativo tra {delay} secondi.").format(delay=delay))
             source = GLib.timeout_add_seconds(delay, self._restart_tunnel, tunnel_id)
             self._tunnel_restart_sources[tunnel_id] = source
         elif tunnel:
             self.show_notification(
-                f"Tunnel interrotto: {tunnel.name} (codice {code})",
+                tr("Tunnel interrotto: {name} (codice {code})").format(name=tunnel.name, code=code),
                 "error" if code else "warning",
                 6000,
             )
@@ -11007,7 +11036,7 @@ class AppWindow(Gtk.ApplicationWindow):
             return False
         if tunnel.credential_id and not self.vault.unlocked:
             self.tunnel_states[tunnel_id] = "locked"
-            self.append_tunnel_log(tunnel_id, "Riconnessione sospesa: Password Manager bloccato.")
+            self.append_tunnel_log(tunnel_id, tr("Riconnessione sospesa: Password Manager bloccato."))
             return False
         self.start_tunnel(tunnel, interactive=False, quiet=True)
         return False
@@ -11035,7 +11064,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self._tunnel_manual_stops.discard(tunnel_id)
         if not quiet:
             tunnel = self.tunnel_store.get(tunnel_id)
-            self.set_status(f"Tunnel fermato: {tunnel.name if tunnel else tunnel_id}")
+            self.set_status(tr("Tunnel fermato: {v}").format(v=tunnel.name if tunnel else tunnel_id))
 
     def _kill_tunnel_if_needed(self, tunnel_id: str, pid: int) -> bool:
         proc = self.tunnel_processes.get(tunnel_id)
@@ -11056,7 +11085,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.refresh_icon_theme_runtime()
         self.apply_theme(theme)
         self.refresh_theme_toggle_button()
-        self.set_status(f"Tema applicato: {'Scuro' if theme == 'dark' else 'Chiaro'} — icone: {getattr(self, 'active_icon_theme', '-')}")
+        self.set_status(tr("Tema applicato: {v} — icone: {getattr}").format(v=tr('Scuro') if theme == 'dark' else tr('Chiaro'), getattr=getattr(self, 'active_icon_theme', '-')))
 
     def apply_theme(self, theme: str) -> None:
         screen = Gdk.Screen.get_default()
@@ -11079,7 +11108,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 Gtk.StyleContext.add_provider_for_screen(screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
             self.css_provider = provider
         except Exception as exc:
-            self.set_status(f"CSS disattivato per errore tema: {exc}")
+            self.set_status(tr("CSS disattivato per errore tema: {exc}").format(exc=exc))
         for tab in getattr(self, "terminal_tabs", []):
             tab.apply_terminal_theme("dark")
 
@@ -11951,7 +11980,7 @@ class AppWindow(Gtk.ApplicationWindow):
     def _session_markup(self, sess: Session) -> str:
         name = self._escape(sess.name)
         lock = "  🔐" if sess.credential_id else ""
-        return f"<span>{name}</span>{lock}"
+        return tr("<span>{name}</span>{lock}").format(name=name, lock=lock)
 
     def _folder_markup(self, folder: FolderNode) -> str:
         return f"<b>{self._escape(folder.name)}</b>"
@@ -11961,12 +11990,7 @@ class AppWindow(Gtk.ApplicationWindow):
         cached = self._folder_pixbuf_cache.get(color)
         if cached is not None:
             return cached  # type: ignore[return-value]
-        svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="20" height="17" viewBox="0 0 20 17">
-<path d="M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z" fill="{color}"/>
-<path d="M1.2 5.2h17.6v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z" fill="{color}" opacity=".92"/>
-<path d="M2 5.2h16" stroke="#ffffff" stroke-opacity=".28"/>
-<path d="M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z" fill="none" stroke="#000000" stroke-opacity=".32"/>
-</svg>"""
+        svg = tr("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"17\" viewBox=\"0 0 20 17\">\n<path d=\"M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"{color}\"/>\n<path d=\"M1.2 5.2h17.6v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"{color}\" opacity=\".92\"/>\n<path d=\"M2 5.2h16\" stroke=\"#ffffff\" stroke-opacity=\".28\"/>\n<path d=\"M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"none\" stroke=\"#000000\" stroke-opacity=\".32\"/>\n</svg>").format(color=color)
         try:
             loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
             loader.write(svg.encode("utf-8"))
@@ -11981,13 +12005,13 @@ class AppWindow(Gtk.ApplicationWindow):
         cached = self._folder_pixbuf_cache.get("__home_session__")
         if cached is not None:
             return cached  # type: ignore[return-value]
-        svg = """<svg xmlns="http://www.w3.org/2000/svg" width="22" height="20" viewBox="0 0 22 20">
+        svg = tr("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="20" viewBox="0 0 22 20">
 <path d="M2 8.2 11 1.4l9 6.8v9.2c0 .8-.7 1.5-1.5 1.5H3.5C2.7 18.9 2 18.2 2 17.4z" fill="#4aa3df"/>
 <path d="M5.5 9.2v7.2h11V9.2L11 5.1z" fill="#1b75bb" opacity=".92"/>
 <path d="M8.2 18.9v-5.4c0-.6.5-1.1 1.1-1.1h3.4c.6 0 1.1.5 1.1 1.1v5.4" fill="#0f1e2b" opacity=".65"/>
 <path d="M2 8.2 11 1.4l9 6.8" fill="none" stroke="#dff4ff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="17.1" cy="4.5" r="2.2" fill="#77e2ff" stroke="#0f1e2b" stroke-width=".8"/>
-</svg>"""
+</svg>""")
         try:
             loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
             loader.write(svg.encode("utf-8"))
@@ -12085,7 +12109,7 @@ class AppWindow(Gtk.ApplicationWindow):
                         continue
                     it = self.tree_store.append(parent_iter, [
                         self._folder_markup(node),
-                        "Cartella",
+                        tr("Cartella"),
                         path,
                         "folder",
                         "",
@@ -12143,12 +12167,12 @@ class AppWindow(Gtk.ApplicationWindow):
     @staticmethod
     def _session_detail(sess: Session) -> str:
         if sess.protocol == "local":
-            return "local shell"
+            return tr("local shell")
         if sess.protocol == "command":
-            return sess.command or "comando personalizzato"
+            return sess.command or tr("comando personalizzato")
         if sess.protocol == "serial":
-            return f"SERIALE  {sess.host or '/dev/ttyUSB0'} @ {sess.port or '115200'} {sess.serial_databits}{sess.serial_parity}{sess.serial_stopbits}"
-        target = sess.host or "host non impostato"
+            return tr("SERIALE  {v} @ {v2} {serial_databits}{serial_parity}{serial_stopbits}").format(v=sess.host or '/dev/ttyUSB0', v2=sess.port or '115200', serial_databits=sess.serial_databits, serial_parity=sess.serial_parity, serial_stopbits=sess.serial_stopbits)
+        target = sess.host or tr("host non impostato")
         if sess.user:
             if sess.protocol == "rdp" and sess.domain:
                 target = f"{sess.domain}\\{sess.user}@{target}"
@@ -12220,11 +12244,11 @@ class AppWindow(Gtk.ApplicationWindow):
         if self.vault.unlocked:
             return True
         if not CRYPTO_AVAILABLE:
-            self.set_status("python3-cryptography non installato. Installa: sudo dnf install python3-cryptography")
+            self.set_status(tr("python3-cryptography non installato. Installa: sudo dnf install python3-cryptography"))
             return False
         creating = not self.vault.exists()
         if creating and not create_if_missing:
-            self.set_status("Password Manager non ancora creato.")
+            self.set_status(tr("Password Manager non ancora creato."))
             return False
         dialog = MasterPasswordDialog(self, mode="create" if creating else "unlock")
 
@@ -12236,9 +12260,9 @@ class AppWindow(Gtk.ApplicationWindow):
                     self.vault.unlock(dialog.get_password())
                 return None
             except InvalidTag:
-                return "Password errata. Riprova."
+                return tr("Password errata. Riprova.")
             except Exception as exc:
-                return f"Impossibile {'creare' if creating else 'aprire'} l'archivio delle password: {exc}"
+                return (tr("Impossibile creare l'archivio delle password: {exc}") if creating else tr("Impossibile aprire l'archivio delle password: {exc}")).format(exc=exc)
 
         opened = dialog.run_validated(open_vault)
         keep_unlocked = dialog.wants_keep_unlocked()
@@ -12246,7 +12270,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if not opened:
             return False
         self.mark_user_activity()
-        message = "Password Manager creato e sbloccato." if creating else "Password Manager sbloccato."
+        message = tr("Password Manager creato e sbloccato.") if creating else tr("Password Manager sbloccato.")
         if keep_unlocked and int(self.settings.vault_auto_lock_minutes) != 0:
             # Spunta nel prompt: disattiva il blocco automatico a tempo e rende la scelta
             # persistente (coerente con le Impostazioni).
@@ -12255,7 +12279,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 self.settings.save(SETTINGS_FILE)
             except Exception:
                 pass
-            message = message[:-1] + " (resterà sbloccato finché l'app è aperta)."
+            message = message[:-1] + tr(" (resterà sbloccato finché l'app è aperta).")
         self.set_status(message)
         GLib.idle_add(self.start_auto_tunnels)
         return True
@@ -12267,16 +12291,16 @@ class AppWindow(Gtk.ApplicationWindow):
         dialog.run()
         dialog.destroy()
         if self.vault.unlocked:
-            self.set_status("Password Manager chiuso: resta sbloccato finché non lo blocchi o scade il tempo.")
+            self.set_status(tr("Password Manager chiuso: resta sbloccato finché non lo blocchi o scade il tempo."))
         else:
-            self.set_status("Password bloccate.")
+            self.set_status(tr("Password bloccate."))
 
     def on_lock_vault(self, _button: Gtk.Button) -> None:
         if not self.vault.unlocked:
-            self.set_status("Le password sono già bloccate." if self.vault.exists() else "Password Manager non ancora creato.")
+            self.set_status(tr("Le password sono già bloccate.") if self.vault.exists() else tr("Password Manager non ancora creato."))
             return
         self.vault.lock()
-        self.set_status("Password bloccate: la master password verrà richiesta al prossimo uso.")
+        self.set_status(tr("Password bloccate: la master password verrà richiesta al prossimo uso."))
 
     def mark_user_activity(self, *_args) -> bool:
         self._last_user_activity = time.monotonic()
@@ -12291,8 +12315,8 @@ class AppWindow(Gtk.ApplicationWindow):
             inactive = time.monotonic() - self._last_user_activity
             if inactive >= minutes * 60:
                 self.vault.lock()
-                self.show_notification("Password bloccate automaticamente per inattività", "info")
-                self.set_status("Password bloccate automaticamente.")
+                self.show_notification(tr("Password bloccate automaticamente per inattività"), "info")
+                self.set_status(tr("Password bloccate automaticamente."))
         return True
 
     def on_window_state_event(self, _window: Gtk.Window, event) -> bool:  # noqa: ANN001
@@ -12302,18 +12326,18 @@ class AppWindow(Gtk.ApplicationWindow):
             minimized = False
         if minimized and self.settings.lock_vault_on_minimize and self.vault.unlocked:
             self.vault.lock()
-            self.set_status("Password bloccate alla minimizzazione della finestra.")
+            self.set_status(tr("Password bloccate alla minimizzazione della finestra."))
         return False
 
-    def copy_sensitive_text(self, text: str, label: str = "Dato sensibile") -> None:
+    def copy_sensitive_text(self, text: str, label: str = tr("Dato sensibile")) -> None:
         if not text:
-            self.set_status(f"{label} vuoto: nulla da copiare.")
+            self.set_status(tr("{label} vuoto: nulla da copiare.").format(label=label))
             return
         clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         clipboard.set_text(text, -1)
         clipboard.store()
         seconds = int(self.settings.clear_clipboard_seconds)
-        self.set_status(f"{label} copiato negli appunti" + (f"; cancellazione tra {seconds} s." if seconds > 0 else "."))
+        self.set_status(tr("{label} copiato negli appunti").format(label=label) + (tr("; cancellazione tra {seconds} s.").format(seconds=seconds) if seconds > 0 else "."))
         self.mark_user_activity()
         if seconds > 0:
             expected = text
@@ -12323,7 +12347,7 @@ class AppWindow(Gtk.ApplicationWindow):
                     if current == expected:
                         cb.set_text("", -1)
                         cb.store()
-                        self.set_status("Dato sensibile rimosso dagli appunti.")
+                        self.set_status(tr("Dato sensibile rimosso dagli appunti."))
                 try:
                     clipboard.request_text(received, None)
                 except Exception:
@@ -12347,13 +12371,13 @@ class AppWindow(Gtk.ApplicationWindow):
         for _path, sess, folder in self.store.iter_sessions():
             name = sess.name or sess.host
             if sess.credential_id == cred_id:
-                kind = "Terminale" if sess.protocol == "local" else sess.protocol.upper()
+                kind = tr("Terminale") if sess.protocol == "local" else sess.protocol.upper()
                 found.append((name, kind, self._folder_display(folder)))
             if getattr(sess, "rdp_gateway_credential_id", "") == cred_id:
-                found.append((name, "Gateway", self._folder_display(folder)))
+                found.append((name, tr("Gateway"), self._folder_display(folder)))
         for tunnel in getattr(self.tunnel_store, "tunnels", []):
             if tunnel.credential_id == cred_id:
-                found.append((tunnel.name, "Tunnel", ""))
+                found.append((tunnel.name, tr("Tunnel"), ""))
         return found
 
     def session_group_name(self, session: Session) -> str:
@@ -12405,11 +12429,11 @@ class AppWindow(Gtk.ApplicationWindow):
                 flags=0,
                 message_type=Gtk.MessageType.QUESTION,
                 buttons=Gtk.ButtonsType.YES_NO,
-                text="Salvare la password nel Password Manager cifrato?",
+                text=tr("Salvare la password nel Password Manager cifrato?"),
             )
             dialog.format_secondary_text(
-                "FedTermHub creerà una credenziale riutilizzabile anche su altre sessioni. "
-                "Nel file sessioni non verrà salvata la password in chiaro."
+                tr("FedTermHub creerà una credenziale riutilizzabile anche su altre sessioni. "
+                "Nel file sessioni non verrà salvata la password in chiaro.")
             )
             response = dialog.run()
             dialog.destroy()
@@ -12418,7 +12442,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
         if not self.ensure_vault_unlocked(create_if_missing=True):
             return False
-        name_bits = [sess.name or f"RDP {sess.host}"]
+        name_bits = [sess.name or tr("RDP {host}").format(host=sess.host)]
         if sess.domain:
             name_bits.append(sess.domain)
         if sess.user:
@@ -12428,7 +12452,7 @@ class AppWindow(Gtk.ApplicationWindow):
             username=sess.user,
             domain=sess.domain,
             password=password,
-            notes=f"Credenziale RDP creata da FedTermHub per {sess.host}",
+            notes=tr("Credenziale RDP creata da FedTermHub per {host}").format(host=sess.host),
             group=self.session_group_name(sess),
         )
         self.vault.credentials.append(cred)
@@ -12440,7 +12464,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self.refresh_sessions()
         except Exception:
             pass
-        self.set_status(f"Password salvata nel Password Manager e collegata a: {sess.name}")
+        self.set_status(tr("Password salvata nel Password Manager e collegata a: {name}").format(name=sess.name))
         return True
 
     def maybe_save_dialog_password(self, dialog: SessionDialog, session: Session) -> None:
@@ -12448,7 +12472,7 @@ class AppWindow(Gtk.ApplicationWindow):
             if dialog.should_offer_save_password():
                 self.save_rdp_password_to_vault(session, dialog.get_transient_password(), ask=True)
         except Exception as exc:
-            self.report_session_error("Errore salvataggio password", str(exc), traceback.format_exc())
+            self.report_session_error(tr("Errore salvataggio password"), str(exc), traceback.format_exc())
 
     def open_local_terminal(self) -> None:
         configured = self.settings.terminal_shell.strip()
@@ -12458,14 +12482,16 @@ class AppWindow(Gtk.ApplicationWindow):
         cwd = self.settings.terminal_start_directory.strip()
         if not cwd or not Path(cwd).is_dir():
             cwd = str(Path.home())
-        self.add_terminal_tab("Locale", [shell], cwd=cwd, close_on_exit="always")
+        self.add_terminal_tab(tr("Locale"), [shell], cwd=cwd, close_on_exit="always")
+        # Riconoscere la shell locale da un indicatore, non dal titolo: il titolo viene tradotto.
+        self.terminal_tabs[-1].is_local_shell = True
 
     def open_command_palette(self) -> None:
         """Apre la ricerca rapida delle sessioni (Ctrl+K)."""
         try:
             palette = CommandPalette(self)
         except Exception as exc:
-            self.set_status(f"Command palette non disponibile: {exc}")
+            self.set_status(tr("Command palette non disponibile: {exc}").format(exc=exc))
             return
         palette.show_all()
         palette.entry.grab_focus()
@@ -12477,23 +12503,23 @@ class AppWindow(Gtk.ApplicationWindow):
             if not self.sidebar.get_visible():
                 self.toggle_sidebar(True)
             self.quick.grab_focus()
-            self.set_status("Scrivi utente@host[:porta], rdp:host, vnc:host, telnet:host o serial:/dev/ttyUSB0@115200 e premi Invio.")
+            self.set_status(tr("Scrivi utente@host[:porta], rdp:host, vnc:host, telnet:host o serial:/dev/ttyUSB0@115200 e premi Invio."))
             return
         lower = text.lower()
         try:
             if lower.startswith("rdp:"):
                 host, port = split_host_port(text.split(":", 1)[1].strip().lstrip("/"), "3389")
-                sess = Session(name=f"RDP {host}", protocol="rdp", host=host, port=port)
+                sess = Session(name=tr("RDP {host}").format(host=host), protocol="rdp", host=host, port=port)
             elif lower.startswith("vnc:"):
                 host, port = split_host_port(text.split(":", 1)[1].strip().lstrip("/"), "")
-                sess = Session(name=f"VNC {host}", protocol="vnc", host=host, port=port)
+                sess = Session(name=tr("VNC {host}").format(host=host), protocol="vnc", host=host, port=port)
             elif lower.startswith("telnet:"):
                 host, port = split_host_port(text.split(":", 1)[1].strip().lstrip("/"), "23")
-                sess = Session(name=f"Telnet {host}", protocol="telnet", host=host, port=port)
+                sess = Session(name=tr("Telnet {host}").format(host=host), protocol="telnet", host=host, port=port)
             elif lower.startswith("serial:"):
                 rest = text.split(":", 1)[1].strip()
                 device, baud = (rest.split("@", 1) + ["115200"])[:2] if "@" in rest else (rest, "115200")
-                sess = Session(name=f"Seriale {device}", protocol="serial", host=device, port=baud)
+                sess = Session(name=tr("Seriale {device}").format(device=device), protocol="serial", host=device, port=baud)
             else:
                 if lower.startswith("ssh://"):
                     text2 = text[6:]
@@ -12506,15 +12532,15 @@ class AppWindow(Gtk.ApplicationWindow):
                 if "@" in text2:
                     user, address = text2.rsplit("@", 1)
                 host, port = split_host_port(address, "22")
-                sess = Session(name=f"SSH {text2}", protocol="ssh", host=host, port=port, user=user)
+                sess = Session(name=tr("SSH {text2}").format(text2=text2), protocol="ssh", host=host, port=port, user=user)
             problem = session_problem(sess)
             if problem:
-                self.set_status(f"Connessione rapida non valida: {problem}")
+                self.set_status(tr("Connessione rapida non valida: {problem}").format(problem=problem))
                 return
             self.open_session(sess)
             self.quick.set_text("")
         except Exception as exc:
-            self.set_status(f"Quick connect non valido: {exc}")
+            self.set_status(tr("Quick connect non valido: {exc}").format(exc=exc))
 
     def start_quick_telnet(self) -> None:
         """Telnet al volo senza salvare una sessione: prepara la connessione rapida."""
@@ -12523,7 +12549,7 @@ class AppWindow(Gtk.ApplicationWindow):
         self.quick.set_text("telnet:")
         self.quick.grab_focus()
         self.quick.set_position(-1)
-        self.set_status("Completa con host[:porta] (porta 23 se non la scrivi) e premi Invio.")
+        self.set_status(tr("Completa con host[:porta] (porta 23 se non la scrivi) e premi Invio."))
 
     def on_session_activated(self, _tree: Gtk.TreeView, tree_path: Gtk.TreePath, _column: Gtk.TreeViewColumn) -> None:
         tree_iter = self.tree_store.get_iter(tree_path)
@@ -12562,36 +12588,36 @@ class AppWindow(Gtk.ApplicationWindow):
         # fuori dalla parte visibile.
         self._select_store_path(self.store.find_node_path(session))
         self.set_status(
-            f"Sessione aggiunta in fondo all'elenco: {session.name} — trascinala in una cartella se vuoi."
+            tr("Sessione aggiunta in fondo all'elenco: {name} — trascinala in una cartella se vuoi.").format(name=session.name)
         )
 
     def on_add_folder(self, _button: Gtk.Button) -> None:
         parent_path = self.selected_target_folder_path()
-        dialog = FolderDialog(self, title="Nuova cartella")
+        dialog = FolderDialog(self, title=tr("Nuova cartella"))
         if dialog.run() == Gtk.ResponseType.OK:
             name = dialog.get_name()
             self.store.add_node(parent_path, FolderNode(name=name, color=dialog.get_color()))
             self.refresh_sessions()
-            self.set_status(f"Cartella creata in {self.folder_label(parent_path)}: {name}")
+            self.set_status(tr("Cartella creata in {folder_label}: {name}").format(folder_label=self.folder_label(parent_path), name=name))
         dialog.destroy()
 
     def on_edit_selected(self, _button: Gtk.Button) -> None:
         selected = self.selected_path_and_node()
         if selected is None:
-            self.set_status("Seleziona una sessione o cartella da modificare.")
+            self.set_status(tr("Seleziona una sessione o cartella da modificare."))
             return
         path, node = selected
         if isinstance(node, FolderNode):
             if path == self.store.home_path():
-                self.set_status("Home Session è la cartella principale e non può essere rinominata.")
+                self.set_status(tr("Home Session è la cartella principale e non può essere rinominata."))
                 return
-            dialog = FolderDialog(self, title="Modifica cartella", name=node.name, color=node.color)
+            dialog = FolderDialog(self, title=tr("Modifica cartella"), name=node.name, color=node.color)
             if dialog.run() == Gtk.ResponseType.OK:
                 node.name = dialog.get_name()
                 node.color = dialog.get_color()
                 self.store.replace_node(path, node)
                 self.refresh_sessions()
-                self.set_status(f"Cartella aggiornata: {node.name}")
+                self.set_status(tr("Cartella aggiornata: {name}").format(name=node.name))
             dialog.destroy()
             return
 
@@ -12609,40 +12635,40 @@ class AppWindow(Gtk.ApplicationWindow):
             if save_password:
                 self.save_rdp_password_to_vault(updated, transient_password, ask=True)
             self.refresh_sessions()
-            self.set_status(f"Sessione aggiornata: {updated.name}")
+            self.set_status(tr("Sessione aggiornata: {name}").format(name=updated.name))
 
     def on_duplicate_selected(self, _button: Optional[Gtk.Button]) -> None:
         selected = self.selected_path_and_node()
         if selected is None:
-            self.set_status("Seleziona una sessione o cartella da duplicare.")
+            self.set_status(tr("Seleziona una sessione o cartella da duplicare."))
             return
         path, node = selected
         if path == self.store.home_path():
-            self.set_status("Home Session non può essere duplicata: esportala o importa al suo interno.")
+            self.set_status(tr("Home Session non può essere duplicata: esportala o importa al suo interno."))
             return
         parent_path = self.store.parent_path(path)
         clone = node_from_dict(node_to_dict(node))
-        clone.name = f"{clone.name} copia"
+        clone.name = tr("{name} copia").format(name=clone.name)
         # La copia va subito sotto l'originale, non in fondo alla cartella, ed e' selezionata.
         container = self.store.get_container(parent_path)
         container.insert(container.index(node) + 1, clone)
         self.store.save()
         self.refresh_sessions()
         self._select_store_path(self.store.find_node_path(clone))
-        self.set_status(f"Duplicato: {clone.name}")
+        self.set_status(tr("Duplicato: {name}").format(name=clone.name))
 
 
     def _session_export_payload_for_node(self, node: Node, scope: str) -> Dict[str, object]:
         return {
             "version": APP_VERSION,
-            "format": "FedTermHub session package",
+            "format": tr("FedTermHub session package"),
             "scope": scope,
             "root": node_to_dict(node),
         }
 
     def _choose_save_json(self, title: str, default_name: str, parent: Optional[Gtk.Window] = None) -> Optional[Path]:
         dialog = Gtk.FileChooserDialog(title=title, transient_for=parent or self, action=Gtk.FileChooserAction.SAVE)
-        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Salva"), Gtk.ResponseType.OK)
         dialog.set_do_overwrite_confirmation(True)
         dialog.set_current_name(default_name)
         apply_window_icon(dialog)
@@ -12655,7 +12681,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def _choose_open_json(self, title: str, parent: Optional[Gtk.Window] = None) -> Optional[Path]:
         dialog = Gtk.FileChooserDialog(title=title, transient_for=parent or self, action=Gtk.FileChooserAction.OPEN)
-        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Apri", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Apri"), Gtk.ResponseType.OK)
         apply_window_icon(dialog)
         try:
             if dialog.run() == Gtk.ResponseType.OK:
@@ -12671,23 +12697,23 @@ class AppWindow(Gtk.ApplicationWindow):
         items = raw.get("items", raw) if isinstance(raw, dict) else raw
         if isinstance(items, list):
             imported = [node_from_dict(x) for x in items if isinstance(x, dict)]
-            return FolderNode(name=f"Import {src.stem}", children=imported)
-        raise ValueError("Il file non contiene una Home Session, cartella o sessione valida.")
+            return FolderNode(name=tr("Import {stem}").format(stem=src.stem), children=imported)
+        raise ValueError(tr("Il file non contiene una Home Session, cartella o sessione valida."))
 
     def export_home_session(self, *_args) -> None:
         try:
             home = self.store.home_node()
-            dest = self._choose_save_json("Esporta Home Session", "fedtermhub-home-session.json")
+            dest = self._choose_save_json(tr("Esporta Home Session"), "fedtermhub-home-session.json")
             if dest is None:
                 return
             atomic_write_text(dest, json.dumps(self._session_export_payload_for_node(home, "home-session"), indent=2, ensure_ascii=False), mode=0o600)
-            self.set_status(f"Home Session esportata in {dest.name}")
+            self.set_status(tr("Home Session esportata in {name}").format(name=dest.name))
         except Exception as exc:
-            self.set_status(f"Errore export Home Session: {exc}")
+            self.set_status(tr("Errore export Home Session: {exc}").format(exc=exc))
 
     def import_home_session(self, *_args) -> None:
         try:
-            src = self._choose_open_json("Importa Home Session")
+            src = self._choose_open_json(tr("Importa Home Session"))
             if src is None:
                 return
             node = self._node_from_session_package(src)
@@ -12700,10 +12726,10 @@ class AppWindow(Gtk.ApplicationWindow):
                 flags=0,
                 message_type=Gtk.MessageType.WARNING,
                 buttons=Gtk.ButtonsType.OK_CANCEL,
-                text="Sostituire l'attuale Home Session?",
+                text=tr("Sostituire l'attuale Home Session?"),
             )
             apply_window_icon(confirm)
-            confirm.format_secondary_text("Le sessioni attuali verranno sostituite dalla Home Session importata. Le password salvate non vengono modificate.")
+            confirm.format_secondary_text(tr("Le sessioni attuali verranno sostituite dalla Home Session importata. Le password salvate non vengono modificate."))
             response = confirm.run()
             confirm.destroy()
             if response != Gtk.ResponseType.OK:
@@ -12714,9 +12740,9 @@ class AppWindow(Gtk.ApplicationWindow):
             self.store.save()
             self.refresh_sessions()
             self.session_tree.expand_all()
-            self.set_status(f"Home Session importata da {src.name}")
+            self.set_status(tr("Home Session importata da {name}").format(name=src.name))
         except Exception as exc:
-            self.set_status(f"Errore import Home Session: {exc}")
+            self.set_status(tr("Errore import Home Session: {exc}").format(exc=exc))
 
     def export_selected_node(self, *_args) -> None:
         try:
@@ -12730,32 +12756,32 @@ class AppWindow(Gtk.ApplicationWindow):
                 scope = "folder" if isinstance(node, FolderNode) else "session"
                 safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "-", node.name).strip("-") or scope
                 default_name = f"fedtermhub-{safe_name}.json"
-            dest = self._choose_save_json("Esporta cartella o sessione", default_name)
+            dest = self._choose_save_json(tr("Esporta cartella o sessione"), default_name)
             if dest is None:
                 return
             atomic_write_text(dest, json.dumps(self._session_export_payload_for_node(node, scope), indent=2, ensure_ascii=False), mode=0o600)
-            self.set_status(f"Esportato: {node.name} → {dest.name}")
+            self.set_status(tr("Esportato: {name} → {name2}").format(name=node.name, name2=dest.name))
         except Exception as exc:
-            self.set_status(f"Errore export selezione: {exc}")
+            self.set_status(tr("Errore export selezione: {exc}").format(exc=exc))
 
     def import_into_selected_folder(self, *_args) -> None:
         try:
             target = self.selected_target_folder_path()
-            src = self._choose_open_json("Importa in cartella selezionata")
+            src = self._choose_open_json(tr("Importa in cartella selezionata"))
             if src is None:
                 return
             node = self._node_from_session_package(src)
             # Se il pacchetto contiene Home Session, importiamo il suo contenuto nella cartella scelta
             # invece di creare una Home Session annidata dentro Home Session.
             if isinstance(node, FolderNode) and node.name == HOME_SESSION_NAME:
-                imported = FolderNode(name=f"Import {src.stem}", color=node.color, children=node.children)
+                imported = FolderNode(name=tr("Import {stem}").format(stem=src.stem), color=node.color, children=node.children)
                 node = imported
             self.store.add_node(target, node)
             self.refresh_sessions()
             self.session_tree.expand_all()
-            self.set_status(f"Importato '{node.name}' in {self.folder_label(target)}")
+            self.set_status(tr("Importato '{name}' in {folder_label}").format(name=node.name, folder_label=self.folder_label(target)))
         except Exception as exc:
-            self.set_status(f"Errore import in cartella: {exc}")
+            self.set_status(tr("Errore import in cartella: {exc}").format(exc=exc))
 
     def _ask_export_password(
         self,
@@ -12776,7 +12802,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if not self.ensure_vault_unlocked(create_if_missing=False):
             return
         try:
-            dest = self._choose_save_json("Esporta backup cifrato delle password", "fedtermhub-password-backup.json", parent)
+            dest = self._choose_save_json(tr("Esporta backup cifrato delle password"), "fedtermhub-password-backup.json", parent)
             if dest is None:
                 return
             password = self._ask_export_password(parent, exporting=True)
@@ -12784,9 +12810,9 @@ class AppWindow(Gtk.ApplicationWindow):
                 return
             payload = PasswordVault.encrypt_credentials_payload(self.vault.credentials, password)
             atomic_write_text(dest, json.dumps(payload, indent=2, ensure_ascii=False), mode=0o600)
-            self.set_status(f"Backup cifrato di {len(self.vault.credentials)} credenziali salvato in {dest.name}")
+            self.set_status(tr("Backup cifrato di {n_credentials} credenziali salvato in {name}").format(n_credentials=len(self.vault.credentials), name=dest.name))
         except Exception as exc:
-            self.set_status(f"Errore export credenziali: {exc}")
+            self.set_status(tr("Errore export credenziali: {exc}").format(exc=exc))
 
     def import_vault_encrypted(self, parent: Optional[Gtk.Window] = None, *_args) -> None:
         if not isinstance(parent, Gtk.Window):
@@ -12794,12 +12820,12 @@ class AppWindow(Gtk.ApplicationWindow):
         if not self.ensure_vault_unlocked(create_if_missing=True):
             return
         try:
-            src = self._choose_open_json("Importa backup cifrato delle password", parent)
+            src = self._choose_open_json(tr("Importa backup cifrato delle password"), parent)
             if src is None:
                 return
             raw = json.loads(src.read_text(encoding="utf-8"))
             if not isinstance(raw, dict):
-                raise ValueError("File credenziali non valido.")
+                raise ValueError(tr("File credenziali non valido."))
             imported: List[Credential] = []
 
             def decrypt(password: str) -> Optional[str]:
@@ -12807,9 +12833,9 @@ class AppWindow(Gtk.ApplicationWindow):
                     imported[:] = PasswordVault.decrypt_credentials_payload(raw, password)
                     return None
                 except InvalidTag:
-                    return "Password errata per questo backup. Riprova."
+                    return tr("Password errata per questo backup. Riprova.")
                 except Exception as exc:
-                    return f"Il file non è un backup valido: {exc}"
+                    return tr("Il file non è un backup valido: {exc}").format(exc=exc)
 
             if self._ask_export_password(parent, exporting=False, check=decrypt) is None:
                 return
@@ -12818,15 +12844,15 @@ class AppWindow(Gtk.ApplicationWindow):
                 flags=0,
                 message_type=Gtk.MessageType.QUESTION,
                 buttons=Gtk.ButtonsType.NONE,
-                text=f"Importare {len(imported)} credenziali?",
+                text=tr("Importare {n_imported} credenziali?").format(n_imported=len(imported)),
             )
             apply_window_icon(confirm)
             confirm.format_secondary_text(
-                "«Aggiungi» le unisce a quelle che hai già. «Sostituisci» cancella le credenziali attuali "
-                "e tiene solo quelle del backup."
+                tr("«Aggiungi» le unisce a quelle che hai già. «Sostituisci» cancella le credenziali attuali "
+                "e tiene solo quelle del backup.")
             )
-            confirm.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Sostituisci", Gtk.ResponseType.YES)
-            merge = confirm.add_button("A_ggiungi", Gtk.ResponseType.OK)
+            confirm.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Sostituisci"), Gtk.ResponseType.YES)
+            merge = confirm.add_button(tr("A_ggiungi"), Gtk.ResponseType.OK)
             merge.get_style_context().add_class("suggested-action")
             confirm.set_default_response(Gtk.ResponseType.OK)
             response = confirm.run()
@@ -12842,41 +12868,41 @@ class AppWindow(Gtk.ApplicationWindow):
                     if cred.id in existing_ids:
                         cred.id = uuid.uuid4().hex
                     if cred.name in existing_names:
-                        cred.name = f"{cred.name} (importata)"
+                        cred.name = tr("{name} (importata)").format(name=cred.name)
                     self.vault.credentials.append(cred)
                     existing_ids.add(cred.id)
                     existing_names.add(cred.name)
             self.vault.save()
-            self.set_status(f"Importate {len(imported)} credenziali da {src.name}")
+            self.set_status(tr("Importate {n_imported} credenziali da {name}").format(n_imported=len(imported), name=src.name))
         except Exception as exc:
-            self.set_status(f"Errore import credenziali: {exc}")
+            self.set_status(tr("Errore import credenziali: {exc}").format(exc=exc))
 
     def export_settings(self, parent: Optional[Gtk.Window] = None) -> None:
         dialog = Gtk.FileChooserDialog(
-            title="Esporta impostazioni FedTermHub",
+            title=tr("Esporta impostazioni FedTermHub"),
             transient_for=parent or self,
             action=Gtk.FileChooserAction.SAVE,
         )
-        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Salva", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Salva"), Gtk.ResponseType.OK)
         dialog.set_do_overwrite_confirmation(True)
         dialog.set_current_name("fedtermhub-settings.json")
         try:
             if dialog.run() == Gtk.ResponseType.OK:
                 dest = Path(dialog.get_filename())
                 atomic_write_text(dest, json.dumps(self.settings.to_dict(), indent=2, ensure_ascii=False), mode=0o600)
-                self.set_status(f"Impostazioni esportate in {dest}")
+                self.set_status(tr("Impostazioni esportate in {dest}").format(dest=dest))
         except Exception as exc:
-            self.set_status(f"Errore esportazione impostazioni: {exc}")
+            self.set_status(tr("Errore esportazione impostazioni: {exc}").format(exc=exc))
         finally:
             dialog.destroy()
 
     def import_settings(self, parent: Optional[Gtk.Window] = None) -> bool:
         dialog = Gtk.FileChooserDialog(
-            title="Importa impostazioni FedTermHub",
+            title=tr("Importa impostazioni FedTermHub"),
             transient_for=parent or self,
             action=Gtk.FileChooserAction.OPEN,
         )
-        dialog.add_buttons("_Annulla", Gtk.ResponseType.CANCEL, "_Apri", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("_Annulla"), Gtk.ResponseType.CANCEL, tr("_Apri"), Gtk.ResponseType.OK)
         imported = False
         try:
             if dialog.run() != Gtk.ResponseType.OK:
@@ -12884,7 +12910,7 @@ class AppWindow(Gtk.ApplicationWindow):
             src = Path(dialog.get_filename())
             raw = json.loads(src.read_text(encoding="utf-8"))
             if not isinstance(raw, dict) or not ({"theme", "icon_theme", "terminal_font_family"} & set(raw.keys())):
-                raise ValueError("Il file non contiene impostazioni FedTermHub riconoscibili.")
+                raise ValueError(tr("Il file non contiene impostazioni FedTermHub riconoscibili."))
             candidate = AppSettings.load(src)
             self.settings = candidate
             self.settings.save(SETTINGS_FILE)
@@ -12892,10 +12918,10 @@ class AppWindow(Gtk.ApplicationWindow):
             self.refresh_icon_theme_runtime()
             self.apply_layout_preferences()
             self.apply_terminal_preferences()
-            self.set_status(f"Impostazioni importate da {src.name}")
+            self.set_status(tr("Impostazioni importate da {name}").format(name=src.name))
             imported = True
         except Exception as exc:
-            self.set_status(f"Errore importazione impostazioni: {exc}")
+            self.set_status(tr("Errore importazione impostazioni: {exc}").format(exc=exc))
         finally:
             dialog.destroy()
         return imported
@@ -12903,23 +12929,23 @@ class AppWindow(Gtk.ApplicationWindow):
     def on_delete_selected(self, _button: Gtk.Button) -> None:
         selected = self.selected_path_and_node()
         if selected is None:
-            self.set_status("Seleziona una sessione o cartella da eliminare.")
+            self.set_status(tr("Seleziona una sessione o cartella da eliminare."))
             return
         path, node = selected
         if path == self.store.home_path():
-            self.set_status("Home Session non può essere eliminata.")
+            self.set_status(tr("Home Session non può essere eliminata."))
             return
         name = node.name
         if isinstance(node, FolderNode) and node.children:
             sessions, folders = self._folder_recursive_stats(node)
             parts = []
             if sessions:
-                parts.append("1 sessione" if sessions == 1 else f"{sessions} sessioni")
+                parts.append(tr("1 sessione") if sessions == 1 else tr("{sessions} sessioni").format(sessions=sessions))
             if folders:
-                parts.append("1 sottocartella" if folders == 1 else f"{folders} sottocartelle")
-            message = f"Eliminare la cartella «{name}» con {' e '.join(parts)}?"
+                parts.append(tr("1 sottocartella") if folders == 1 else tr("{folders} sottocartelle").format(folders=folders))
+            message = tr("Eliminare la cartella «{name}» con {join_parts}?").format(name=name, join_parts=' e '.join(parts))
         else:
-            message = f"Eliminare «{name}»?"
+            message = tr("Eliminare «{name}»?").format(name=name)
         dialog = Gtk.MessageDialog(
             transient_for=self,
             flags=0,
@@ -12927,23 +12953,23 @@ class AppWindow(Gtk.ApplicationWindow):
             buttons=Gtk.ButtonsType.OK_CANCEL,
             text=message,
         )
-        dialog.format_secondary_text("L'operazione modifica solo il file sessioni locale di FedTermHub.")
+        dialog.format_secondary_text(tr("L'operazione modifica solo il file sessioni locale di FedTermHub."))
         response = dialog.run()
         dialog.destroy()
         if response != Gtk.ResponseType.OK:
             return
         self.store.remove_node(path)
         self.refresh_sessions()
-        self.set_status(f"Eliminato: {name}")
+        self.set_status(tr("Eliminato: {name}").format(name=name))
 
     def on_move_selected(self, _button: Gtk.Button) -> None:
         selected = self.selected_path_and_node()
         if selected is None:
-            self.set_status("Seleziona una sessione o cartella da spostare.")
+            self.set_status(tr("Seleziona una sessione o cartella da spostare."))
             return
         path, node = selected
         if path == self.store.home_path():
-            self.set_status("Home Session non può essere spostata.")
+            self.set_status(tr("Home Session non può essere spostata."))
             return
         current_parent = self.store.parent_path(path) or self.store.home_path()
         folders: List[Tuple[str, str]] = [(self.store.home_path(), HOME_SESSION_NAME)]
@@ -12963,9 +12989,9 @@ class AppWindow(Gtk.ApplicationWindow):
             new_path = self.store.move_node(path, target_path)
             self.refresh_sessions()
             self._select_store_path(new_path)
-            self.set_status(f"Spostato '{node.name}' in {self.folder_label(target_path)}")
+            self.set_status(tr("Spostato '{name}' in {folder_label}").format(name=node.name, folder_label=self.folder_label(target_path)))
         except Exception as exc:
-            self.set_status(f"Errore spostamento: {exc}")
+            self.set_status(tr("Errore spostamento: {exc}").format(exc=exc))
 
     def folder_label(self, folder_path: str) -> str:
         if folder_path == "":
@@ -13052,35 +13078,35 @@ class AppWindow(Gtk.ApplicationWindow):
             tunnel = self.tunnel_store.get(tunnel_id)
             if tunnel is None:
                 self.report_session_error(
-                    "Tunnel richiesto non trovato",
-                    f"La sessione “{sess.name}” è collegata a un tunnel che non esiste più.",
-                    f"ID tunnel: {tunnel_id}",
+                    tr("Tunnel richiesto non trovato"),
+                    tr("La sessione “{name}” è collegata a un tunnel che non esiste più.").format(name=sess.name),
+                    tr("ID tunnel: {tunnel_id}").format(tunnel_id=tunnel_id),
                 )
                 return
             state = self.get_tunnel_state(tunnel.id)
             if state != "running":
                 self.start_tunnel(tunnel)
-                self.show_notification(f"Avvio tunnel “{tunnel.name}”…", "info", 2500)
+                self.show_notification(tr("Avvio tunnel “{name}”…").format(name=tunnel.name), "info", 2500)
                 if getattr(sess, "wait_for_tunnel", True):
                     deadline = time.monotonic() + max(8, self.settings.connection_timeout_seconds + 4)
 
                     def wait_ready() -> bool:
                         current = self.get_tunnel_state(tunnel.id)
                         if current == "running":
-                            self.show_notification(f"Tunnel pronto: {tunnel.name}", "success", 2500)
+                            self.show_notification(tr("Tunnel pronto: {name}").format(name=tunnel.name), "success", 2500)
                             self._open_session_now(sess)
                             return False
                         if current in {"error", "locked"}:
                             self.report_session_error(
-                                "Impossibile avviare il tunnel",
-                                f"La sessione “{sess.name}” non è stata aperta perché il tunnel “{tunnel.name}” non è pronto.",
+                                tr("Impossibile avviare il tunnel"),
+                                tr("La sessione “{name}” non è stata aperta perché il tunnel “{name2}” non è pronto.").format(name=sess.name, name2=tunnel.name),
                                 self.tunnel_log_text(tunnel),
                             )
                             return False
                         if time.monotonic() >= deadline:
                             self.report_session_error(
-                                "Timeout avvio tunnel",
-                                f"Il tunnel “{tunnel.name}” non è diventato operativo entro il tempo previsto.",
+                                tr("Timeout avvio tunnel"),
+                                tr("Il tunnel “{name}” non è diventato operativo entro il tempo previsto.").format(name=tunnel.name),
                                 self.tunnel_log_text(tunnel),
                             )
                             return False
@@ -13095,9 +13121,9 @@ class AppWindow(Gtk.ApplicationWindow):
         problem = session_problem(sess)
         if problem:
             self.report_session_error(
-                "Sessione non valida",
-                f"«{sess.name}»: {problem}. Correggila con Modifica sessione.",
-                f"Protocollo: {proto}",
+                tr("Sessione non valida"),
+                tr("«{name}»: {problem}. Correggila con Modifica sessione.").format(name=sess.name, problem=problem),
+                tr("Protocollo: {proto}").format(proto=proto),
             )
             return
         try:
@@ -13118,21 +13144,21 @@ class AppWindow(Gtk.ApplicationWindow):
             elif proto == "serial":
                 self.open_serial(sess)
             else:
-                self.set_status(f"Protocollo non gestito: {proto}")
+                self.set_status(tr("Protocollo non gestito: {proto}").format(proto=proto))
         except Exception as exc:
-            self.report_session_error("Errore apertura sessione", str(exc), traceback.format_exc())
+            self.report_session_error(tr("Errore apertura sessione"), str(exc), traceback.format_exc())
 
     def ssh_common_options(self) -> List[str]:
         """Opzioni OpenSSH comuni a SSH, SFTP e tunnel."""
-        options: List[str] = ["-o", f"ConnectTimeout={self.settings.connection_timeout_seconds}"]
+        options: List[str] = ["-o", tr("ConnectTimeout={connection_timeout_seconds}").format(connection_timeout_seconds=self.settings.connection_timeout_seconds)]
         if self.settings.ssh_keepalive_interval > 0:
             options += [
-                "-o", f"ServerAliveInterval={self.settings.ssh_keepalive_interval}",
-                "-o", f"ServerAliveCountMax={self.settings.ssh_keepalive_count}",
+                "-o", tr("ServerAliveInterval={ssh_keepalive_interval}").format(ssh_keepalive_interval=self.settings.ssh_keepalive_interval),
+                "-o", tr("ServerAliveCountMax={ssh_keepalive_count}").format(ssh_keepalive_count=self.settings.ssh_keepalive_count),
             ]
         strict = self.settings.ssh_strict_host_key
         if strict in {"accept-new", "yes", "no"}:
-            options += ["-o", f"StrictHostKeyChecking={strict}"]
+            options += ["-o", tr("StrictHostKeyChecking={strict}").format(strict=strict)]
         if self.settings.ssh_compression:
             options.append("-C")
         return options
@@ -13151,9 +13177,9 @@ class AppWindow(Gtk.ApplicationWindow):
             os.chmod(control_dir, 0o700)
             control_path = str(control_dir / "%C")
             options += [
-                "-o", "ControlMaster=auto",
-                "-o", "ControlPersist=600",
-                "-o", f"ControlPath={control_path}",
+                "-o", tr("ControlMaster=auto"),
+                "-o", tr("ControlPersist=600"),
+                "-o", tr("ControlPath={control_path}").format(control_path=control_path),
             ]
         except OSError:
             # Il browser continua a funzionare con chiavi, agent o vault anche
@@ -13163,7 +13189,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def open_ssh(self, sess: Session) -> None:
         if not sess.host:
-            self.set_status("Host SSH mancante.")
+            self.set_status(tr("Host SSH mancante."))
             return
         user, _domain, password = self.effective_identity(sess)
         env: Dict[str, str] = {}
@@ -13172,9 +13198,9 @@ class AppWindow(Gtk.ApplicationWindow):
         jump_spec = self.proxy_jump_spec(sess)
         if getattr(sess, "routing_mode", "direct") == "proxy_jump" and not jump_spec:
             self.report_session_error(
-                "Jump host incompleto",
-                "Compila il server jump host nella sezione Instradamento avanzato.",
-                f"Sessione: {sess.name}",
+                tr("Jump host incompleto"),
+                tr("Compila il server jump host nella sezione Instradamento avanzato."),
+                tr("Sessione: {name}").format(name=sess.name),
             )
             return
         if jump_spec:
@@ -13185,7 +13211,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 argv = [sshpass, "-e"] + argv
                 env["SSHPASS"] = password
             else:
-                self.set_status("Credenziale collegata, ma sshpass non è installato. Installa: sudo dnf install sshpass")
+                self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: sudo dnf install sshpass"))
         if sess.port:
             argv += ["-p", sess.port]
         target = sess.host
@@ -13202,22 +13228,22 @@ class AppWindow(Gtk.ApplicationWindow):
         binary = shutil.which("telnet")
         if not binary:
             self.report_session_error(
-                "Client Telnet non installato",
-                "Per le sessioni Telnet serve il client telnet.",
-                "Installa: sudo dnf install telnet",
+                tr("Client Telnet non installato"),
+                tr("Per le sessioni Telnet serve il client telnet."),
+                tr("Installa: sudo dnf install telnet"),
             )
             return
         # "--" come per ssh: un host che comincia con "-" non diventa un'opzione.
         argv = [binary, "--", sess.host, sess.port or "23"]
-        self.add_terminal_tab(sess.name or f"Telnet {sess.host}", argv, session=sess, close_on_exit="on_success")
+        self.add_terminal_tab(sess.name or tr("Telnet {host}").format(host=sess.host), argv, session=sess, close_on_exit="on_success")
 
     def open_command(self, sess: Session) -> None:
         if not sess.command:
-            self.set_status("Comando mancante.")
+            self.set_status(tr("Comando mancante."))
             return
         configured = self.settings.terminal_shell.strip()
         shell = configured if configured and Path(configured).exists() else (os.environ.get("SHELL") or "/bin/sh")
-        self.add_terminal_tab(sess.name or "Comando", [shell, "-lc", sess.command])
+        self.add_terminal_tab(sess.name or tr("Comando"), [shell, "-lc", sess.command])
 
     def open_serial(self, sess: Session) -> None:
         device = sess.host or "/dev/ttyUSB0"
@@ -13239,14 +13265,14 @@ class AppWindow(Gtk.ApplicationWindow):
         ]
         # Il ponte seriale non accetta argomenti in piu': un "comando" arrivato da un file importato
         # lo faceva uscire subito ("unrecognized arguments") e la scheda si chiudeva.
-        self.add_terminal_tab(sess.name or f"Seriale {device}", argv, session=sess, close_on_exit="on_success")
+        self.add_terminal_tab(sess.name or tr("Seriale {device}").format(device=device), argv, session=sess, close_on_exit="on_success")
 
     def launch_rdp(self, sess: Session) -> None:
         if not sess.host:
             self.report_session_error(
-                "Host RDP mancante",
-                "Apri Modifica sessione e compila il campo PC / IP.",
-                f"Sessione: {sess.name}",
+                tr("Host RDP mancante"),
+                tr("Apri Modifica sessione e compila il campo PC / IP."),
+                tr("Sessione: {name}").format(name=sess.name),
             )
             return
 
@@ -13254,26 +13280,26 @@ class AppWindow(Gtk.ApplicationWindow):
         if getattr(sess, "routing_mode", "direct") == "rd_gateway":
             if sess.rdp_mode in {"legacy", "external-legacy"}:
                 self.report_session_error(
-                    "RD Gateway richiede il backend nativo",
-                    "Imposta la modalità RDP nativa nella scheda Schermo.",
-                    "Il backend nativo libfreerdp è compatibile con Wayland e X11.",
+                    tr("RD Gateway richiede il backend nativo"),
+                    tr("Imposta la modalità RDP nativa nella scheda Schermo."),
+                    tr("Il backend nativo libfreerdp è compatibile con Wayland e X11."),
                     diagnostic_session=sess,
                 )
                 return
             if not str(getattr(sess, "rdp_gateway_host", "") or "").strip():
                 self.report_session_error(
-                    "RD Gateway incompleto",
-                    "Compila il server RD Gateway nella sezione Instradamento avanzato.",
-                    f"Sessione: {sess.name}",
+                    tr("RD Gateway incompleto"),
+                    tr("Compila il server RD Gateway nella sezione Instradamento avanzato."),
+                    tr("Sessione: {name}").format(name=sess.name),
                 )
                 return
             if not getattr(sess, "rdp_gateway_use_same_credentials", True):
                 _gu, _gd, gateway_password = self.gateway_identity(sess, user, domain, password)
                 if not gateway_password:
                     self.report_session_error(
-                        "Credenziale RD Gateway mancante",
-                        "Seleziona una voce del Password Manager per il gateway oppure usa le stesse credenziali RDP.",
-                        f"Gateway: {sess.rdp_gateway_host}",
+                        tr("Credenziale RD Gateway mancante"),
+                        tr("Seleziona una voce del Password Manager per il gateway oppure usa le stesse credenziali RDP."),
+                        tr("Gateway: {rdp_gateway_host}").format(rdp_gateway_host=sess.rdp_gateway_host),
                     )
                     return
         if not password:
@@ -13281,7 +13307,7 @@ class AppWindow(Gtk.ApplicationWindow):
             try:
                 response = prompt.run()
                 if response != Gtk.ResponseType.OK:
-                    self.set_status("Connessione RDP annullata.")
+                    self.set_status(tr("Connessione RDP annullata."))
                     return
                 entered_user, entered_domain, entered_password, save_it = prompt.get_values()
             finally:
@@ -13298,9 +13324,9 @@ class AppWindow(Gtk.ApplicationWindow):
 
         if not user:
             self.report_session_error(
-                "Utente RDP mancante",
-                "Inserisci l'utente Windows nella sessione o nella finestra credenziali.",
-                "Esempi: mario.rossi, DOMINIO\\mario.rossi oppure mario.rossi@dominio.local",
+                tr("Utente RDP mancante"),
+                tr("Inserisci l'utente Windows nella sessione o nella finestra credenziali."),
+                tr("Esempi: mario.rossi, DOMINIO\\mario.rossi oppure mario.rossi@dominio.local"),
             )
             return
 
@@ -13311,12 +13337,12 @@ class AppWindow(Gtk.ApplicationWindow):
             probe_port = int(probe_port_text) if str(probe_port_text).isdigit() else (443 if using_gateway else 3389)
             if using_gateway and not probe_host:
                 self.report_session_error(
-                    "RD Gateway incompleto",
-                    "Compila il server RD Gateway nella sezione Instradamento avanzato.",
-                    f"Sessione: {sess.name}",
+                    tr("RD Gateway incompleto"),
+                    tr("Compila il server RD Gateway nella sezione Instradamento avanzato."),
+                    tr("Sessione: {name}").format(name=sess.name),
                 )
                 return
-            self.show_notification(f"Verifica {probe_host}:{probe_port} in corso…", "info", 0)
+            self.show_notification(tr("Verifica {probe_host}:{probe_port} in corso…").format(probe_host=probe_host, probe_port=probe_port), "info", 0)
 
             def worker() -> None:
                 try:
@@ -13326,17 +13352,17 @@ class AppWindow(Gtk.ApplicationWindow):
                     elapsed = int((time.monotonic() - started) * 1000)
                     GLib.idle_add(self._launch_rdp_ready, sess, user, domain, password, elapsed)
                 except Exception as exc:
-                    target_label = "RD Gateway" if using_gateway else "Host RDP"
+                    target_label = tr("RD Gateway") if using_gateway else tr("Host RDP")
                     hint = (
-                        "Controlla DNS, HTTPS 443, certificato e policy del gateway."
+                        tr("Controlla DNS, HTTPS 443, certificato e policy del gateway.")
                         if using_gateway
-                        else "Controlla VPN, routing, firewall e Desktop remoto sul PC Windows."
+                        else tr("Controlla VPN, routing, firewall e Desktop remoto sul PC Windows.")
                     )
                     GLib.idle_add(
                         self.report_session_error,
-                        f"{target_label} non raggiungibile",
-                        f"Non riesco a collegarmi a {probe_host}:{probe_port}.",
-                        f"Errore rete: {exc}\n{hint}",
+                        tr("{target_label} non raggiungibile").format(target_label=target_label),
+                        tr("Non riesco a collegarmi a {probe_host}:{probe_port}.").format(probe_host=probe_host, probe_port=probe_port),
+                        tr("Errore rete: {exc}\n{hint}").format(exc=exc, hint=hint),
                         "",
                         sess,
                     )
@@ -13396,7 +13422,7 @@ class AppWindow(Gtk.ApplicationWindow):
             gateway_host = str(getattr(sess, "rdp_gateway_host", "") or "").strip()
             gateway_port = str(getattr(sess, "rdp_gateway_port", "443") or "443").strip()
             if not gateway_host:
-                raise ValueError("Server RD Gateway mancante")
+                raise ValueError(tr("Server RD Gateway mancante"))
             gateway_user, gateway_domain, gateway_password = self.gateway_identity(
                 sess, user, domain, password
             )
@@ -13405,13 +13431,13 @@ class AppWindow(Gtk.ApplicationWindow):
             # caratteri nelle credenziali romperebbero il parsing o permetterebbero
             # di iniettare sotto-opzioni arbitrarie.
             for field_name, value in (
-                ("utente", gateway_user),
-                ("dominio", gateway_domain),
-                ("password", gateway_password),
+                (tr("utente"), gateway_user),
+                (tr("dominio"), gateway_domain),
+                (tr("password"), gateway_password),
             ):
                 if value and any(ch in value for ch in (",", "\n", "\r")):
                     raise ValueError(
-                        f"La {field_name} del RD Gateway contiene caratteri non supportati (virgola o fine riga)."
+                        tr("Il campo {field_name} del RD Gateway contiene caratteri non supportati (virgola o fine riga).").format(field_name=field_name)
                     )
             gateway_endpoint = gateway_host
             if gateway_port and gateway_port != "443":
@@ -13442,10 +13468,9 @@ class AppWindow(Gtk.ApplicationWindow):
     ) -> None:
         if WindowsSessionsDialog is None:
             self.report_session_error(
-                "Gestione sessioni Windows non disponibile",
-                "Il modulo grafico WinRM non è stato caricato.",
-                f"{WINDOWS_SESSIONS_IMPORT_ERROR or 'Installa python3-winrm'}\n"
-                "Su Fedora: sudo dnf install python3-winrm",
+                tr("Gestione sessioni Windows non disponibile"),
+                tr("Il modulo grafico WinRM non è stato caricato."),
+                tr("{v}\nSu Fedora: sudo dnf install python3-winrm").format(v=WINDOWS_SESSIONS_IMPORT_ERROR or tr('Installa python3-winrm')),
             )
             return
         try:
@@ -13465,9 +13490,9 @@ class AppWindow(Gtk.ApplicationWindow):
             dialog.present()
         except Exception as exc:
             self.report_session_error(
-                "Impossibile aprire Gestione sessioni Windows",
+                tr("Impossibile aprire Gestione sessioni Windows"),
                 str(exc),
-                "La gestione richiede WinRM configurato sul server e un account con permessi adeguati.",
+                tr("La gestione richiede WinRM configurato sul server e un account con permessi adeguati."),
             )
 
     def _external_rdp_options(
@@ -13498,7 +13523,7 @@ class AppWindow(Gtk.ApplicationWindow):
             options.append("/bpp:32")
         # L'opzione corrente è /t:<titolo>; /title è solo un alias interno
         # del parser e non è accettato da tutte le build distribuite.
-        options.append(f"/t:FedTermHub — {sess.name or sess.host}")
+        options.append(tr("/t:FedTermHub — {v}").format(v=sess.name or sess.host))
         options.append("/floatbar:sticky:on,default:visible,show:fullscreen")
 
         if sess.rdp_start_fullscreen:
@@ -13532,7 +13557,7 @@ class AppWindow(Gtk.ApplicationWindow):
         try:
             options = self._external_rdp_options(sess, user, domain, password)
         except Exception as exc:
-            self.report_session_error("Opzioni RDP non valide", str(exc), sess.command)
+            self.report_session_error(tr("Opzioni RDP non valide"), str(exc), sess.command)
             return True
 
         args_fd: Optional[int] = None
@@ -13557,8 +13582,8 @@ class AppWindow(Gtk.ApplicationWindow):
                     except OSError:
                         pass
                 self.report_session_error(
-                    "Avvio RDP esterno non riuscito",
-                    "Impossibile preparare il canale sicuro per le credenziali.",
+                    tr("Avvio RDP esterno non riuscito"),
+                    tr("Impossibile preparare il canale sicuro per le credenziali."),
                     str(exc),
                 )
                 return True
@@ -13568,9 +13593,9 @@ class AppWindow(Gtk.ApplicationWindow):
             contains_gateway_secret = any(",p:" in item for item in options)
             if password or contains_gateway_secret:
                 self.report_session_error(
-                    "FreeRDP troppo vecchio",
-                    "La finestra RDP indipendente richiede /args-from:fd per proteggere le credenziali.",
-                    f"Client rilevato: {caps.version}",
+                    tr("FreeRDP troppo vecchio"),
+                    tr("La finestra RDP indipendente richiede /args-from:fd per proteggere le credenziali."),
+                    tr("Client rilevato: {version}").format(version=caps.version),
                 )
                 return True
             launch_argv = [binary] + options
@@ -13600,9 +13625,9 @@ class AppWindow(Gtk.ApplicationWindow):
             if log_handle is not None:
                 log_handle.close()
             self.report_session_error(
-                "Avvio RDP esterno non riuscito",
+                tr("Avvio RDP esterno non riuscito"),
                 str(exc),
-                f"Client: {binary}",
+                tr("Client: {binary}").format(binary=binary),
             )
             return True
         finally:
@@ -13617,12 +13642,12 @@ class AppWindow(Gtk.ApplicationWindow):
             processes = set()
             self._external_rdp_processes = processes
         processes.add(process)
-        latency = f" Porta verificata in {preflight_ms} ms." if preflight_ms >= 0 else ""
+        latency = tr(" Porta verificata in {preflight_ms} ms.").format(preflight_ms=preflight_ms) if preflight_ms >= 0 else ""
         self.show_notification(
-            "RDP indipendente avviato con il client FreeRDP ad alte prestazioni." + latency,
+            tr("RDP indipendente avviato con il client FreeRDP ad alte prestazioni.") + latency,
             "info", 4200,
         )
-        self.set_status(f"RDP indipendente avviato: {sess.name or sess.host}")
+        self.set_status(tr("RDP indipendente avviato: {v}").format(v=sess.name or sess.host))
 
         def watcher() -> None:
             return_code = process.wait()
@@ -13635,12 +13660,12 @@ class AppWindow(Gtk.ApplicationWindow):
                 try:
                     detail = log_path.read_text(encoding="utf-8", errors="replace")[-3000:]
                 except Exception:
-                    detail = f"Log: {log_path}"
+                    detail = tr("Log: {log_path}").format(log_path=log_path)
                 GLib.idle_add(
                     self.report_session_error,
-                    "Sessione RDP esterna terminata",
-                    f"FreeRDP è terminato con codice {return_code}.",
-                    detail or f"Log: {log_path}",
+                    tr("Sessione RDP esterna terminata"),
+                    tr("FreeRDP è terminato con codice {return_code}.").format(return_code=return_code),
+                    detail or tr("Log: {log_path}").format(log_path=log_path),
                     "",
                     sess,
                 )
@@ -13679,7 +13704,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 try:
                     native_options = self._build_native_rdp_options(sess, user, domain, password)
                 except Exception as exc:
-                    self.report_session_error("Opzioni RDP non valide", str(exc), sess.command)
+                    self.report_session_error(tr("Opzioni RDP non valide"), str(exc), sess.command)
                     return False
                 tab_holder: Dict[str, object] = {}
 
@@ -13691,7 +13716,7 @@ class AppWindow(Gtk.ApplicationWindow):
                         )
 
                 tab = NativeRdpTab(
-                    sess.name or f"RDP {sess.host}",
+                    sess.name or tr("RDP {host}").format(host=sess.host),
                     native_options,
                     password,
                     theme=self.settings.theme,
@@ -13704,7 +13729,7 @@ class AppWindow(Gtk.ApplicationWindow):
                     autostart_on_map=False,
                 )
                 tab_holder["tab"] = tab
-                latency = f" Porta verificata in {preflight_ms} ms." if preflight_ms >= 0 else ""
+                latency = tr(" Porta verificata in {preflight_ms} ms.").format(preflight_ms=preflight_ms) if preflight_ms >= 0 else ""
                 if detached:
                     self.open_detached_rdp_window(
                         tab,
@@ -13714,8 +13739,8 @@ class AppWindow(Gtk.ApplicationWindow):
                     )
                     self.show_notification(
                         (
-                            "RDP aperto in una finestra indipendente"
-                            + (" a schermo intero." if sess.rdp_start_fullscreen else ".")
+                            tr("RDP aperto in una finestra indipendente")
+                            + (tr(" a schermo intero.") if sess.rdp_start_fullscreen else ".")
                             + latency
                         ),
                         "info", 3400,
@@ -13725,10 +13750,10 @@ class AppWindow(Gtk.ApplicationWindow):
                         tab, enabled, getattr(tab, "preferred_monitor", sess.rdp_monitor)
                     )
                     tab.close_callback = lambda: self.close_specific_tab(tab)
-                    self.add_widget_tab(sess.name or f"RDP {sess.host}", tab)
+                    self.add_widget_tab(sess.name or tr("RDP {host}").format(host=sess.host), tab)
                     if sess.rdp_start_fullscreen:
                         self.show_notification(
-                            "Preparazione RDP immersivo sul monitor selezionato." + latency,
+                            tr("Preparazione RDP immersivo sul monitor selezionato.") + latency,
                             "info", 3200,
                         )
                         GLib.timeout_add(
@@ -13736,47 +13761,47 @@ class AppWindow(Gtk.ApplicationWindow):
                         )
                     else:
                         self.show_notification(
-                            "Avvio motore RDP nativo a bassa latenza." + latency, "info", 3200
+                            tr("Avvio motore RDP nativo a bassa latenza.") + latency, "info", 3200
                         )
                         GLib.idle_add(tab.request_start)
                 return False
             self.report_session_error(
-                "Backend RDP nativo non disponibile",
+                tr("Backend RDP nativo non disponibile"),
                 native_detail,
-                "Reinstalla FedTermHub per ricompilare il componente nativo. "
-                "Puoi selezionare manualmente la modalità legacy solo per diagnosi.",
+                tr("Reinstalla FedTermHub per ricompilare il componente nativo. "
+                "Puoi selezionare manualmente la modalità legacy solo per diagnosi."),
             )
             return False
         if requested_rdp_mode == "native" and NativeRdpTab is None:
             self.report_session_error(
-                "Modulo RDP nativo non caricato",
-                str(NATIVE_RDP_IMPORT_ERROR or "native_rdp.py non disponibile"),
-                "Esegui nuovamente ./install.sh e controlla fedtermhub --doctor.",
+                tr("Modulo RDP nativo non caricato"),
+                str(NATIVE_RDP_IMPORT_ERROR or tr("native_rdp.py non disponibile")),
+                tr("Esegui nuovamente ./install.sh e controlla fedtermhub --doctor."),
             )
             return False
 
         binary = shutil.which("xfreerdp3") or shutil.which("xfreerdp")
         if not binary:
             self.report_session_error(
-                "FreeRDP non trovato",
-                "RDP integrato richiede xfreerdp o xfreerdp3.",
-                "Installa: sudo dnf install freerdp xorg-x11-server-Xwayland",
+                tr("FreeRDP non trovato"),
+                tr("RDP integrato richiede xfreerdp o xfreerdp3."),
+                tr("Installa: sudo dnf install freerdp xorg-x11-server-Xwayland"),
             )
             return False
 
         caps = probe_freerdp(binary)
         if not caps.parent_window:
             self.report_session_error(
-                "FreeRDP non supporta l'integrazione",
-                "Il client installato non espone l'opzione /parent-window.",
-                f"Client rilevato: {caps.version}\nAggiorna il pacchetto freerdp e riprova.",
+                tr("FreeRDP non supporta l'integrazione"),
+                tr("Il client installato non espone l'opzione /parent-window."),
+                tr("Client rilevato: {version}\nAggiorna il pacchetto freerdp e riprova.").format(version=caps.version),
             )
             return False
         if not is_x11_display():
             self.report_session_error(
-                "Backend grafico non compatibile con RDP interno",
-                "FedTermHub non è in esecuzione sul backend X11/XWayland.",
-                f"Backend rilevato: {current_gdk_backend()}\nAvvia: GDK_BACKEND=x11 fedtermhub",
+                tr("Backend grafico non compatibile con RDP interno"),
+                tr("FedTermHub non è in esecuzione sul backend X11/XWayland."),
+                tr("Backend rilevato: {current_gdk_backend}\nAvvia: GDK_BACKEND=x11 fedtermhub").format(current_gdk_backend=current_gdk_backend()),
             )
             return False
 
@@ -13808,7 +13833,7 @@ class AppWindow(Gtk.ApplicationWindow):
             argv_base.append("/smartcard")
         if sess.rdp_multimon:
             self.show_notification(
-                "RDP interno: Multi monitor è stato disattivato per evitare instabilità XEmbed. La tab usa un singolo desktop adattivo.",
+                tr("RDP interno: Multi monitor è stato disattivato per evitare instabilità XEmbed. La tab usa un singolo desktop adattivo."),
                 "warning",
                 6500,
             )
@@ -13850,9 +13875,9 @@ class AppWindow(Gtk.ApplicationWindow):
             if sess.rdp_password_stdin:
                 if not caps.args_from or not hasattr(os, "memfd_create"):
                     self.report_session_error(
-                        "Password sicura non supportata",
-                        "Servono /args-from:fd e memfd Linux per passare la password senza esporla negli argomenti.",
-                        f"Client rilevato: {caps.version}\nAggiorna FreeRDP. In alternativa abilita temporaneamente la modalità password legacy nella sessione.",
+                        tr("Password sicura non supportata"),
+                        tr("Servono /args-from:fd e memfd Linux per passare la password senza esporla negli argomenti."),
+                        tr("Client rilevato: {version}\nAggiorna FreeRDP. In alternativa abilita temporaneamente la modalità password legacy nella sessione.").format(version=caps.version),
                     )
                     return False
                 stdin_secret = password
@@ -13864,47 +13889,47 @@ class AppWindow(Gtk.ApplicationWindow):
             try:
                 argv_base.extend(shlex.split(sess.command))
             except Exception as exc:
-                self.report_session_error("Opzioni RDP non valide", str(exc), sess.command)
+                self.report_session_error(tr("Opzioni RDP non valide"), str(exc), sess.command)
                 return False
 
         argv = [binary] + argv_base
         masked = self.mask_args(argv + ["/parent-window:<FedTermHub-tab>"])
         if use_args_fd:
-            masked += "  [password protetta via /args-from:fd su memfd]"
+            masked += tr("  [password protetta via /args-from:fd su memfd]")
         can_embed = hasattr(Gtk, "Socket") and is_x11_display() and caps.parent_window
         tab = RdpTab(
-            sess.name or f"RDP {sess.host}", argv, masked, embedded=can_embed,
+            sess.name or tr("RDP {host}").format(host=sess.host), argv, masked, embedded=can_embed,
             theme=self.settings.theme,
             error_callback=lambda title, message, details, command: self.report_session_error(
                 title, message, details, command, sess
             ),
             stdin_secret=stdin_secret, use_args_fd=use_args_fd, state_callback=self.set_status,
         )
-        self.add_widget_tab(sess.name or f"RDP {sess.host}", tab)
+        self.add_widget_tab(sess.name or tr("RDP {host}").format(host=sess.host), tab)
         if can_embed:
-            latency = f" Porta verificata in {preflight_ms} ms." if preflight_ms >= 0 else ""
+            latency = tr(" Porta verificata in {preflight_ms} ms.").format(preflight_ms=preflight_ms) if preflight_ms >= 0 else ""
             self.show_notification(
-                "Preparazione RDP interna in corso." + latency,
+                tr("Preparazione RDP interna in corso.") + latency,
                 "info",
                 3200,
             )
-            self.set_status("Preparazione sessione RDP interna…")
+            self.set_status(tr("Preparazione sessione RDP interna…"))
             GLib.idle_add(tab.request_start)
         else:
             self.report_session_error(
-                "RDP integrato non disponibile",
-                "Gtk.Socket/X11 o /parent-window non sono disponibili.",
-                f"Backend: {current_gdk_backend()}\nClient: {caps.version}\nAvvia con GDK_BACKEND=x11 fedtermhub",
+                tr("RDP integrato non disponibile"),
+                tr("Gtk.Socket/X11 o /parent-window non sono disponibili."),
+                tr("Backend: {current_gdk_backend}\nClient: {version}\nAvvia con GDK_BACKEND=x11 fedtermhub").format(current_gdk_backend=current_gdk_backend(), version=caps.version),
             )
         return False
 
     def launch_vnc(self, sess: Session) -> None:
         if not sess.host:
-            self.set_status("Host VNC mancante.")
+            self.set_status(tr("Host VNC mancante."))
             return
         binary = shutil.which("vncviewer")
         if not binary:
-            self.set_status("TigerVNC client non trovato. Installa: sudo dnf install tigervnc")
+            self.set_status(tr("TigerVNC client non trovato. Installa: sudo dnf install tigervnc"))
             return
         _user, _domain, password = self.effective_identity(sess)
         target = vnc_target(sess.host, sess.port)
@@ -13914,17 +13939,17 @@ class AppWindow(Gtk.ApplicationWindow):
         try:
             subprocess.Popen(argv)
         except Exception as exc:
-            self.set_status(f"Errore avvio VNC: {exc}")
+            self.set_status(tr("Errore avvio VNC: {exc}").format(exc=exc))
             return
-        extra = "Password VNC non autoinviata: vncviewer la chiederà nella sua finestra." if password else ""
+        extra = tr("Password VNC non autoinviata: vncviewer la chiederà nella sua finestra.") if password else ""
         self.add_terminal_tab(
-            f"Log VNC {sess.name}",
-            ["/bin/sh", "-lc", f"echo Avviato: {shlex.join(argv)}; echo La finestra VNC è esterna.; echo {shlex.quote(extra)}; exec bash"],
+            tr("Log VNC {name}").format(name=sess.name),
+            ["/bin/sh", "-lc", tr("echo Avviato: {join_argv}; echo La finestra VNC è esterna.; echo {quote}; exec bash").format(join_argv=shlex.join(argv), quote=shlex.quote(extra))],
         )
 
     def launch_sftp(self, sess: Session) -> None:
         if not sess.host:
-            self.set_status("Host SFTP mancante.")
+            self.set_status(tr("Host SFTP mancante."))
             return
         user, _domain, password = self.effective_identity(sess)
         env: Dict[str, str] = {}
@@ -13936,15 +13961,15 @@ class AppWindow(Gtk.ApplicationWindow):
                 prefix = [sshpass, "-e"]
                 env["SSHPASS"] = password
             else:
-                self.set_status("Credenziale collegata, ma sshpass non è installato. Installa: sudo dnf install sshpass")
+                self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: sudo dnf install sshpass"))
         target = sess.host if not user else f"{user}@{sess.host}"
         argv = prefix + [sftp_binary] + self.ssh_session_options()
         jump_spec = self.proxy_jump_spec(sess)
         if getattr(sess, "routing_mode", "direct") == "proxy_jump" and not jump_spec:
             self.report_session_error(
-                "Jump host incompleto",
-                "Compila il server jump host nella sezione Instradamento avanzato.",
-                f"Sessione: {sess.name}",
+                tr("Jump host incompleto"),
+                tr("Compila il server jump host nella sezione Instradamento avanzato."),
+                tr("Sessione: {name}").format(name=sess.name),
             )
             return
         if jump_spec:
@@ -13952,7 +13977,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if sess.port:
             argv += ["-P", sess.port]
         argv += ["--", target]
-        self.add_terminal_tab(sess.name or f"SFTP {target}", argv, extra_env=env, session=sess, close_on_exit="on_success")
+        self.add_terminal_tab(sess.name or tr("SFTP {target}").format(target=target), argv, extra_env=env, session=sess, close_on_exit="on_success")
 
     def add_terminal_tab(
         self,
@@ -14002,14 +14027,14 @@ class AppWindow(Gtk.ApplicationWindow):
         label = Gtk.Label(label=title[:32])
         label.set_tooltip_text(title)
         reconnect = Gtk.Button.new_from_icon_name("view-refresh-symbolic", Gtk.IconSize.MENU)
-        reconnect.set_tooltip_text("Riconnetti la sessione (Ctrl+Shift+R)")
+        reconnect.set_tooltip_text(tr("Riconnetti la sessione (Ctrl+Shift+R)"))
         reconnect.set_relief(Gtk.ReliefStyle.NONE)
         reconnect.set_can_focus(False)
         reconnect.get_style_context().add_class("tab-reconnect")
         reconnect.set_no_show_all(True)  # visibile solo quando la sessione è caduta
         reconnect.connect("clicked", lambda *_a, t=tab: t.reconnect())
         close = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
-        close.set_tooltip_text("Chiudi tab")
+        close.set_tooltip_text(tr("Chiudi tab"))
         close.set_relief(Gtk.ReliefStyle.NONE)
         close.set_can_focus(False)
         close.get_style_context().add_class("tab-close")
@@ -14024,12 +14049,12 @@ class AppWindow(Gtk.ApplicationWindow):
             if connected:
                 ctx.add_class("is-connected")
                 ctx.remove_class("is-disconnected")
-                status_dot.set_tooltip_text("Sessione attiva")
+                status_dot.set_tooltip_text(tr("Sessione attiva"))
                 reconnect.hide()
             else:
                 ctx.add_class("is-disconnected")
                 ctx.remove_class("is-connected")
-                status_dot.set_tooltip_text("Sessione caduta — clicca ⟳ per riconnettere")
+                status_dot.set_tooltip_text(tr("Sessione caduta — clicca ⟳ per riconnettere"))
                 reconnect.show()
 
         # Solo le tab con una sessione (SSH/serial) mostrano stato/riconnessione;
@@ -14044,7 +14069,7 @@ class AppWindow(Gtk.ApplicationWindow):
         close.connect("clicked", lambda _b: self.close_specific_tab(tab))
         tab.show_all()
         self.notebook.set_current_page(page)
-        self.set_status(f"Aperto: {title}")
+        self.set_status(tr("Aperto: {title}").format(title=title))
 
     def _tree_path_for_store_path(self, store_path: str) -> Optional[Gtk.TreePath]:
         """Trova il Gtk.TreePath visibile associato al percorso nel SessionStore."""
@@ -14146,7 +14171,7 @@ class AppWindow(Gtk.ApplicationWindow):
             card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
             card.get_style_context().add_class("dnd-drag-card")
             if isinstance(node, FolderNode):
-                detail = "Cartella"
+                detail = tr("Cartella")
                 pixbuf = self._folder_icon_pixbuf(node.color)
                 image = Gtk.Image.new_from_pixbuf(pixbuf) if pixbuf is not None else Gtk.Image.new_from_icon_name("folder-symbolic", Gtk.IconSize.MENU)
             else:
@@ -14301,7 +14326,7 @@ class AppWindow(Gtk.ApplicationWindow):
             raw = selection_data.get_data()
             source_path = bytes(raw).decode("utf-8").strip() if raw else (self._drag_source_store_path or "")
             if not source_path:
-                raise ValueError("Sorgente del trascinamento non disponibile.")
+                raise ValueError(tr("Sorgente del trascinamento non disponibile."))
             source_node = self.store.get_node(source_path)
             target_folder, target_index, _tree_path, _indicator = self._session_drop_target(x, y)
             self._clear_drag_hover_visual()
@@ -14310,11 +14335,11 @@ class AppWindow(Gtk.ApplicationWindow):
             self._select_store_path(new_path)
             self._animate_moved_row(new_path)
             destination_label = self.folder_label(self.store.parent_path(new_path))
-            self.set_status(f"Spostato '{source_node.name}' in {destination_label}")
-            self.show_notification(f"{source_node.name} spostato in {destination_label}", "success")
+            self.set_status(tr("Spostato '{name}' in {destination_label}").format(name=source_node.name, destination_label=destination_label))
+            self.show_notification(tr("{name} spostato in {destination_label}").format(name=source_node.name, destination_label=destination_label), "success")
             success = True
         except Exception as exc:
-            self.set_status(f"Impossibile spostare la sessione: {exc}")
+            self.set_status(tr("Impossibile spostare la sessione: {exc}").format(exc=exc))
             self.show_notification(str(exc), "warning")
         finally:
             self._cancel_drag_hover_expand()
@@ -14360,57 +14385,57 @@ class AppWindow(Gtk.ApplicationWindow):
             return item
 
         if selected is None:
-            add_item("Nuova sessione", self.on_add_session)
-            add_item("Nuova cartella", self.on_add_folder)
+            add_item(tr("Nuova sessione"), self.on_add_session)
+            add_item(tr("Nuova cartella"), self.on_add_folder)
             return menu
 
         path, node = selected
         is_home = self.store.is_home_path(path)
-        add_item("Espandi o comprimi" if isinstance(node, FolderNode) else "Connetti", self.on_context_open)
+        add_item(tr("Espandi o comprimi") if isinstance(node, FolderNode) else tr("Connetti"), self.on_context_open)
 
         if is_home:
-            add_item("Apri tutte le sessioni", self.on_open_all_in_selected_folder)
+            add_item(tr("Apri tutte le sessioni"), self.on_open_all_in_selected_folder)
             menu.append(Gtk.SeparatorMenuItem())
-            add_item("Nuova sessione", self.on_add_session)
-            add_item("Nuova cartella", self.on_add_folder)
+            add_item(tr("Nuova sessione"), self.on_add_session)
+            add_item(tr("Nuova cartella"), self.on_add_folder)
             menu.append(Gtk.SeparatorMenuItem())
-            add_item("Esporta tutte le sessioni", self.export_home_session)
-            add_item("Importa sessioni qui", self.import_into_selected_folder)
-            add_item("Sostituisci tutte le sessioni con un file", self.import_home_session)
+            add_item(tr("Esporta tutte le sessioni"), self.export_home_session)
+            add_item(tr("Importa sessioni qui"), self.import_into_selected_folder)
+            add_item(tr("Sostituisci tutte le sessioni con un file"), self.import_home_session)
             menu.append(Gtk.SeparatorMenuItem())
-            add_item("Dettagli", self.on_show_selected_details)
+            add_item(tr("Dettagli"), self.on_show_selected_details)
             return menu
 
         if isinstance(node, Session) and node.protocol.lower() in {"rdp", "ssh", "sftp", "vnc", "telnet"} and bool(node.host.strip()):
-            add_item("Diagnostica connessione", self.on_diagnose_selected)
+            add_item(tr("Diagnostica connessione"), self.on_diagnose_selected)
 
-        add_item("Modifica", self.on_edit_selected)
-        add_item("Duplica", self.on_duplicate_selected)
-        add_item("Sposta", self.on_move_selected)
+        add_item(tr("Modifica"), self.on_edit_selected)
+        add_item(tr("Duplica"), self.on_duplicate_selected)
+        add_item(tr("Sposta"), self.on_move_selected)
 
         if isinstance(node, FolderNode):
-            add_item("Apri tutte le sessioni", self.on_open_all_in_selected_folder)
-            color_item = Gtk.MenuItem(label="Colore cartella")
+            add_item(tr("Apri tutte le sessioni"), self.on_open_all_in_selected_folder)
+            color_item = Gtk.MenuItem(label=tr("Colore cartella"))
             color_menu = Gtk.Menu()
             for color_name, color_value in FOLDER_COLOR_PRESETS:
                 preset = Gtk.MenuItem(label=color_name)
                 preset.connect("activate", lambda _i, value=color_value: self.set_selected_folder_color(value))
                 color_menu.append(preset)
             color_menu.append(Gtk.SeparatorMenuItem())
-            custom = Gtk.MenuItem(label="Personalizzato…")
+            custom = Gtk.MenuItem(label=tr("Personalizzato…"))
             custom.connect("activate", lambda *_: self.choose_selected_folder_color())
             color_menu.append(custom)
             color_item.set_submenu(color_menu)
             menu.append(color_item)
 
         menu.append(Gtk.SeparatorMenuItem())
-        add_item("Esporta la selezione", self.export_selected_node)
+        add_item(tr("Esporta la selezione"), self.export_selected_node)
         if isinstance(node, FolderNode):
-            add_item("Importa sessioni qui", self.import_into_selected_folder)
+            add_item(tr("Importa sessioni qui"), self.import_into_selected_folder)
         menu.append(Gtk.SeparatorMenuItem())
-        add_item("Dettagli", self.on_show_selected_details)
+        add_item(tr("Dettagli"), self.on_show_selected_details)
         menu.append(Gtk.SeparatorMenuItem())
-        add_item("Elimina", self.on_delete_selected)
+        add_item(tr("Elimina"), self.on_delete_selected)
         return menu
 
     def on_tree_button_press(self, tree: Gtk.TreeView, event) -> bool:  # noqa: ANN001
@@ -14428,7 +14453,7 @@ class AppWindow(Gtk.ApplicationWindow):
     def on_diagnose_selected(self, _widget: Optional[Gtk.Widget] = None) -> None:
         selected = self.selected_path_and_node()
         if selected is None or not isinstance(selected[1], Session):
-            self.show_notification("Seleziona una sessione remota da diagnosticare.", "warning", 3500)
+            self.show_notification(tr("Seleziona una sessione remota da diagnosticare."), "warning", 3500)
             return
         self.show_connection_diagnostics(selected[1])
 
@@ -14462,7 +14487,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
         collect(selected[1])
         if not sessions:
-            self.show_notification("La cartella non contiene sessioni.", "info", 2500)
+            self.show_notification(tr("La cartella non contiene sessioni."), "info", 2500)
             return
         if len(sessions) > 5:
             confirm = Gtk.MessageDialog(
@@ -14470,16 +14495,16 @@ class AppWindow(Gtk.ApplicationWindow):
                 flags=0,
                 message_type=Gtk.MessageType.QUESTION,
                 buttons=Gtk.ButtonsType.OK_CANCEL,
-                text=f"Aprire {len(sessions)} sessioni?",
+                text=tr("Aprire {n_sessions} sessioni?").format(n_sessions=len(sessions)),
             )
             confirm.format_secondary_text(
-                f"Si apriranno {len(sessions)} schede, comprese le sottocartelle di «{selected[1].name}»."
+                tr("Si apriranno {n_sessions} schede, comprese le sottocartelle di «{name}».").format(n_sessions=len(sessions), name=selected[1].name)
             )
             response = confirm.run()
             confirm.destroy()
             if response != Gtk.ResponseType.OK:
                 return
-        self.show_notification(f"Apertura di {len(sessions)} sessioni…", "info", 3000)
+        self.show_notification(tr("Apertura di {n_sessions} sessioni…").format(n_sessions=len(sessions)), "info", 3000)
         for index, session in enumerate(sessions):
             GLib.timeout_add(50 + 180 * index, lambda sess=session: (self.open_session(sess), False)[1])
 
@@ -14500,7 +14525,7 @@ class AppWindow(Gtk.ApplicationWindow):
     def on_show_selected_details(self, _button: Optional[Gtk.Button]) -> None:
         selected = self.selected_path_and_node()
         if selected is None:
-            self.set_status("Seleziona una sessione o cartella.")
+            self.set_status(tr("Seleziona una sessione o cartella."))
             return
         path, node = selected
         dialog = Gtk.MessageDialog(
@@ -14510,52 +14535,45 @@ class AppWindow(Gtk.ApplicationWindow):
             buttons=Gtk.ButtonsType.CLOSE,
             text=node.name,
         )
-        dialog.set_title("Dettagli")
+        dialog.set_title(tr("Dettagli"))
         if isinstance(node, FolderNode):
             recursive_sessions, recursive_folders = self._folder_recursive_stats(node)
             direct_sessions = sum(isinstance(child, Session) for child in node.children)
             direct_folders = sum(isinstance(child, FolderNode) for child in node.children)
             if self.store.is_home_path(path):
                 details = (
-                    "Tipo: Radice Home Session\n"
-                    "Stato: struttura principale protetta\n\n"
-                    f"Contenuto diretto: {direct_sessions} sessioni, {direct_folders} cartelle\n"
-                    f"Contenuto complessivo: {recursive_sessions} sessioni, {recursive_folders} sottocartelle"
+                    tr("Tipo: Radice Home Session\nStato: struttura principale protetta\n\nContenuto diretto: {direct_sessions} sessioni, {direct_folders} cartelle\nContenuto complessivo: {recursive_sessions} sessioni, {recursive_folders} sottocartelle").format(direct_sessions=direct_sessions, direct_folders=direct_folders, recursive_sessions=recursive_sessions, recursive_folders=recursive_folders)
                 )
             else:
                 parent = self.folder_label(self.store.parent_path(path))
                 details = (
-                    f"Tipo: Cartella\n"
-                    f"Posizione: {parent}\n"
-                    f"Colore icona: {normalize_folder_color(node.color)}\n\n"
-                    f"Contenuto diretto: {direct_sessions} sessioni, {direct_folders} cartelle\n"
-                    f"Contenuto complessivo: {recursive_sessions} sessioni, {recursive_folders} sottocartelle"
+                    tr("Tipo: Cartella\nPosizione: {parent}\nColore icona: {normalize_folder_color}\n\nContenuto diretto: {direct_sessions} sessioni, {direct_folders} cartelle\nContenuto complessivo: {recursive_sessions} sessioni, {recursive_folders} sottocartelle").format(parent=parent, normalize_folder_color=normalize_folder_color(node.color), direct_sessions=direct_sessions, direct_folders=direct_folders, recursive_sessions=recursive_sessions, recursive_folders=recursive_folders)
                 )
         else:
             fields = [
-                f"Tipo: Sessione {node.protocol.upper()}",
-                f"Posizione: {self.folder_label(self.store.parent_path(path))}",
+                tr("Tipo: Sessione {upper}").format(upper=node.protocol.upper()),
+                tr("Posizione: {folder_label}").format(folder_label=self.folder_label(self.store.parent_path(path))),
             ]
             if node.host:
-                fields.append(f"Host: {node.host}")
+                fields.append(tr("Host: {host}").format(host=node.host))
             if node.port:
-                fields.append(f"Porta: {node.port}")
+                fields.append(tr("Porta: {port}").format(port=node.port))
             if node.user:
-                fields.append(f"Utente: {node.user}")
+                fields.append(tr("Utente: {user}").format(user=node.user))
             if node.domain:
-                fields.append(f"Dominio: {node.domain}")
-            fields.append(f"Credenziale salvata: {'collegata' if node.credential_id else 'non collegata'}")
+                fields.append(tr("Dominio: {domain}").format(domain=node.domain))
+            fields.append(tr("Credenziale salvata: {v}").format(v=tr('collegata') if node.credential_id else tr('non collegata')))
             routing_mode = getattr(node, "routing_mode", "direct")
             if routing_mode == "saved_tunnel" and node.required_tunnel_id:
                 tunnel = self.tunnel_store.get(node.required_tunnel_id)
-                fields.append(f"Instradamento: tunnel {tunnel.name if tunnel else 'non trovato'}")
+                fields.append(tr("Instradamento: tunnel {v}").format(v=tunnel.name if tunnel else tr('non trovato')))
             elif routing_mode == "proxy_jump":
-                fields.append(f"Instradamento: jump host {self.proxy_jump_spec(node) or 'incompleto'}")
+                fields.append(tr("Instradamento: jump host {v}").format(v=self.proxy_jump_spec(node) or 'incompleto'))
             elif routing_mode == "rd_gateway":
                 gateway = node.rdp_gateway_host or "incompleto"
-                fields.append(f"Instradamento: RD Gateway {gateway}:{node.rdp_gateway_port or '443'}")
+                fields.append(tr("Instradamento: RD Gateway {gateway}:{v}").format(gateway=gateway, v=node.rdp_gateway_port or '443'))
             if node.notes:
-                fields.extend(["", "Note:", node.notes])
+                fields.extend(["", tr("Note:"), node.notes])
             details = "\n".join(fields)
         dialog.format_secondary_text(details)
         dialog.run()
@@ -14567,13 +14585,13 @@ class AppWindow(Gtk.ApplicationWindow):
             return
         path, folder = selected
         if self.store.is_home_path(path):
-            self.set_status("Home Session usa un'icona dedicata e non ha un colore personalizzabile.")
+            self.set_status(tr("Home Session usa un'icona dedicata e non ha un colore personalizzabile."))
             return
         folder.color = normalize_folder_color(color)
         self.store.replace_node(path, folder)
         self.refresh_sessions()
         self._select_store_path(path)
-        self.set_status(f"Colore cartella aggiornato: {folder.name}")
+        self.set_status(tr("Colore cartella aggiornato: {name}").format(name=folder.name))
 
     def choose_selected_folder_color(self) -> None:
         selected = self.selected_path_and_node()
@@ -14581,9 +14599,9 @@ class AppWindow(Gtk.ApplicationWindow):
             return
         path, folder = selected
         if self.store.is_home_path(path):
-            self.set_status("Home Session usa un'icona dedicata e non ha un colore personalizzabile.")
+            self.set_status(tr("Home Session usa un'icona dedicata e non ha un colore personalizzabile."))
             return
-        dialog = Gtk.ColorChooserDialog(title=f"Colore — {folder.name}", transient_for=self)
+        dialog = Gtk.ColorChooserDialog(title=tr("Colore — {name}").format(name=folder.name), transient_for=self)
         rgba = Gdk.RGBA()
         rgba.parse(normalize_folder_color(folder.color))
         dialog.set_rgba(rgba)
@@ -14671,12 +14689,12 @@ class AppWindow(Gtk.ApplicationWindow):
         # non restano porzioni del framebuffer precedente o bande nere.
         if hasattr(tab, "request_full_refresh"):
             GLib.timeout_add(120, tab.request_full_refresh)
-        self.set_status("Sessione RDP sganciata — FedTermHub resta disponibile")
+        self.set_status(tr("Sessione RDP sganciata — FedTermHub resta disponibile"))
 
     def _on_detached_rdp_destroyed(self, window: RdpDetachedWindow) -> None:
         if window in self.detached_rdp_windows:
             self.detached_rdp_windows.remove(window)
-        self.set_status("Finestra RDP indipendente chiusa")
+        self.set_status(tr("Finestra RDP indipendente chiusa"))
 
     def _current_monitor_index(self, monitors: List[MonitorDescriptor]) -> Optional[int]:
         return current_monitor_index_for_window(self, monitors)
@@ -14698,8 +14716,7 @@ class AppWindow(Gtk.ApplicationWindow):
             append_log = getattr(tab, "_append_log", None)
             if callable(append_log):
                 append_log(
-                    "[FedTermHub] Il compositor non ha spostato la finestra sul monitor "
-                    f"richiesto ({expected_index + 1}); monitor attuale: {actual + 1}.\n"
+                    tr("[FedTermHub] Il compositor non ha spostato la finestra sul monitor richiesto ({v}); monitor attuale: {v2}.\n").format(v=expected_index + 1, v2=actual + 1)
                 )
         return False
 
@@ -14741,7 +14758,7 @@ class AppWindow(Gtk.ApplicationWindow):
             selector = str(monitor_selector or getattr(tab, "preferred_monitor", "current"))
             tab.preferred_monitor = selector
             descriptor, exact = self._resolve_rdp_fullscreen_monitor(selector)
-            requested_label = "monitor corrente"
+            requested_label = tr("monitor corrente")
             if descriptor is not None:
                 requested_label = descriptor.label
             try:
@@ -14757,15 +14774,14 @@ class AppWindow(Gtk.ApplicationWindow):
             if callable(append_log):
                 if descriptor is not None:
                     append_log(
-                        f"[FedTermHub] Schermo intero richiesto su {descriptor.label}."
-                        + ("\n" if exact else " Fallback applicato perché il monitor salvato non è disponibile.\n")
+                        tr("[FedTermHub] Schermo intero richiesto su {label}.").format(label=descriptor.label)
+                        + ("\n" if exact else tr(" Fallback applicato perché il monitor salvato non è disponibile.\n"))
                     )
                 else:
-                    append_log("[FedTermHub] Monitor non enumerabile: schermo intero automatico.\n")
-            fallback_note = "" if exact else " — fallback monitor applicato"
+                    append_log(tr("[FedTermHub] Monitor non enumerabile: schermo intero automatico.\n"))
+            fallback_note = "" if exact else tr(" — fallback monitor applicato")
             self.set_status(
-                f"RDP a schermo intero su {requested_label}{fallback_note} — "
-                "porta il mouse in alto oppure premi F11/Esc per uscire"
+                tr("RDP a schermo intero su {requested_label}{fallback_note} — porta il mouse in alto oppure premi F11/Esc per uscire").format(requested_label=requested_label, fallback_note=fallback_note)
             )
             if descriptor is not None:
                 GLib.timeout_add(850, self._verify_rdp_fullscreen_monitor, tab, descriptor.index)
@@ -14787,7 +14803,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 target.set_fullscreen_state(False)
             except Exception:
                 pass
-            self.set_status("Sessione RDP ripristinata in finestra")
+            self.set_status(tr("Sessione RDP ripristinata in finestra"))
             GLib.timeout_add(420, lambda: (target.canvas.grab_focus(), False)[1] if target else False)
 
     def set_terminal_fullscreen(self, tab, enabled: bool) -> None:
@@ -14815,7 +14831,7 @@ class AppWindow(Gtk.ApplicationWindow):
             except Exception:
                 pass
             tab.fullscreen_active = True
-            self.set_status("Terminale a schermo intero — premi F11 per uscire")
+            self.set_status(tr("Terminale a schermo intero — premi F11 per uscire"))
             GLib.timeout_add(300, lambda: (tab.terminal.grab_focus(), False)[1])
         else:
             self._fullscreen = False
@@ -14831,7 +14847,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self.notification_revealer.show()
             self.notebook.set_show_tabs(self._notebook_tabs_before_immersive)
             tab.fullscreen_active = False
-            self.set_status("Terminale ripristinato in finestra")
+            self.set_status(tr("Terminale ripristinato in finestra"))
             GLib.timeout_add(300, lambda: (tab.terminal.grab_focus(), False)[1])
 
     def close_specific_tab(self, widget: Gtk.Widget) -> None:
@@ -14859,7 +14875,7 @@ class AppWindow(Gtk.ApplicationWindow):
             widget.destroy()
         except Exception:
             pass
-        self.set_status("Scheda chiusa")
+        self.set_status(tr("Scheda chiusa"))
 
     def _on_terminal_finished(self, workspace, pane, explicit: bool, policy: str) -> None:  # noqa: ANN001
         """L'ultimo riquadro di una scheda terminale e' finito o l'utente ha chiesto di chiuderlo."""
@@ -15001,7 +15017,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 for index in range(self.notebook.get_n_pages()):
                     page = self.notebook.get_nth_page(index)
                     if isinstance(page, TerminalTab):
-                        if page.title != "Locale":
+                        if not getattr(page, "is_local_shell", False):
                             active_pages += 1
                         continue
                     if isinstance(page, SplitTerminalTab):
@@ -15023,19 +15039,19 @@ class AppWindow(Gtk.ApplicationWindow):
                     flags=0,
                     message_type=Gtk.MessageType.QUESTION,
                     buttons=Gtk.ButtonsType.NONE,
-                    text="Chiudere FedTermHub?",
+                    text=tr("Chiudere FedTermHub?"),
                 )
-                dialog.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Chiudi sessioni", Gtk.ResponseType.OK)
+                dialog.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Chiudi sessioni"), Gtk.ResponseType.OK)
                 details = []
                 if active_pages:
-                    details.append(f"{active_pages} schede operative")
+                    details.append(tr("{active_pages} schede operative").format(active_pages=active_pages))
                 if active_detached_rdp:
-                    details.append(f"{active_detached_rdp} finestre RDP indipendenti")
+                    details.append(tr("{active_detached_rdp} finestre RDP indipendenti").format(active_detached_rdp=active_detached_rdp))
                 if active_tunnels:
-                    details.append(f"{active_tunnels} tunnel SSH attivi")
+                    details.append(tr("{active_tunnels} tunnel SSH attivi").format(active_tunnels=active_tunnels))
                 if active_labs:
-                    details.append(f"{active_labs} laboratori temporanei con modifiche non salvate")
-                dialog.format_secondary_text("Verranno terminati: " + ", ".join(details) + ".")
+                    details.append(tr("{active_labs} laboratori temporanei con modifiche non salvate").format(active_labs=active_labs))
+                dialog.format_secondary_text(tr("Verranno terminati: ") + ", ".join(details) + ".")
                 response = dialog.run()
                 dialog.destroy()
                 if response != Gtk.ResponseType.OK:

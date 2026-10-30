@@ -29,6 +29,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
+try:
+    from .i18n import tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr, trn
 
 import gi
 
@@ -81,14 +85,14 @@ def _run_privileged_script(lines: Sequence[str], timeout: int = 180) -> subproce
     pkexec chiede la password a ogni chiamata: applicare tre cartelle FTP ne chiedeva una decina di
     fila. Le righe sono gia' comandi di shell quotati (shlex.join) o costrutti di controllo.
     """
-    script = "set -e\n" + "\n".join(lines) + "\n"
+    script = tr("set -e\n") + "\n".join(lines) + "\n"
     return _run(_privileged_command(["sh", "-c", script]), timeout=timeout)
 
 
 def _privileged_error(proc: subprocess.CompletedProcess[str]) -> str:
     if proc.returncode in (126, 127) and os.geteuid() != 0:
-        return "Autorizzazione negata o annullata."
-    return (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()
+        return tr("Autorizzazione negata o annullata.")
+    return (proc.stderr or proc.stdout or tr("exit {returncode}").format(returncode=proc.returncode)).strip()
 
 
 def _split_endpoint(endpoint: str) -> Tuple[str, str]:
@@ -115,7 +119,7 @@ def _ss_process_text(raw: str) -> str:
         found.setdefault(name, [])
         if pid not in found[name]:
             found[name].append(pid)
-    return ", ".join(f"{name} (pid {', '.join(pids)})" for name, pids in found.items())
+    return ", ".join(tr("{name} (pid {join_pids})").format(name=name, join_pids=', '.join(pids)) for name, pids in found.items())
 
 
 def _interfaces() -> List[str]:
@@ -212,7 +216,7 @@ def _save_network_shares(data: Dict[str, List[Dict[str, str]]]) -> None:
 
 def _safe_share_name(value: str) -> str:
     value = re.sub(r"[^A-Za-z0-9._ -]+", "_", value.strip()).strip(" .")
-    return value[:64] or "Condivisione"
+    return value[:64] or tr("Condivisione")
 
 
 def _is_mountpoint(path: Path) -> bool:
@@ -381,9 +385,9 @@ atexit.register(RUNTIME.stop_capture)
 class ServicesPage(ToolPage):
     SERVICES = [
         ServiceDefinition(
-            "SSH / SFTP",
+            tr("SSH / SFTP"),
             "sshd.service",
-            "Shell sicura e trasferimento file SFTP",
+            tr("Shell sicura e trasferimento file SFTP"),
             "22/tcp",
             "openssh-server",
             ("ssh",),
@@ -391,7 +395,7 @@ class ServicesPage(ToolPage):
         ServiceDefinition(
             "FTP",
             "vsftpd.service",
-            "Server FTP per utenti locali",
+            tr("Server FTP per utenti locali"),
             "21/tcp",
             "vsftpd",
             ("ftp",),
@@ -399,16 +403,16 @@ class ServicesPage(ToolPage):
         ServiceDefinition(
             "TFTP",
             "tftp.socket",
-            "Trasferimenti semplici, PXE e apparati di rete",
+            tr("Trasferimenti semplici, PXE e apparati di rete"),
             "69/udp",
             "tftp-server",
             ("tftp",),
             insecure=True,
         ),
         ServiceDefinition(
-            "Telnet",
+            tr("Telnet"),
             "telnet.socket",
-            "Accesso remoto legacy senza cifratura",
+            tr("Accesso remoto legacy senza cifratura"),
             "23/tcp",
             "telnet-server",
             ("telnet",),
@@ -417,7 +421,7 @@ class ServicesPage(ToolPage):
         ServiceDefinition(
             "NFS",
             "nfs-server.service",
-            "Condivisione cartelle per sistemi Linux/Unix",
+            tr("Condivisione cartelle per sistemi Linux/Unix"),
             "2049/tcp+udp",
             "nfs-utils",
             ("nfs", "mountd", "rpc-bind"),
@@ -426,8 +430,8 @@ class ServicesPage(ToolPage):
 
     def __init__(self, parent: Gtk.Window) -> None:
         super().__init__(
-            "Server locali",
-            "Avvia servizi, pubblica cartelle e controlla lo stato da un'unica schermata.",
+            tr("Server locali"),
+            tr("Avvia servizi, pubblica cartelle e controlla lo stato da un'unica schermata."),
             "network-server-symbolic",
         )
         self.parent = parent
@@ -454,8 +458,8 @@ class ServicesPage(ToolPage):
         self.pack_start(shell, True, True, 0)
 
         for name, title, page in (
-            ("system", "Servizi", self._build_system_services_tab()),
-            ("shares", "FTP / SFTP", self._build_file_shares_tab()),
+            ("system", tr("Servizi"), self._build_system_services_tab()),
+            ("shares", tr("FTP / SFTP"), self._build_file_shares_tab()),
             ("http", "HTTP", self._build_http_tab()),
             ("nfs", "NFS", self._build_nfs_tab()),
             ("vnc", "VNC", self._build_vnc_tab()),
@@ -471,7 +475,7 @@ class ServicesPage(ToolPage):
     def _build_system_services_tab(self) -> Gtk.Widget:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=10)
         intro = Gtk.Label(
-            label="I pacchetti già presenti sono evidenziati in verde. Le operazioni amministrative richiedono Polkit.",
+            label=tr("I pacchetti già presenti sono evidenziati in verde. Le operazioni amministrative richiedono Polkit."),
             xalign=0,
         )
         intro.set_line_wrap(True)
@@ -514,18 +518,18 @@ class ServicesPage(ToolPage):
             titles.pack_start(detail, False, False, 0)
             header.pack_start(titles, True, True, 0)
 
-            package_badge = Gtk.Label(label="Controllo…")
+            package_badge = Gtk.Label(label=tr("Controllo…"))
             package_badge.get_style_context().add_class("service-badge")
-            package_badge.set_tooltip_text(f"Pacchetto Fedora: {service.package}")
+            package_badge.set_tooltip_text(tr("Pacchetto Fedora: {package}").format(package=service.package))
             self.package_labels[service.unit] = package_badge
-            state_badge = Gtk.Label(label="Controllo…")
+            state_badge = Gtk.Label(label=tr("Controllo…"))
             state_badge.get_style_context().add_class("service-badge")
             self.status_labels[service.unit] = state_badge
             header.pack_start(package_badge, False, False, 0)
             header.pack_start(state_badge, False, False, 0)
             if service.insecure:
                 warning = Gtk.Image.new_from_icon_name("dialog-warning-symbolic", Gtk.IconSize.MENU)
-                warning.set_tooltip_text("Protocollo non cifrato: usalo soltanto su reti fidate.")
+                warning.set_tooltip_text(tr("Protocollo non cifrato: usalo soltanto su reti fidate."))
                 header.pack_start(warning, False, False, 0)
             body.pack_start(header, False, False, 0)
 
@@ -536,11 +540,11 @@ class ServicesPage(ToolPage):
             actions.set_max_children_per_line(5)
             action_map: Dict[str, Gtk.Button] = {}
             for label, icon, action in (
-                ("Installa", "system-software-install-symbolic", "install"),
-                ("Avvia", "media-playback-start-symbolic", "start"),
-                ("Ferma", "media-playback-stop-symbolic", "stop"),
-                ("Abilita all'avvio", "emblem-default-symbolic", "enable"),
-                ("Apri firewall", "security-high-symbolic", "firewall"),
+                (tr("Installa"), "system-software-install-symbolic", "install"),
+                (tr("Avvia"), "media-playback-start-symbolic", "start"),
+                (tr("Ferma"), "media-playback-stop-symbolic", "stop"),
+                (tr("Abilita all'avvio"), "emblem-default-symbolic", "enable"),
+                (tr("Apri firewall"), "security-high-symbolic", "firewall"),
             ):
                 button = self.button(label, icon)
                 button.get_style_context().add_class("service-action")
@@ -559,12 +563,12 @@ class ServicesPage(ToolPage):
         tftp_card.get_style_context().add_class("service-card")
         tftp_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, margin=10)
         tftp_card.add(tftp_box)
-        tftp_text = Gtk.Label(label="Directory TFTP: /var/lib/tftpboot", xalign=0)
+        tftp_text = Gtk.Label(label=tr("Directory TFTP: /var/lib/tftpboot"), xalign=0)
         tftp_text.set_line_wrap(True)
         tftp_box.pack_start(tftp_text, True, True, 0)
-        prepare = self.button("Prepara", "folder-new-symbolic")
+        prepare = self.button(tr("Prepara"), "folder-new-symbolic")
         prepare.connect("clicked", self.prepare_tftp_directory)
-        open_dir = self.button("Apri", "folder-open-symbolic")
+        open_dir = self.button(tr("Apri"), "folder-open-symbolic")
         open_dir.connect("clicked", self.open_tftp_directory)
         tftp_box.pack_start(prepare, False, False, 0)
         tftp_box.pack_start(open_dir, False, False, 0)
@@ -575,8 +579,8 @@ class ServicesPage(ToolPage):
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=10)
         note = Gtk.Label(
             label=(
-                "Seleziona le cartelle da esporre. SFTP crea collegamenti in ~/FedTermHub-SFTP e mantiene i permessi Linux. "
-                "FTP usa ~/FedTermHub-FTP e bind mount gestiti, quindi può condividere anche cartelle esterne alla home."
+                tr("Seleziona le cartelle da esporre. SFTP crea collegamenti in ~/FedTermHub-SFTP e mantiene i permessi Linux. "
+                "FTP usa ~/FedTermHub-FTP e bind mount gestiti, quindi può condividere anche cartelle esterne alla home.")
             ),
             xalign=0,
         )
@@ -590,7 +594,7 @@ class ServicesPage(ToolPage):
         columns.pack_start(self._share_protocol_card("sftp", self.sftp_store), True, True, 0)
         outer.pack_start(columns, True, True, 0)
 
-        cfg = Gtk.Label(label=f"Configurazione locale: {NETWORK_SHARES_FILE}", xalign=0)
+        cfg = Gtk.Label(label=tr("Configurazione locale: {NETWORK_SHARES_FILE}").format(NETWORK_SHARES_FILE=NETWORK_SHARES_FILE), xalign=0)
         cfg.get_style_context().add_class("muted")
         outer.pack_start(cfg, False, False, 0)
         return outer
@@ -601,14 +605,14 @@ class ServicesPage(ToolPage):
         frame.get_style_context().add_class("share-card")
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin=10)
         frame.add(body)
-        title = Gtk.Label(label="Condivisioni FTP" if is_ftp else "Condivisioni SFTP", xalign=0)
+        title = Gtk.Label(label=tr("Condivisioni FTP") if is_ftp else tr("Condivisioni SFTP"), xalign=0)
         title.get_style_context().add_class("section-heading")
         body.pack_start(title, False, False, 0)
         description = Gtk.Label(
             label=(
-                "Radice: ~/FedTermHub-FTP. Applica crea i mount e configura la directory iniziale di vsftpd per l'utente corrente."
+                tr("Radice: ~/FedTermHub-FTP. Applica crea i mount e configura la directory iniziale di vsftpd per l'utente corrente.")
                 if is_ftp else
-                "Radice: ~/FedTermHub-SFTP. I collegamenti sono immediatamente visibili via SFTP e seguono i permessi del filesystem."
+                tr("Radice: ~/FedTermHub-SFTP. I collegamenti sono immediatamente visibili via SFTP e seguono i permessi del filesystem.")
             ),
             xalign=0,
         )
@@ -621,7 +625,7 @@ class ServicesPage(ToolPage):
         tree.set_grid_lines(Gtk.TreeViewGridLines.HORIZONTAL)
         tree.set_size_request(-1, 225)
         tree.get_style_context().add_class("share-list")
-        for idx, heading in enumerate(("Nome", "Cartella", "Accesso", "Stato")):
+        for idx, heading in enumerate((tr("Nome"), tr("Cartella"), tr("Accesso"), tr("Stato"))):
             renderer = Gtk.CellRendererText()
             renderer.set_property("ellipsize", Pango.EllipsizeMode.MIDDLE if idx == 1 else Pango.EllipsizeMode.END)
             renderer.set_property("ypad", 5)
@@ -638,10 +642,10 @@ class ServicesPage(ToolPage):
         actions.set_selection_mode(Gtk.SelectionMode.NONE)
         actions.set_column_spacing(6)
         actions.set_row_spacing(5)
-        add = self.button("Aggiungi", "list-add-symbolic")
-        remove = self.button("Rimuovi", "list-remove-symbolic")
-        open_root = self.button("Apri radice", "folder-open-symbolic")
-        apply = self.button("Applica FTP", "emblem-default-symbolic") if is_ftp else self.button("Aggiorna collegamenti", "view-refresh-symbolic")
+        add = self.button(tr("Aggiungi"), "list-add-symbolic")
+        remove = self.button(tr("Rimuovi"), "list-remove-symbolic")
+        open_root = self.button(tr("Apri radice"), "folder-open-symbolic")
+        apply = self.button(tr("Applica FTP"), "emblem-default-symbolic") if is_ftp else self.button(tr("Aggiorna collegamenti"), "view-refresh-symbolic")
         add.connect("clicked", lambda _b, proto=protocol: self.add_share(proto))
         remove.connect("clicked", lambda _b, proto=protocol, view=tree: self.remove_share(proto, view))
         open_root.connect("clicked", lambda _b, proto=protocol: self.open_share_root(proto))
@@ -672,33 +676,33 @@ class ServicesPage(ToolPage):
             for item in self.shares.get(protocol, []):
                 target = root / item["name"]
                 if protocol == "ftp":
-                    state = "Applicata" if _is_mountpoint(target) else "Da applicare"
-                    mode = "Sola lettura" if item.get("mode") == "ro" else "Lettura/scrittura"
+                    state = tr("Applicata") if _is_mountpoint(target) else tr("Da applicare")
+                    mode = tr("Sola lettura") if item.get("mode") == "ro" else tr("Lettura/scrittura")
                 else:
-                    state = "Pronta" if target.is_symlink() and target.exists() else "Da aggiornare"
-                    mode = "Permessi sistema"
+                    state = tr("Pronta") if target.is_symlink() and target.exists() else tr("Da aggiornare")
+                    mode = tr("Permessi sistema")
                 store.append([item["name"], item["path"], mode, state])
 
     def add_share(self, protocol: str) -> None:
-        dialog = Gtk.Dialog(title="Aggiungi cartella FTP" if protocol == "ftp" else "Aggiungi cartella SFTP", transient_for=self.parent, modal=True)
-        dialog.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Aggiungi", Gtk.ResponseType.OK)
+        dialog = Gtk.Dialog(title=tr("Aggiungi cartella FTP") if protocol == "ftp" else tr("Aggiungi cartella SFTP"), transient_for=self.parent, modal=True)
+        dialog.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Aggiungi"), Gtk.ResponseType.OK)
         dialog.set_default_size(560, 250)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=14)
         dialog.get_content_area().add(box)
-        chooser = Gtk.FileChooserButton(title="Cartella da condividere", action=Gtk.FileChooserAction.SELECT_FOLDER)
+        chooser = Gtk.FileChooserButton(title=tr("Cartella da condividere"), action=Gtk.FileChooserAction.SELECT_FOLDER)
         chooser.set_filename(str(Path.home()))
         name = Gtk.Entry()
-        name.set_placeholder_text("Nome mostrato al client")
+        name.set_placeholder_text(tr("Nome mostrato al client"))
         mode = Gtk.ComboBoxText()
-        mode.append("rw", "Lettura e scrittura")
-        mode.append("ro", "Sola lettura")
+        mode.append("rw", tr("Lettura e scrittura"))
+        mode.append("ro", tr("Sola lettura"))
         mode.set_active_id("rw")
         grid = Gtk.Grid(column_spacing=10, row_spacing=9)
-        for row, (label, widget) in enumerate((("Cartella", chooser), ("Nome", name))):
+        for row, (label, widget) in enumerate(((tr("Cartella"), chooser), (tr("Nome"), name))):
             grid.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             grid.attach(widget, 1, row, 1, 1)
         if protocol == "ftp":
-            grid.attach(Gtk.Label(label="Accesso", xalign=0), 0, 2, 1, 1)
+            grid.attach(Gtk.Label(label=tr("Accesso"), xalign=0), 0, 2, 1, 1)
             grid.attach(mode, 1, 2, 1, 1)
         box.pack_start(grid, True, True, 0)
         dialog.show_all()
@@ -707,11 +711,11 @@ class ServicesPage(ToolPage):
                 return
             source = Path(chooser.get_filename() or "")
             if not source.is_dir():
-                self.message(self.parent, "Cartella non valida", "Seleziona una cartella esistente.", True)
+                self.message(self.parent, tr("Cartella non valida"), tr("Seleziona una cartella esistente."), True)
                 return
             share_name = _safe_share_name(name.get_text() or source.name)
             if any(row.get("name") == share_name for row in self.shares.get(protocol, [])):
-                self.message(self.parent, "Nome già presente", "Scegli un nome differente per la condivisione.", True)
+                self.message(self.parent, tr("Nome già presente"), tr("Scegli un nome differente per la condivisione."), True)
                 return
             self.shares.setdefault(protocol, []).append({
                 "name": share_name,
@@ -736,7 +740,7 @@ class ServicesPage(ToolPage):
         if protocol == "ftp" and _is_mountpoint(target):
             proc = _run(_privileged_command(["umount", str(target)]), timeout=90)
             if proc.returncode != 0:
-                self.message(self.parent, "Condivisione FTP occupata", (proc.stderr or proc.stdout).strip() or "Impossibile smontare la cartella.", True)
+                self.message(self.parent, tr("Condivisione FTP occupata"), (proc.stderr or proc.stdout).strip() or tr("Impossibile smontare la cartella."), True)
                 return
         elif protocol == "sftp" and target.is_symlink():
             target.unlink(missing_ok=True)
@@ -770,22 +774,22 @@ class ServicesPage(ToolPage):
                     if target.is_symlink():
                         target.unlink()
                     else:
-                        raise RuntimeError(f"{target} esiste già e non è un collegamento gestito.")
+                        raise RuntimeError(tr("{target} esiste già e non è un collegamento gestito.").format(target=target))
                 target.symlink_to(source, target_is_directory=True)
-            self.sftp_apply_status.set_text(f"{len(desired)} collegamenti SFTP aggiornati in {root}.")
+            self.sftp_apply_status.set_text(tr("{n_desired} collegamenti SFTP aggiornati in {root}.").format(n_desired=len(desired), root=root))
         except Exception as exc:
-            self.sftp_apply_status.set_text(f"Errore: {exc}")
+            self.sftp_apply_status.set_text(tr("Errore: {exc}").format(exc=exc))
         self.refresh_share_views()
 
     def apply_ftp_shares(self, _button: Optional[Gtk.Button]) -> None:
         if not self._package_installed("vsftpd"):
-            self.message(self.parent, "FTP non installato", "Installa prima il pacchetto vsftpd dalla scheda Servizi.", True)
+            self.message(self.parent, tr("FTP non installato"), tr("Installa prima il pacchetto vsftpd dalla scheda Servizi."), True)
             return
         root = self._share_root("ftp")
         root.mkdir(parents=True, exist_ok=True)
         username = pwd.getpwuid(os.getuid()).pw_name
         shares = [dict(row) for row in self.shares.get("ftp", [])]
-        self.ftp_apply_status.set_text("Applicazione condivisioni FTP in corso…")
+        self.ftp_apply_status.set_text(tr("Applicazione condivisioni FTP in corso…"))
 
         def worker() -> str:
             desired_names = {row["name"] for row in shares}
@@ -797,10 +801,10 @@ class ServicesPage(ToolPage):
                 source = Path(row["path"])
                 target = root / row["name"]
                 if not source.is_dir():
-                    raise RuntimeError(f"Cartella sorgente non disponibile: {source}")
+                    raise RuntimeError(tr("Cartella sorgente non disponibile: {source}").format(source=source))
                 target.mkdir(parents=True, exist_ok=True)
                 quoted = shlex.quote(str(target))
-                lines.append(f"if mountpoint -q {quoted}; then umount {quoted}; fi")
+                lines.append(tr("if mountpoint -q {quoted}; then umount {quoted}; fi").format(quoted=quoted))
                 lines.append(shlex.join(["mount", "--bind", str(source), str(target)]))
                 if row.get("mode") == "ro":
                     lines.append(shlex.join(["mount", "-o", "remount,bind,ro", str(target)]))
@@ -816,22 +820,22 @@ class ServicesPage(ToolPage):
             # vsftpd.conf su Fedora e' leggibile solo da root: prima veniva letto da qui con i
             # permessi dell'utente e l'applicazione falliva sempre con "Permission denied".
             lines += [
-                'conf=/etc/vsftpd/vsftpd.conf; [ -f "$conf" ] || conf=/etc/vsftpd.conf',
-                '[ -f "$conf" ] || { echo "Configurazione principale vsftpd non trovata." >&2; exit 3; }',
-                "dir=$(sed -n 's/^[[:space:]]*user_config_dir[[:space:]]*=[[:space:]]*//p' \"$conf\" | tail -n1)",
-                'if [ -z "$dir" ]; then dir=/etc/vsftpd/user_conf; '
-                'printf "\\n# Gestito da FedTermHub\\nuser_config_dir=%s\\n" "$dir" >> "$conf"; fi',
-                f'install -D -m 0644 {shlex.quote(str(user_conf))} "$dir"/{shlex.quote(username)}',
-                "systemctl restart vsftpd.service",
+                tr('conf=/etc/vsftpd/vsftpd.conf; [ -f "$conf" ] || conf=/etc/vsftpd.conf'),
+                tr('[ -f "$conf" ] || { echo "Configurazione principale vsftpd non trovata." >&2; exit 3; }'),
+                tr("dir=$(sed -n 's/^[[:space:]]*user_config_dir[[:space:]]*=[[:space:]]*//p' \"$conf\" | tail -n1)"),
+                tr('if [ -z "$dir" ]; then dir=/etc/vsftpd/user_conf; '
+                'printf "\\n# Gestito da FedTermHub\\nuser_config_dir=%s\\n" "$dir" >> "$conf"; fi'),
+                tr("install -D -m 0644 {quote} \"$dir\"/{quote2}").format(quote=shlex.quote(str(user_conf)), quote2=shlex.quote(username)),
+                tr("systemctl restart vsftpd.service"),
             ]
             proc = _run_privileged_script(lines, timeout=240)
             user_conf.unlink(missing_ok=True)
             if proc.returncode != 0:
                 raise RuntimeError(_privileged_error(proc))
-            return f"{len(shares)} cartelle FTP applicate. Radice utente: {root}"
+            return tr("{n_shares} cartelle FTP applicate. Radice utente: {root}").format(n_shares=len(shares), root=root)
 
         def done(result: object, error: Optional[BaseException]) -> None:
-            self.ftp_apply_status.set_text(f"Errore: {error}" if error else str(result))
+            self.ftp_apply_status.set_text(tr("Errore: {error}").format(error=error) if error else str(result))
             self.refresh_share_views()
             self.refresh_status()
 
@@ -842,37 +846,37 @@ class ServicesPage(ToolPage):
         card = self.card()
         http_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=12)
         card.add(http_box)
-        heading = Gtk.Label(label="Server HTTP temporaneo", xalign=0)
+        heading = Gtk.Label(label=tr("Server HTTP temporaneo"), xalign=0)
         heading.get_style_context().add_class("section-heading")
         http_box.pack_start(heading, False, False, 0)
         note = Gtk.Label(
-            label="Condividi rapidamente una cartella senza modificare servizi di sistema. Il server resta attivo finché FedTermHub rimane aperto.",
+            label=tr("Condividi rapidamente una cartella senza modificare servizi di sistema. Il server resta attivo finché FedTermHub rimane aperto."),
             xalign=0,
         )
         note.set_line_wrap(True)
         note.get_style_context().add_class("muted")
         http_box.pack_start(note, False, False, 0)
         form = Gtk.Grid(column_spacing=10, row_spacing=8)
-        self.http_dir = Gtk.FileChooserButton(title="Cartella da condividere", action=Gtk.FileChooserAction.SELECT_FOLDER)
+        self.http_dir = Gtk.FileChooserButton(title=tr("Cartella da condividere"), action=Gtk.FileChooserAction.SELECT_FOLDER)
         # Non l'intera home: con "Rete locale" sarebbe visibile a tutta la rete. Si propone la
         # cartella Pubblici dell'utente, se c'e'.
         public = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PUBLIC_SHARE)
         self.http_dir.set_filename(public if public and Path(public).is_dir() else str(Path.home()))
         self.http_bind = Gtk.ComboBoxText()
-        self.http_bind.append("127.0.0.1", "Solo questo computer")
-        self.http_bind.append("0.0.0.0", "Rete locale")  # nosec B104
+        self.http_bind.append("127.0.0.1", tr("Solo questo computer"))
+        self.http_bind.append("0.0.0.0", tr("Rete locale"))  # nosec B104
         self.http_bind.set_active_id("127.0.0.1")
         self.http_port = Gtk.SpinButton.new_with_range(1024, 65535, 1)
         self.http_port.set_value(8000)
-        for row, (label, widget) in enumerate((("Cartella", self.http_dir), ("Ascolto", self.http_bind), ("Porta", self.http_port))):
+        for row, (label, widget) in enumerate(((tr("Cartella"), self.http_dir), (tr("Ascolto"), self.http_bind), (tr("Porta"), self.http_port))):
             form.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             form.attach(widget, 1, row, 1, 1)
         http_box.pack_start(form, False, False, 0)
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
-        self.http_start = self.button("Avvia HTTP", "media-playback-start-symbolic")
-        self.http_stop = self.button("Ferma", "media-playback-stop-symbolic")
-        self.http_copy = self.button("Copia URL", "edit-copy-symbolic")
-        self.http_status = Gtk.Label(label="Fermo", xalign=0)
+        self.http_start = self.button(tr("Avvia HTTP"), "media-playback-start-symbolic")
+        self.http_stop = self.button(tr("Ferma"), "media-playback-stop-symbolic")
+        self.http_copy = self.button(tr("Copia URL"), "edit-copy-symbolic")
+        self.http_status = Gtk.Label(label=tr("Fermo"), xalign=0)
         self.http_start.connect("clicked", self.start_http)
         self.http_stop.connect("clicked", self.stop_http)
         self.http_copy.connect("clicked", lambda _b: _copy(RUNTIME.http_description))
@@ -888,11 +892,11 @@ class ServicesPage(ToolPage):
         card = self.card()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=12)
         card.add(box)
-        heading = Gtk.Label(label="Condivisione NFS", xalign=0)
+        heading = Gtk.Label(label=tr("Condivisione NFS"), xalign=0)
         heading.get_style_context().add_class("section-heading")
         box.pack_start(heading, False, False, 0)
         note = Gtk.Label(
-            label="Crea un export gestito da FedTermHub in /etc/exports.d/fedtermhub.exports. Limita sempre l'accesso alla subnet necessaria.",
+            label=tr("Crea un export gestito da FedTermHub in /etc/exports.d/fedtermhub.exports. Limita sempre l'accesso alla subnet necessaria."),
             xalign=0,
         )
         note.set_line_wrap(True)
@@ -900,30 +904,30 @@ class ServicesPage(ToolPage):
         box.pack_start(note, False, False, 0)
 
         form = Gtk.Grid(column_spacing=10, row_spacing=8)
-        self.nfs_dir = Gtk.FileChooserButton(title="Cartella da esportare", action=Gtk.FileChooserAction.SELECT_FOLDER)
-        public_dir = Path.home() / "Public"
+        self.nfs_dir = Gtk.FileChooserButton(title=tr("Cartella da esportare"), action=Gtk.FileChooserAction.SELECT_FOLDER)
+        public_dir = Path.home() / tr("Public")
         self.nfs_dir.set_filename(str(public_dir if public_dir.is_dir() else Path.home()))
         self.nfs_clients = Gtk.ComboBoxText.new_with_entry()
         for network in _detected_networks():
             self.nfs_clients.append_text(network)
         self.nfs_clients.set_active(0)
         self.nfs_mode = Gtk.ComboBoxText()
-        self.nfs_mode.append("ro", "Sola lettura")
-        self.nfs_mode.append("rw", "Lettura e scrittura")
+        self.nfs_mode.append("ro", tr("Sola lettura"))
+        self.nfs_mode.append("rw", tr("Lettura e scrittura"))
         self.nfs_mode.set_active_id("ro")
-        self.nfs_root_squash = Gtk.CheckButton(label="Proteggi root remoto con root_squash")
+        self.nfs_root_squash = Gtk.CheckButton(label=tr("Proteggi root remoto con root_squash"))
         self.nfs_root_squash.set_active(True)
-        for row, (label, widget) in enumerate((("Cartella", self.nfs_dir), ("Client autorizzati", self.nfs_clients), ("Permessi", self.nfs_mode))):
+        for row, (label, widget) in enumerate(((tr("Cartella"), self.nfs_dir), (tr("Client autorizzati"), self.nfs_clients), (tr("Permessi"), self.nfs_mode))):
             form.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             form.attach(widget, 1, row, 1, 1)
         form.attach(self.nfs_root_squash, 1, 3, 1, 1)
         box.pack_start(form, False, False, 0)
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
-        apply_button = self.button("Applica e avvia NFS", "document-save-symbolic")
-        remove_button = self.button("Rimuovi export", "edit-delete-symbolic")
-        verify_button = self.button("Verifica export", "view-refresh-symbolic")
-        firewall_button = self.button("Apri firewall NFS", "security-high-symbolic")
+        apply_button = self.button(tr("Applica e avvia NFS"), "document-save-symbolic")
+        remove_button = self.button(tr("Rimuovi export"), "edit-delete-symbolic")
+        verify_button = self.button(tr("Verifica export"), "view-refresh-symbolic")
+        firewall_button = self.button(tr("Apri firewall NFS"), "security-high-symbolic")
         apply_button.connect("clicked", self.apply_nfs_export)
         remove_button.connect("clicked", self.remove_nfs_export)
         verify_button.connect("clicked", self.verify_nfs_export)
@@ -931,7 +935,7 @@ class ServicesPage(ToolPage):
         for button in (apply_button, remove_button, verify_button, firewall_button):
             actions.pack_start(button, False, False, 0)
         box.pack_start(actions, False, False, 0)
-        self.nfs_status = Gtk.Label(label="Nessun export verificato.", xalign=0)
+        self.nfs_status = Gtk.Label(label=tr("Nessun export verificato."), xalign=0)
         self.nfs_status.set_line_wrap(True)
         self.nfs_status.set_selectable(True)
         self.nfs_status.get_style_context().add_class("service-output")
@@ -944,12 +948,12 @@ class ServicesPage(ToolPage):
         card = self.card()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin=12)
         card.add(box)
-        heading = Gtk.Label(label="Condivisione desktop VNC", xalign=0)
+        heading = Gtk.Label(label=tr("Condivisione desktop VNC"), xalign=0)
         heading.get_style_context().add_class("section-heading")
         box.pack_start(heading, False, False, 0)
         session_type = os.environ.get("XDG_SESSION_TYPE", "").lower() or "sconosciuta"
         note = Gtk.Label(
-            label=f"Sessione grafica rilevata: {session_type}. FedTermHub usa w0vncserver su Wayland e x0vncserver su X11.",
+            label=tr("Sessione grafica rilevata: {session_type}. FedTermHub usa w0vncserver su Wayland e x0vncserver su X11.").format(session_type=session_type),
             xalign=0,
         )
         note.set_line_wrap(True)
@@ -960,23 +964,23 @@ class ServicesPage(ToolPage):
         self.vnc_port = Gtk.SpinButton.new_with_range(5900, 5999, 1)
         self.vnc_port.set_value(5900)
         self.vnc_scope = Gtk.ComboBoxText()
-        self.vnc_scope.append("local", "Solo localhost (consigliato con tunnel SSH)")
-        self.vnc_scope.append("network", "Rete locale")
+        self.vnc_scope.append("local", tr("Solo localhost (consigliato con tunnel SSH)"))
+        self.vnc_scope.append("network", tr("Rete locale"))
         self.vnc_scope.set_active_id("local")
         self.vnc_password = Gtk.Entry()
         self.vnc_password.set_visibility(False)
         self.vnc_password.set_input_purpose(Gtk.InputPurpose.PASSWORD)
-        self.vnc_password.set_placeholder_text("Password VNC da 6 a 8 caratteri")
-        self.vnc_query = Gtk.CheckButton(label="Chiedi conferma locale prima di accettare un client")
+        self.vnc_password.set_placeholder_text(tr("Password VNC da 6 a 8 caratteri"))
+        self.vnc_query = Gtk.CheckButton(label=tr("Chiedi conferma locale prima di accettare un client"))
         self.vnc_query.set_active(True)
-        for row, (label, widget) in enumerate((("Porta", self.vnc_port), ("Accesso", self.vnc_scope), ("Password", self.vnc_password))):
+        for row, (label, widget) in enumerate(((tr("Porta"), self.vnc_port), (tr("Accesso"), self.vnc_scope), (tr("Password"), self.vnc_password))):
             form.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             form.attach(widget, 1, row, 1, 1)
         form.attach(self.vnc_query, 1, 3, 1, 1)
         box.pack_start(form, False, False, 0)
 
         security = Gtk.Label(
-            label="La password viene salvata in un file TigerVNC con permessi 0600 e non appare nella command line. Per accessi via rete usa TLS oppure un tunnel SSH.",
+            label=tr("La password viene salvata in un file TigerVNC con permessi 0600 e non appare nella command line. Per accessi via rete usa TLS oppure un tunnel SSH."),
             xalign=0,
         )
         security.set_line_wrap(True)
@@ -984,17 +988,17 @@ class ServicesPage(ToolPage):
         box.pack_start(security, False, False, 0)
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
-        start = self.button("Avvia VNC", "media-playback-start-symbolic")
-        stop = self.button("Ferma", "media-playback-stop-symbolic")
-        firewall = self.button("Apri firewall VNC", "security-high-symbolic")
-        copy = self.button("Copia indirizzo", "edit-copy-symbolic")
+        start = self.button(tr("Avvia VNC"), "media-playback-start-symbolic")
+        stop = self.button(tr("Ferma"), "media-playback-stop-symbolic")
+        firewall = self.button(tr("Apri firewall VNC"), "security-high-symbolic")
+        copy = self.button(tr("Copia indirizzo"), "edit-copy-symbolic")
         start.connect("clicked", self.start_vnc)
         stop.connect("clicked", self.stop_vnc)
         firewall.connect("clicked", self.open_vnc_firewall)
         copy.connect("clicked", lambda _b: _copy(RUNTIME.vnc_description))
         for button in (start, stop, firewall, copy):
             actions.pack_start(button, False, False, 0)
-        self.vnc_status = Gtk.Label(label="Fermo", xalign=0)
+        self.vnc_status = Gtk.Label(label=tr("Fermo"), xalign=0)
         actions.pack_start(self.vnc_status, True, True, 8)
         box.pack_start(actions, False, False, 0)
         self.vnc_log_label = Gtk.Label(label="", xalign=0)
@@ -1072,24 +1076,24 @@ class ServicesPage(ToolPage):
         install_button = self.install_buttons.get(service.unit)
         if package_label:
             if installed:
-                package_label.set_markup('<span foreground="#39c879" weight="bold">● Installato</span>')
+                package_label.set_markup(tr('<span foreground="#39c879" weight="bold">● Installato</span>'))
                 package_label.get_style_context().add_class("installed-badge")
             else:
-                package_label.set_markup('<span foreground="#e8a84a" weight="bold">● Non installato</span>')
+                package_label.set_markup(tr('<span foreground="#e8a84a" weight="bold">● Non installato</span>'))
         if install_button:
             install_button.set_sensitive(not installed)
-            install_button.set_tooltip_text("Pacchetto già installato" if installed else f"Installa {service.package}")
+            install_button.set_tooltip_text(tr("Pacchetto già installato") if installed else tr("Installa {package}").format(package=service.package))
         for action_name, button in actions.items():
             if action_name != "install":
                 button.set_sensitive(installed)
         if not installed:
             if state_label:
-                state_label.set_markup('<span foreground="#8792a2">● Non disponibile</span>')
+                state_label.set_markup(tr('<span foreground="#8792a2">● Non disponibile</span>'))
             return
         if state_label:
             state_label.set_markup(
-                '<span foreground="#4cc38a" weight="bold">● Attivo</span>' if active
-                else '<span foreground="#9aa5b2">● Fermo</span>'
+                tr('<span foreground="#4cc38a" weight="bold">● Attivo</span>') if active
+                else tr('<span foreground="#9aa5b2">● Fermo</span>')
             )
         if actions:
             actions.get("start") and actions["start"].set_sensitive(not active)
@@ -1099,14 +1103,14 @@ class ServicesPage(ToolPage):
         """Server HTTP/VNC avviati da FedTermHub: stato in memoria, nessun comando esterno."""
         proc = RUNTIME.http_process
         if proc and proc.poll() is None:
-            self.http_status.set_markup(f'<span foreground="#4cc38a" weight="bold">● Attivo</span> — {GLib.markup_escape_text(RUNTIME.http_description)}')
+            self.http_status.set_markup(tr("<span foreground=\"#4cc38a\" weight=\"bold\">● Attivo</span> — {markup_escape_text}").format(markup_escape_text=GLib.markup_escape_text(RUNTIME.http_description)))
         else:
-            self.http_status.set_markup('<span foreground="#9aa5b2">● Fermo</span>')
+            self.http_status.set_markup(tr('<span foreground="#9aa5b2">● Fermo</span>'))
         vnc = RUNTIME.vnc_process
         if vnc and vnc.poll() is None:
-            self.vnc_status.set_markup(f'<span foreground="#4cc38a" weight="bold">● Attivo</span> — {GLib.markup_escape_text(RUNTIME.vnc_description)}')
+            self.vnc_status.set_markup(tr("<span foreground=\"#4cc38a\" weight=\"bold\">● Attivo</span> — {markup_escape_text}").format(markup_escape_text=GLib.markup_escape_text(RUNTIME.vnc_description)))
         else:
-            self.vnc_status.set_markup('<span foreground="#9aa5b2">● Fermo</span>')
+            self.vnc_status.set_markup(tr('<span foreground="#9aa5b2">● Fermo</span>'))
         if RUNTIME.vnc_log:
             self.vnc_log_label.set_text("\n".join(RUNTIME.vnc_log[-4:]))
         self.refresh_share_views()
@@ -1120,13 +1124,12 @@ class ServicesPage(ToolPage):
             modal=True,
             message_type=Gtk.MessageType.WARNING,
             buttons=Gtk.ButtonsType.NONE,
-            text=f"Abilitare {service.name}?",
+            text=tr("Abilitare {name}?").format(name=service.name),
         )
         dialog.format_secondary_text(
-            f"{service.name} non protegge il traffico con cifratura o autenticazione moderna. "
-            "Usalo solo su una rete fidata e soltanto quando è realmente necessario."
+            tr("{name} non protegge il traffico con cifratura o autenticazione moderna. Usalo solo su una rete fidata e soltanto quando è realmente necessario.").format(name=service.name)
         )
-        dialog.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Continua", Gtk.ResponseType.OK)
+        dialog.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Continua"), Gtk.ResponseType.OK)
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.OK
@@ -1138,14 +1141,14 @@ class ServicesPage(ToolPage):
             commands = [_privileged_command(["dnf", "install", "-y", service.package])]
         elif action == "firewall":
             if not _command_exists("firewall-cmd"):
-                self.message(self.parent, "Firewalld non disponibile", "Installa e avvia firewalld per gestire le regole dall'interfaccia.", True)
+                self.message(self.parent, tr("Firewalld non disponibile"), tr("Installa e avvia firewalld per gestire le regole dall'interfaccia."), True)
                 return
             # Una sola autorizzazione per tutte le regole e il reload.
             lines = [
                 shlex.join(["firewall-cmd", "--permanent", f"--add-service={firewall_service}"])
                 for firewall_service in service.firewall_services
             ] + [shlex.join(["firewall-cmd", "--reload"])]
-            commands = [_privileged_command(["sh", "-c", "set -e\n" + "\n".join(lines)])]
+            commands = [_privileged_command(["sh", "-c", tr("set -e\n") + "\n".join(lines)])]
         else:
             verb = "enable" if action == "enable" else action
             args = ["systemctl", verb]
@@ -1154,13 +1157,13 @@ class ServicesPage(ToolPage):
             args.append(service.unit)
             commands = [_privileged_command(args)]
 
-        self.status_labels[service.unit].set_text("Operazione in corso…")
+        self.status_labels[service.unit].set_text(tr("Operazione in corso…"))
 
         def worker() -> str:
             messages = []
             for command in commands:
                 proc = _run(command, timeout=180)
-                message = (proc.stdout or proc.stderr or f"exit {proc.returncode}").strip()
+                message = (proc.stdout or proc.stderr or tr("exit {returncode}").format(returncode=proc.returncode)).strip()
                 messages.append(message)
                 if proc.returncode != 0:
                     raise RuntimeError(message)
@@ -1169,7 +1172,7 @@ class ServicesPage(ToolPage):
         def done(_result: object, error: Optional[BaseException]) -> None:
             self.refresh_status(recheck_packages=(action == "install"))
             if error:
-                self.message(self.parent, f"Operazione {service.name} non riuscita", str(error), True)
+                self.message(self.parent, tr("Operazione {name} non riuscita").format(name=service.name), str(error), True)
 
         _async(worker, done)
 
@@ -1177,15 +1180,15 @@ class ServicesPage(ToolPage):
         def worker() -> str:
             proc = _run(_privileged_command(["install", "-d", "-m", "0755", "/var/lib/tftpboot"]), timeout=90)
             if proc.returncode != 0:
-                raise RuntimeError(proc.stderr.strip() or "Impossibile preparare /var/lib/tftpboot")
-            return "/var/lib/tftpboot pronta."
+                raise RuntimeError(proc.stderr.strip() or tr("Impossibile preparare /var/lib/tftpboot"))
+            return tr("/var/lib/tftpboot pronta.")
 
-        _async(worker, lambda result, error: self.message(self.parent, "Directory TFTP", str(error or result), bool(error)))
+        _async(worker, lambda result, error: self.message(self.parent, tr("Directory TFTP"), str(error or result), bool(error)))
 
     def open_tftp_directory(self, _button: Gtk.Button) -> None:
         path = Path("/var/lib/tftpboot")
         if not path.exists():
-            self.message(self.parent, "Directory TFTP assente", "Premi prima Prepara cartella.", True)
+            self.message(self.parent, tr("Directory TFTP assente"), tr("Premi prima Prepara cartella."), True)
             return
         _open_path(path)
 
@@ -1198,7 +1201,7 @@ class ServicesPage(ToolPage):
         try:
             proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         except Exception as exc:
-            self.message(self.parent, "Server HTTP non avviato", str(exc), True)
+            self.message(self.parent, tr("Server HTTP non avviato"), str(exc), True)
             return
         # Si considera avviato quando risponde sulla porta: prima si aspettavano 0,12 s e un server
         # morto subito dopo (porta occupata) veniva mostrato come attivo.
@@ -1224,8 +1227,8 @@ class ServicesPage(ToolPage):
             else:
                 error = (proc.stderr.read() if proc.stderr else "").strip().splitlines()[-1:] or [""]
                 error = error[0]
-            hint = "La porta è già usata da un altro programma." if "Address already in use" in error else error
-            self.message(self.parent, "Server HTTP non avviato", hint or "Il server non risponde.", True)
+            hint = tr("La porta è già usata da un altro programma.") if "Address already in use" in error else error
+            self.message(self.parent, tr("Server HTTP non avviato"), hint or tr("Il server non risponde."), True)
             return
         RUNTIME.http_process = proc
         host = _primary_ipv4() if bind == "0.0.0.0" else bind  # nosec B104
@@ -1254,10 +1257,10 @@ class ServicesPage(ToolPage):
         folder = Path(self.nfs_dir.get_filename() or "")
         clients = self._nfs_client_text()
         if not folder.is_dir():
-            self.message(self.parent, "Cartella NFS non valida", "Seleziona una cartella esistente.", True)
+            self.message(self.parent, tr("Cartella NFS non valida"), tr("Seleziona una cartella esistente."), True)
             return
         if not clients or not self._validate_nfs_client(clients):
-            self.message(self.parent, "Client NFS non validi", "Inserisci una subnet CIDR, un host oppure *.", True)
+            self.message(self.parent, tr("Client NFS non validi"), tr("Inserisci una subnet CIDR, un host oppure *."), True)
             return
         mode = self.nfs_mode.get_active_id() or "ro"
         root_option = "root_squash" if self.nfs_root_squash.get_active() else "no_root_squash"
@@ -1267,7 +1270,7 @@ class ServicesPage(ToolPage):
         temp = CACHE_DIR / f"nfs-export-{uuid.uuid4().hex}.tmp"
         temp.write_text(export_line, encoding="utf-8")
         os.chmod(temp, 0o600)
-        self.nfs_status.set_text("Applicazione export NFS in corso…")
+        self.nfs_status.set_text(tr("Applicazione export NFS in corso…"))
 
         def worker() -> str:
             try:
@@ -1284,13 +1287,13 @@ class ServicesPage(ToolPage):
                 temp.unlink(missing_ok=True)
 
         def done(result: object, error: Optional[BaseException]) -> None:
-            self.nfs_status.set_text(f"Errore: {error}" if error else str(result))
+            self.nfs_status.set_text(tr("Errore: {error}").format(error=error) if error else str(result))
             self.refresh_status()
 
         _async(worker, done)
 
     def remove_nfs_export(self, _button: Gtk.Button) -> None:
-        self.nfs_status.set_text("Rimozione export in corso…")
+        self.nfs_status.set_text(tr("Rimozione export in corso…"))
 
         def worker() -> str:
             proc = _run_privileged_script([
@@ -1299,28 +1302,28 @@ class ServicesPage(ToolPage):
             ])
             if proc.returncode != 0:
                 raise RuntimeError(_privileged_error(proc))
-            return "Export gestito da FedTermHub rimosso."
+            return tr("Export gestito da FedTermHub rimosso.")
 
-        _async(worker, lambda result, error: self.nfs_status.set_text(f"Errore: {error}" if error else str(result)))
+        _async(worker, lambda result, error: self.nfs_status.set_text(tr("Errore: {error}").format(error=error) if error else str(result)))
 
     def verify_nfs_export(self, _button: Gtk.Button) -> None:
-        self.nfs_status.set_text("Verifica export…")
+        self.nfs_status.set_text(tr("Verifica export…"))
 
         def worker() -> str:
             proc = _run(["exportfs", "-v"], timeout=10)
             if proc.returncode != 0:
-                raise RuntimeError(proc.stderr.strip() or "exportfs non disponibile")
-            return proc.stdout.strip() or "Nessun export attivo."
+                raise RuntimeError(proc.stderr.strip() or tr("exportfs non disponibile"))
+            return proc.stdout.strip() or tr("Nessun export attivo.")
 
-        _async(worker, lambda result, error: self.nfs_status.set_text(f"Errore: {error}" if error else str(result)))
+        _async(worker, lambda result, error: self.nfs_status.set_text(tr("Errore: {error}").format(error=error) if error else str(result)))
 
     def _create_vnc_password_file(self, password: str) -> Path:
         binary = shutil.which("vncpasswd")
         if not binary:
-            raise RuntimeError("vncpasswd non trovato. Installa tigervnc-server-common.")
+            raise RuntimeError(tr("vncpasswd non trovato. Installa tigervnc-server-common."))
         proc = subprocess.run([binary, "-f"], input=(password + "\n").encode("utf-8"), capture_output=True, timeout=15, check=False)
         if proc.returncode != 0 or not proc.stdout:
-            raise RuntimeError(proc.stderr.decode("utf-8", errors="replace").strip() or "Creazione password VNC fallita")
+            raise RuntimeError(proc.stderr.decode("utf-8", errors="replace").strip() or tr("Creazione password VNC fallita"))
         password_file = Path.home() / ".config" / "fedtermhub" / "vnc.passwd"
         password_file.parent.mkdir(parents=True, exist_ok=True)
         # Il file nasce direttamente 0600: scriverlo con i permessi di default
@@ -1337,7 +1340,7 @@ class ServicesPage(ToolPage):
         RUNTIME.stop_vnc()
         password = self.vnc_password.get_text()
         if not 6 <= len(password) <= 8:
-            self.message(self.parent, "Password VNC non valida", "Usa una password da 6 a 8 caratteri.", True)
+            self.message(self.parent, tr("Password VNC non valida"), tr("Usa una password da 6 a 8 caratteri."), True)
             return
         session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
         if session_type == "wayland":
@@ -1347,12 +1350,12 @@ class ServicesPage(ToolPage):
             binary = shutil.which("x0vncserver")
             package = "tigervnc-x11-server"
         if not binary:
-            self.message(self.parent, "Server VNC non installato", f"Installa il pacchetto {package}.", True)
+            self.message(self.parent, tr("Server VNC non installato"), tr("Installa il pacchetto {package}.").format(package=package), True)
             return
         try:
             password_file = self._create_vnc_password_file(password)
         except Exception as exc:
-            self.message(self.parent, "Password VNC non preparata", str(exc), True)
+            self.message(self.parent, tr("Password VNC non preparata"), str(exc), True)
             return
         port = int(self.vnc_port.get_value())
         localhost = "yes" if (self.vnc_scope.get_active_id() or "local") == "local" else "no"
@@ -1363,7 +1366,7 @@ class ServicesPage(ToolPage):
             "-PasswordFile",
             str(password_file),
             "-SecurityTypes",
-            "TLSVnc,VncAuth",
+            tr("TLSVnc,VncAuth"),
             "-localhost",
             localhost,
         ]
@@ -1375,12 +1378,12 @@ class ServicesPage(ToolPage):
         try:
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         except Exception as exc:
-            self.message(self.parent, "Server VNC non avviato", str(exc), True)
+            self.message(self.parent, tr("Server VNC non avviato"), str(exc), True)
             return
         time.sleep(0.25)
         if proc.poll() is not None:
             output = proc.stdout.read() if proc.stdout else ""
-            self.message(self.parent, "Server VNC non avviato", output.strip() or f"Codice {proc.returncode}", True)
+            self.message(self.parent, tr("Server VNC non avviato"), output.strip() or tr("Codice {returncode}").format(returncode=proc.returncode), True)
             return
         RUNTIME.vnc_process = proc
         RUNTIME.vnc_description = f"vnc://{_primary_ipv4() if localhost == 'no' else '127.0.0.1'}:{port}"
@@ -1404,7 +1407,7 @@ class ServicesPage(ToolPage):
 
     def open_vnc_firewall(self, _button: Gtk.Button) -> None:
         if not _command_exists("firewall-cmd"):
-            self.message(self.parent, "Firewalld non disponibile", "Installa e avvia firewalld.", True)
+            self.message(self.parent, tr("Firewalld non disponibile"), tr("Installa e avvia firewalld."), True)
             return
         port = int(self.vnc_port.get_value())
 
@@ -1415,21 +1418,21 @@ class ServicesPage(ToolPage):
             ])
             if proc.returncode != 0:
                 raise RuntimeError(_privileged_error(proc))
-            return f"Porta {port}/tcp aperta in firewalld."
+            return tr("Porta {port}/tcp aperta in firewalld.").format(port=port)
 
-        _async(worker, lambda result, error: self.message(self.parent, "Firewall VNC", str(error or result), bool(error)))
+        _async(worker, lambda result, error: self.message(self.parent, tr("Firewall VNC"), str(error or result), bool(error)))
 
 
 class ListeningPortsPage(ToolPage):
     def __init__(self, parent: Gtk.Window) -> None:
-        super().__init__("Porte locali in ascolto", "Visualizza TCP e UDP in ascolto, indirizzi locali e processi associati.", "network-idle-symbolic")
+        super().__init__(tr("Porte locali in ascolto"), tr("Visualizza TCP e UDP in ascolto, indirizzi locali e processi associati."), "network-idle-symbolic")
         self.parent = parent
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Filtra indirizzo, porta o processo…")
+        self.search.set_placeholder_text(tr("Filtra indirizzo, porta o processo…"))
         self.search.set_hexpand(True)
-        refresh = self.button("Aggiorna", "view-refresh-symbolic")
-        copy = self.button("Copia endpoint", "edit-copy-symbolic")
+        refresh = self.button(tr("Aggiorna"), "view-refresh-symbolic")
+        copy = self.button(tr("Copia endpoint"), "edit-copy-symbolic")
         toolbar.pack_start(self.search, True, True, 0)
         toolbar.pack_start(refresh, False, False, 0)
         toolbar.pack_start(copy, False, False, 0)
@@ -1440,7 +1443,7 @@ class ListeningPortsPage(ToolPage):
         self.filter.set_visible_func(self._visible)
         tree = Gtk.TreeView(model=self.filter)
         self.tree = tree
-        for index, title in enumerate(("Protocollo", "Stato", "Indirizzo locale", "Porta", "Processo")):
+        for index, title in enumerate((tr("Protocollo"), tr("Stato"), tr("Indirizzo locale"), tr("Porta"), tr("Processo"))):
             renderer = Gtk.CellRendererText()
             renderer.set_property("ypad", 5)
             column = Gtk.TreeViewColumn(title, renderer, text=index)
@@ -1467,12 +1470,12 @@ class ListeningPortsPage(ToolPage):
         return not query or query in " ".join(str(model[tree_iter][i]) for i in range(5)).casefold()
 
     def refresh(self) -> None:
-        self.status.set_text("Lettura porte…")
+        self.status.set_text(tr("Lettura porte…"))
 
         def worker() -> List[Tuple[str, str, str, str, str]]:
             proc = _run(["ss", "-H", "-lntup"], timeout=10)
             if proc.returncode != 0:
-                raise RuntimeError(proc.stderr.strip() or "ss non disponibile")
+                raise RuntimeError(proc.stderr.strip() or tr("ss non disponibile"))
             rows = []
             for line in proc.stdout.splitlines():
                 parts = line.split(maxsplit=6)
@@ -1487,12 +1490,12 @@ class ListeningPortsPage(ToolPage):
         def done(result: object, error: Optional[BaseException]) -> None:
             self.store.clear()
             if error:
-                self.status.set_text(f"Errore: {error}")
+                self.status.set_text(tr("Errore: {error}").format(error=error))
                 return
             rows = result if isinstance(result, list) else []
             for row in rows:
                 self.store.append(list(row))
-            self.status.set_text(f"{len(rows)} socket in ascolto")
+            self.status.set_text(tr("{n_rows} socket in ascolto").format(n_rows=len(rows)))
 
         _async(worker, done)
 
@@ -1507,7 +1510,7 @@ class WakeOnLanPage(ToolPage):
     MAC_RE = re.compile(r"^[0-9a-fA-F]{2}([:\-]?[0-9a-fA-F]{2}){5}$")
 
     def __init__(self, parent: Gtk.Window) -> None:
-        super().__init__("Wake-on-LAN", "Invia un Magic Packet a un computer della rete locale.", "system-run-symbolic")
+        super().__init__("Wake-on-LAN", tr("Invia un Magic Packet a un computer della rete locale."), "system-run-symbolic")
         self.parent = parent
         card = self.card()
         form = Gtk.Grid(column_spacing=10, row_spacing=8, margin=12)
@@ -1532,11 +1535,11 @@ class WakeOnLanPage(ToolPage):
         self.port.set_value(9)
         self.repeat = Gtk.SpinButton.new_with_range(1, 10, 1)
         self.repeat.set_value(3)
-        for row, (label, widget) in enumerate((("Indirizzo MAC", self.mac), ("Broadcast", self.broadcast), ("Porta UDP", self.port), ("Ripetizioni", self.repeat))):
+        for row, (label, widget) in enumerate(((tr("Indirizzo MAC"), self.mac), (tr("Broadcast"), self.broadcast), (tr("Porta UDP"), self.port), (tr("Ripetizioni"), self.repeat))):
             form.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             form.attach(widget, 1, row, 1, 1)
         self.pack_start(card, False, False, 0)
-        send = self.button("Invia Magic Packet", "network-transmit-symbolic")
+        send = self.button(tr("Invia Magic Packet"), "network-transmit-symbolic")
         send.connect("clicked", self.send)
         self.pack_start(send, False, False, 0)
         self.result = Gtk.Label(label="", xalign=0)
@@ -1546,7 +1549,7 @@ class WakeOnLanPage(ToolPage):
     def send(self, _button: Gtk.Button) -> None:
         mac = re.sub(r"[:-]", "", self.mac.get_text().strip())
         if len(mac) != 12 or not all(ch in "0123456789abcdefABCDEF" for ch in mac):
-            self.message(self.parent, "MAC non valido", "Usa il formato AA:BB:CC:DD:EE:FF.", True)
+            self.message(self.parent, tr("MAC non valido"), tr("Usa il formato AA:BB:CC:DD:EE:FF."), True)
             return
         packet = bytes.fromhex("FF" * 6 + mac * 16)
         destination = (self.broadcast.get_child().get_text().strip() or "255.255.255.255", int(self.port.get_value()))
@@ -1556,14 +1559,14 @@ class WakeOnLanPage(ToolPage):
                 for _ in range(int(self.repeat.get_value())):
                     sock.sendto(packet, destination)
                     time.sleep(0.05)
-            self.result.set_text(f"Magic Packet inviato a {self.mac.get_text().upper()} tramite {destination[0]}:{destination[1]}.")
+            self.result.set_text(tr("Magic Packet inviato a {upper} tramite {v}:{v2}.").format(upper=self.mac.get_text().upper(), v=destination[0], v2=destination[1]))
         except Exception as exc:
-            self.message(self.parent, "Invio Wake-on-LAN non riuscito", str(exc), True)
+            self.message(self.parent, tr("Invio Wake-on-LAN non riuscito"), str(exc), True)
 
 
 class NetworkScannerPage(ToolPage):
     def __init__(self, parent: Gtk.Window, open_port_scan: Callable[[str], None], create_session: Optional[Callable[[str, str], None]]) -> None:
-        super().__init__("Network scanner", "Individua gli host attivi in una subnet senza eseguire una scansione porte completa.", "network-workgroup-symbolic")
+        super().__init__(tr("Network scanner"), tr("Individua gli host attivi in una subnet senza eseguire una scansione porte completa."), "network-workgroup-symbolic")
         self.parent = parent
         self.open_port_scan_callback = open_port_scan
         self.create_session = create_session
@@ -1572,20 +1575,20 @@ class NetworkScannerPage(ToolPage):
         for network in _detected_networks():
             self.target.append_text(network)
         self.target.set_active(0)
-        self.resolve = Gtk.CheckButton(label="Risolvi nomi DNS")
+        self.resolve = Gtk.CheckButton(label=tr("Risolvi nomi DNS"))
         # L'ARP-scan (che riempie MAC e Produttore e trova anche gli host che
         # non rispondono al ping) richiede i privilegi di root: nmap lo fa solo
         # se lanciato via pkexec. Senza, la scansione resta un ping/TCP sweep.
-        self.privileged = Gtk.CheckButton(label="ARP con privilegi (MAC/vendor)")
+        self.privileged = Gtk.CheckButton(label=tr("ARP con privilegi (MAC/vendor)"))
         self.privileged.set_tooltip_text(
-            "Esegue nmap tramite pkexec per l'ARP-scan: mostra indirizzo MAC e "
-            "produttore e rileva host che ignorano il ping. Chiede la password di sistema."
+            tr("Esegue nmap tramite pkexec per l'ARP-scan: mostra indirizzo MAC e "
+            "produttore e rileva host che ignorano il ping. Chiede la password di sistema.")
         )
         if os.geteuid() != 0 and not _command_exists("pkexec"):
             self.privileged.set_sensitive(False)
-            self.privileged.set_tooltip_text("pkexec non disponibile: impossibile elevare i privilegi.")
-        scan = self.button("Scansiona rete", "system-search-symbolic")
-        toolbar.pack_start(Gtk.Label(label="Rete/CIDR"), False, False, 0)
+            self.privileged.set_tooltip_text(tr("pkexec non disponibile: impossibile elevare i privilegi."))
+        scan = self.button(tr("Scansiona rete"), "system-search-symbolic")
+        toolbar.pack_start(Gtk.Label(label=tr("Rete/CIDR")), False, False, 0)
         toolbar.pack_start(self.target, True, True, 0)
         toolbar.pack_start(self.resolve, False, False, 0)
         toolbar.pack_start(self.privileged, False, False, 0)
@@ -1593,7 +1596,7 @@ class NetworkScannerPage(ToolPage):
         self.pack_start(toolbar, False, False, 0)
         self.store = Gtk.ListStore(str, str, str, str)
         self.tree = Gtk.TreeView(model=self.store)
-        for index, title in enumerate(("IP", "Nome host", "MAC", "Produttore")):
+        for index, title in enumerate(("IP", tr("Nome host"), "MAC", tr("Produttore"))):
             renderer = Gtk.CellRendererText()
             renderer.set_property("ypad", 5)
             column = Gtk.TreeViewColumn(title, renderer, text=index)
@@ -1607,9 +1610,9 @@ class NetworkScannerPage(ToolPage):
         card.add(scroll)
         self.pack_start(card, True, True, 0)
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
-        port_scan = self.button("Scansiona porte host", "network-transmit-receive-symbolic")
-        new_ssh = self.button("Crea SSH", "network-server-symbolic")
-        new_rdp = self.button("Crea RDP", "video-display-symbolic")
+        port_scan = self.button(tr("Scansiona porte host"), "network-transmit-receive-symbolic")
+        new_ssh = self.button(tr("Crea SSH"), "network-server-symbolic")
+        new_rdp = self.button(tr("Crea RDP"), "video-display-symbolic")
         actions.pack_start(port_scan, False, False, 0)
         actions.pack_start(new_ssh, False, False, 0)
         actions.pack_start(new_rdp, False, False, 0)
@@ -1627,16 +1630,16 @@ class NetworkScannerPage(ToolPage):
 
     def scan(self, _button: Gtk.Button) -> None:
         if not _command_exists("nmap"):
-            self.message(self.parent, "Nmap non installato", "Installa il pacchetto nmap.", True)
+            self.message(self.parent, tr("Nmap non installato"), tr("Installa il pacchetto nmap."), True)
             return
         target = self._target_text()
         try:
             ipaddress.ip_network(target, strict=False)
         except ValueError:
-            self.message(self.parent, "Rete non valida", "Inserisci una subnet CIDR, per esempio 192.168.1.0/24.", True)
+            self.message(self.parent, tr("Rete non valida"), tr("Inserisci una subnet CIDR, per esempio 192.168.1.0/24."), True)
             return
         privileged = self.privileged.get_active() and os.geteuid() != 0
-        self.status.set_text("Scansione in corso…")
+        self.status.set_text(tr("Scansione in corso…"))
         self.store.clear()
 
         def worker() -> Tuple[List[Tuple[str, str, str, str]], str]:
@@ -1650,9 +1653,9 @@ class NetworkScannerPage(ToolPage):
             proc = _run(command, timeout=420)
             # pkexec: 126 = autorizzazione negata dall'utente, 127 = errore auth.
             if privileged and proc.returncode in (126, 127):
-                raise RuntimeError("Autorizzazione negata: scansione ARP non eseguita.")
+                raise RuntimeError(tr("Autorizzazione negata: scansione ARP non eseguita."))
             if proc.returncode not in (0, 1) or not proc.stdout.strip():
-                detail = proc.stderr.strip() or "Nmap non ha prodotto risultati"
+                detail = proc.stderr.strip() or tr("Nmap non ha prodotto risultati")
                 raise RuntimeError(detail)
             root = ET.fromstring(proc.stdout)
             rows = []
@@ -1674,22 +1677,22 @@ class NetworkScannerPage(ToolPage):
             # mancanti (fuori dalla LAN il MAC non è comunque disponibile).
             hint = ""
             if rows and not saw_mac and not privileged:
-                hint = "  (attiva 'ARP con privilegi' per MAC e produttore)"
+                hint = tr("  (attiva 'ARP con privilegi' per MAC e produttore)")
             return rows, hint
 
         def done(result: object, error: Optional[BaseException]) -> None:
             if error:
-                self.status.set_text(f"Errore: {error}")
+                self.status.set_text(tr("Errore: {error}").format(error=error))
                 return
             rows, hint = result if isinstance(result, tuple) else ([], "")
             for row in rows:
                 self.store.append(list(row))
             if not rows:
                 self.status.set_text(
-                    "Nessun host attivo. Verifica la subnet, oppure attiva l'ARP privilegiato."
+                    tr("Nessun host attivo. Verifica la subnet, oppure attiva l'ARP privilegiato.")
                 )
             else:
-                self.status.set_text(f"{len(rows)} host attivi{hint}")
+                self.status.set_text(tr("{n_rows} host attivi{hint}").format(n_rows=len(rows), hint=hint))
 
         _async(worker, done)
 
@@ -1724,32 +1727,32 @@ def session_protocol_for_service(port: str, service: str) -> str:
 
 class PortScannerPage(ToolPage):
     def __init__(self, parent: Gtk.Window, create_session: Optional[Callable[[str, str], None]]) -> None:
-        super().__init__("Port scanner", "Analizza le porte TCP di un host e identifica i servizi disponibili.", "network-transmit-receive-symbolic")
+        super().__init__(tr("Port scanner"), tr("Analizza le porte TCP di un host e identifica i servizi disponibili."), "network-transmit-receive-symbolic")
         self.parent = parent
         self.create_session = create_session
         form = Gtk.Grid(column_spacing=8, row_spacing=7)
         self.target = Gtk.Entry()
-        self.target.set_placeholder_text("IP o nome host")
+        self.target.set_placeholder_text(tr("IP o nome host"))
         self.profile = Gtk.ComboBoxText()
-        for key, title in (("common", "Porte comuni"), ("top100", "Top 100"), ("custom", "Intervallo personalizzato"), ("full", "Tutte le porte TCP")):
+        for key, title in (("common", tr("Porte comuni")), ("top100", tr("Top 100")), ("custom", tr("Intervallo personalizzato")), ("full", tr("Tutte le porte TCP"))):
             self.profile.append(key, title)
         self.profile.set_active_id("common")
         self.ports = Gtk.Entry(text="22,53,80,110,143,443,445,3389,5900,8080,8443")
-        self.services = Gtk.CheckButton(label="Rileva servizi e versioni")
-        self.skip_ping = Gtk.CheckButton(label="Considera host attivo (-Pn)")
-        for row, (label, widget) in enumerate((("Destinazione", self.target), ("Profilo", self.profile), ("Porte", self.ports))):
+        self.services = Gtk.CheckButton(label=tr("Rileva servizi e versioni"))
+        self.skip_ping = Gtk.CheckButton(label=tr("Considera host attivo (-Pn)"))
+        for row, (label, widget) in enumerate(((tr("Destinazione"), self.target), (tr("Profilo"), self.profile), (tr("Porte"), self.ports))):
             form.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             form.attach(widget, 1, row, 1, 1)
         form.attach(self.services, 1, 3, 1, 1)
         form.attach(self.skip_ping, 1, 4, 1, 1)
-        scan = self.button("Avvia scansione", "system-search-symbolic")
+        scan = self.button(tr("Avvia scansione"), "system-search-symbolic")
         form.attach(scan, 1, 5, 1, 1)
         card = self.card()
         card.add(form)
         self.pack_start(card, False, False, 0)
         self.store = Gtk.ListStore(str, str, str, str, str)
         self.tree = Gtk.TreeView(model=self.store)
-        for index, title in enumerate(("Porta", "Protocollo", "Stato", "Servizio", "Versione")):
+        for index, title in enumerate((tr("Porta"), tr("Protocollo"), tr("Stato"), tr("Servizio"), tr("Versione"))):
             renderer = Gtk.CellRendererText()
             renderer.set_property("ypad", 5)
             column = Gtk.TreeViewColumn(title, renderer, text=index)
@@ -1763,8 +1766,8 @@ class PortScannerPage(ToolPage):
         result_card.add(scroll)
         self.pack_start(result_card, True, True, 0)
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
-        create = self.button("Crea sessione dal servizio", "list-add-symbolic")
-        copy = self.button("Copia risultato", "edit-copy-symbolic")
+        create = self.button(tr("Crea sessione dal servizio"), "list-add-symbolic")
+        copy = self.button(tr("Copia risultato"), "edit-copy-symbolic")
         self.status = Gtk.Label(label="", xalign=0)
         actions.pack_start(create, False, False, 0)
         actions.pack_start(copy, False, False, 0)
@@ -1786,19 +1789,19 @@ class PortScannerPage(ToolPage):
 
     def scan(self, _button: Gtk.Button) -> None:
         if not _command_exists("nmap"):
-            self.message(self.parent, "Nmap non installato", "Installa il pacchetto nmap.", True)
+            self.message(self.parent, tr("Nmap non installato"), tr("Installa il pacchetto nmap."), True)
             return
         target = self.target.get_text().strip()
         # Una destinazione che comincia con "-" verrebbe letta da nmap come opzione (-oN file...).
         if not target or any(ch.isspace() for ch in target) or target.startswith("-"):
-            self.message(self.parent, "Destinazione non valida", "Inserisci un singolo IP o nome host.", True)
+            self.message(self.parent, tr("Destinazione non valida"), tr("Inserisci un singolo IP o nome host."), True)
             return
         profile = self.profile.get_active_id() or "common"
         command = ["nmap", "-sT", "--open", "-T4", "-oX", "-"]
         if profile in ("common", "custom"):
             ports = self.ports.get_text().strip()
             if not ports or not re.fullmatch(r"[0-9,\-]+", ports):
-                self.message(self.parent, "Porte non valide", "Usa numeri, virgole e intervalli, per esempio 22,80,443,8000-8100.", True)
+                self.message(self.parent, tr("Porte non valide"), tr("Usa numeri, virgole e intervalli, per esempio 22,80,443,8000-8100."), True)
                 return
             command += ["-p", ports]
         elif profile == "top100":
@@ -1810,7 +1813,7 @@ class PortScannerPage(ToolPage):
         if self.skip_ping.get_active():
             command.append("-Pn")
         command.append(target)
-        self.status.set_text("Scansione in corso…")
+        self.status.set_text(tr("Scansione in corso…"))
         self.store.clear()
 
         skip_ping = self.skip_ping.get_active()
@@ -1834,7 +1837,7 @@ class PortScannerPage(ToolPage):
         def worker() -> Tuple[List[Tuple[str, str, str, str, str]], str]:
             proc = _run(command, timeout=1800)
             if not proc.stdout.strip():
-                raise RuntimeError(proc.stderr.strip() or "Nessun risultato Nmap")
+                raise RuntimeError(proc.stderr.strip() or tr("Nessun risultato Nmap"))
             rows, host_up = _parse(proc.stdout)
             note = ""
             # Host che ignora il ping: nmap lo marca 'down' e non scansiona.
@@ -1846,23 +1849,23 @@ class PortScannerPage(ToolPage):
                 if proc2.stdout.strip():
                     rows, host_up = _parse(proc2.stdout)
                     if rows:
-                        note = "  (host non risponde al ping: usato -Pn)"
+                        note = tr("  (host non risponde al ping: usato -Pn)")
             return rows, note
 
         def done(result: object, error: Optional[BaseException]) -> None:
             if error:
-                self.status.set_text(f"Errore: {error}")
+                self.status.set_text(tr("Errore: {error}").format(error=error))
                 return
             rows, note = result if isinstance(result, tuple) else ([], "")
             for row in rows:
                 self.store.append(list(row))
             if not rows:
                 self.status.set_text(
-                    "Nessuna porta aperta trovata. Prova 'Considera host attivo (-Pn)' "
-                    "o un profilo di porte più ampio."
+                    tr("Nessuna porta aperta trovata. Prova 'Considera host attivo (-Pn)' "
+                    "o un profilo di porte più ampio.")
                 )
             else:
-                self.status.set_text(f"{len(rows)} porte aperte{note}")
+                self.status.set_text(tr("{n_rows} porte aperte{note}").format(n_rows=len(rows), note=note))
 
         _async(worker, done)
 
@@ -1876,9 +1879,8 @@ class PortScannerPage(ToolPage):
             # Prima ogni servizio sconosciuto (HTTP, SMB, database...) diventava una sessione SSH.
             self.message(
                 self.parent,
-                "Nessun tipo di sessione per questo servizio",
-                f"FedTermHub apre sessioni SSH, RDP, VNC e Telnet: la porta {port} "
-                f"({model[tree_iter][3] or 'servizio sconosciuto'}) non corrisponde a nessuna.",
+                tr("Nessun tipo di sessione per questo servizio"),
+                tr("FedTermHub apre sessioni SSH, RDP, VNC e Telnet: la porta {port} ({v}) non corrisponde a nessuna.").format(port=port, v=model[tree_iter][3] or tr('servizio sconosciuto')),
                 True,
             )
             return
@@ -1892,7 +1894,7 @@ class PortScannerPage(ToolPage):
 
 class PacketCapturePage(ToolPage):
     def __init__(self, parent: Gtk.Window) -> None:
-        super().__init__("Cattura pacchetti", "Registra traffico in formato PCAP tramite tcpdump. L'avvio richiede autorizzazione amministrativa.", "network-receive-symbolic")
+        super().__init__(tr("Cattura pacchetti"), tr("Registra traffico in formato PCAP tramite tcpdump. L'avvio richiede autorizzazione amministrativa."), "network-receive-symbolic")
         self.parent = parent
         form = Gtk.Grid(column_spacing=8, row_spacing=7)
         self.interface = Gtk.ComboBoxText()
@@ -1900,7 +1902,7 @@ class PacketCapturePage(ToolPage):
             self.interface.append(iface, iface)
         self.interface.set_active_id("any" if "any" in _interfaces() else (_interfaces()[0] if _interfaces() else ""))
         self.filter_entry = Gtk.Entry()
-        self.filter_entry.set_placeholder_text("Filtro BPF opzionale, es. host 192.168.1.10 and port 443")
+        self.filter_entry.set_placeholder_text(tr("Filtro BPF opzionale, es. host 192.168.1.10 and port 443"))
         self.count = Gtk.SpinButton.new_with_range(0, 10000000, 100)
         self.count.set_value(1000)
         self.duration = Gtk.SpinButton.new_with_range(0, 86400, 10)
@@ -1909,25 +1911,25 @@ class PacketCapturePage(ToolPage):
         self._set_default_output()
         output_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         output_box.pack_start(self.output, True, True, 0)
-        browse_output = self.button("Sfoglia", "document-save-symbolic")
+        browse_output = self.button(tr("Sfoglia"), "document-save-symbolic")
         browse_output.connect("clicked", self.choose_output)
         output_box.pack_start(browse_output, False, False, 0)
-        for row, (label, widget) in enumerate((("Interfaccia", self.interface), ("Filtro", self.filter_entry), ("Numero pacchetti (0 = illimitato)", self.count), ("Durata secondi (0 = illimitata)", self.duration), ("File di output", output_box))):
+        for row, (label, widget) in enumerate(((tr("Interfaccia"), self.interface), (tr("Filtro"), self.filter_entry), (tr("Numero pacchetti (0 = illimitato)"), self.count), (tr("Durata secondi (0 = illimitata)"), self.duration), (tr("File di output"), output_box))):
             form.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
             form.attach(widget, 1, row, 1, 1)
         card = self.card()
         card.add(form)
         self.pack_start(card, False, False, 0)
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=7)
-        self.start_button = self.button("Avvia cattura", "media-record-symbolic")
-        self.stop_button = self.button("Ferma", "media-playback-stop-symbolic")
-        open_folder = self.button("Apri cartella", "folder-open-symbolic")
-        open_wireshark = self.button("Apri in Wireshark", "document-open-symbolic")
+        self.start_button = self.button(tr("Avvia cattura"), "media-record-symbolic")
+        self.stop_button = self.button(tr("Ferma"), "media-playback-stop-symbolic")
+        open_folder = self.button(tr("Apri cartella"), "folder-open-symbolic")
+        open_wireshark = self.button(tr("Apri in Wireshark"), "document-open-symbolic")
         actions.pack_start(self.start_button, False, False, 0)
         actions.pack_start(self.stop_button, False, False, 0)
         actions.pack_start(open_folder, False, False, 0)
         actions.pack_start(open_wireshark, False, False, 0)
-        self.status = Gtk.Label(label="Fermo", xalign=0)
+        self.status = Gtk.Label(label=tr("Fermo"), xalign=0)
         actions.pack_start(self.status, True, True, 8)
         self.pack_start(actions, False, False, 0)
         self.log_buffer = Gtk.TextBuffer()
@@ -1970,8 +1972,8 @@ class PacketCapturePage(ToolPage):
         return False
 
     def choose_output(self, _button: Gtk.Button) -> None:
-        chooser = Gtk.FileChooserDialog(title="Salva cattura PCAP", transient_for=self.parent, action=Gtk.FileChooserAction.SAVE)
-        chooser.add_buttons("Annulla", Gtk.ResponseType.CANCEL, "Seleziona", Gtk.ResponseType.OK)
+        chooser = Gtk.FileChooserDialog(title=tr("Salva cattura PCAP"), transient_for=self.parent, action=Gtk.FileChooserAction.SAVE)
+        chooser.add_buttons(tr("Annulla"), Gtk.ResponseType.CANCEL, tr("Seleziona"), Gtk.ResponseType.OK)
         chooser.set_do_overwrite_confirmation(True)
         chooser.set_current_folder(str(CAPTURE_DIR))
         chooser.set_current_name(Path(self.output.get_text() or "capture.pcap").name)
@@ -1991,20 +1993,20 @@ class PacketCapturePage(ToolPage):
         self.start_button.set_sensitive(not active)
         self.stop_button.set_sensitive(active)
         if active:
-            self.status.set_text(f"Cattura attiva — {RUNTIME.capture_file}")
+            self.status.set_text(tr("Cattura attiva — {capture_file}").format(capture_file=RUNTIME.capture_file))
         elif RUNTIME.capture_file and RUNTIME.capture_file.exists():
-            self.status.set_text(f"Completata — {RUNTIME.capture_file.name} ({RUNTIME.capture_file.stat().st_size} byte)")
+            self.status.set_text(tr("Completata — {name} ({st_size} byte)").format(name=RUNTIME.capture_file.name, st_size=RUNTIME.capture_file.stat().st_size))
         else:
-            self.status.set_text("Fermo")
+            self.status.set_text(tr("Fermo"))
         return True
 
     def start_capture(self, _button: Gtk.Button) -> None:
         tcpdump = shutil.which("tcpdump")
         if not tcpdump:
-            self.message(self.parent, "tcpdump non installato", "Installa il pacchetto tcpdump.", True)
+            self.message(self.parent, tr("tcpdump non installato"), tr("Installa il pacchetto tcpdump."), True)
             return
         if RUNTIME.capture_process and RUNTIME.capture_process.poll() is None:
-            self.message(self.parent, "Cattura già attiva", "Ferma prima la cattura corrente.", True)
+            self.message(self.parent, tr("Cattura già attiva"), tr("Ferma prima la cattura corrente."), True)
             return
         interface = self.interface.get_active_id() or "any"
         output = Path(self.output.get_text().strip() or (CAPTURE_DIR / f"capture-{datetime.now():%Y%m%d-%H%M%S}.pcap"))
@@ -2019,17 +2021,17 @@ class PacketCapturePage(ToolPage):
             try:
                 args += shlex.split(filter_text)
             except ValueError as exc:
-                self.message(self.parent, "Filtro non valido", str(exc), True)
+                self.message(self.parent, tr("Filtro non valido"), str(exc), True)
                 return
         pidfile = CACHE_DIR / f"tcpdump-{uuid.uuid4().hex}.pid"
         quoted = " ".join(shlex.quote(item) for item in args)
-        script = f"umask 077; echo $$ > {shlex.quote(str(pidfile))}; exec {quoted}"
+        script = tr("umask 077; echo $$ > {quote}; exec {quoted}").format(quote=shlex.quote(str(pidfile)), quoted=quoted)
         command = _privileged_command(["sh", "-c", script])
-        self.append_log("Comando: " + " ".join(shlex.quote(item) for item in command[:-1]) + " <script protetto>")
+        self.append_log(tr("Comando: ") + " ".join(shlex.quote(item) for item in command[:-1]) + tr(" <script protetto>"))
         try:
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
         except Exception as exc:
-            self.message(self.parent, "Cattura non avviata", str(exc), True)
+            self.message(self.parent, tr("Cattura non avviata"), str(exc), True)
             return
         RUNTIME.capture_process = proc
         RUNTIME.capture_pidfile = pidfile
@@ -2056,7 +2058,7 @@ class PacketCapturePage(ToolPage):
                         RUNTIME.capture_pidfile.unlink(missing_ok=True)
                     except Exception:
                         pass
-            GLib.idle_add(self.append_log, f"Cattura terminata con codice {proc.returncode}.")
+            GLib.idle_add(self.append_log, tr("Cattura terminata con codice {returncode}.").format(returncode=proc.returncode))
             # _refresh_state restituisce True perche' fa da timer: passata cosi' a idle_add veniva
             # richiamata all'infinito e dopo ogni cattura il programma restava al 100% di CPU.
             GLib.idle_add(lambda: (self._refresh_state(), False)[1])
@@ -2078,14 +2080,14 @@ class PacketCapturePage(ToolPage):
         self._refresh_state()
 
     def stop_capture(self, _button: Gtk.Button) -> None:
-        self.append_log("Richiesta arresto cattura…")
+        self.append_log(tr("Richiesta arresto cattura…"))
         RUNTIME.stop_capture()
         self._refresh_state()
 
     def open_wireshark(self, _button: Gtk.Button) -> None:
         file = RUNTIME.capture_file
         if not file or not file.exists():
-            self.message(self.parent, "Nessuna cattura", "Esegui prima una cattura pacchetti.", True)
+            self.message(self.parent, tr("Nessuna cattura"), tr("Esegui prima una cattura pacchetti."), True)
             return
         wireshark = shutil.which("wireshark")
         if wireshark:
@@ -2096,20 +2098,20 @@ class PacketCapturePage(ToolPage):
 
 class NetworkToolsDialog(Gtk.Dialog):
     PAGE_NAMES = {
-        "services": "Server locali",
-        "listeners": "Porte in ascolto",
+        "services": tr("Server locali"),
+        "listeners": tr("Porte in ascolto"),
         "wol": "Wake-on-LAN",
-        "network-scan": "Network scanner",
-        "port-scan": "Port scanner",
-        "capture": "Cattura pacchetti",
+        "network-scan": tr("Network scanner"),
+        "port-scan": tr("Port scanner"),
+        "capture": tr("Cattura pacchetti"),
     }
     PAGE_DETAILS = {
-        "services": ("network-server-symbolic", "Servizi e cartelle condivise"),
-        "listeners": ("network-idle-symbolic", "Socket TCP/UDP locali"),
-        "wol": ("system-run-symbolic", "Accendi dispositivi in LAN"),
-        "network-scan": ("network-workgroup-symbolic", "Trova host nella subnet"),
-        "port-scan": ("network-transmit-receive-symbolic", "Analizza porte e servizi"),
-        "capture": ("media-record-symbolic", "Registra traffico in PCAP"),
+        "services": ("network-server-symbolic", tr("Servizi e cartelle condivise")),
+        "listeners": ("network-idle-symbolic", tr("Socket TCP/UDP locali")),
+        "wol": ("system-run-symbolic", tr("Accendi dispositivi in LAN")),
+        "network-scan": ("network-workgroup-symbolic", tr("Trova host nella subnet")),
+        "port-scan": ("network-transmit-receive-symbolic", tr("Analizza porte e servizi")),
+        "capture": ("media-record-symbolic", tr("Registra traffico in PCAP")),
     }
 
     def __init__(
@@ -2118,12 +2120,12 @@ class NetworkToolsDialog(Gtk.Dialog):
         start_page: str = "services",
         create_session: Optional[Callable[[str, str], None]] = None,
     ) -> None:
-        super().__init__(title="Strumenti di rete", transient_for=parent, modal=False)
+        super().__init__(title=tr("Strumenti di rete"), transient_for=parent, modal=False)
         self.set_default_size(1180, 770)
         self.set_size_request(900, 610)
         self.set_resizable(True)
         self.get_style_context().add_class("network-tools-dialog")
-        self.add_button("Chiudi", Gtk.ResponseType.CLOSE)
+        self.add_button(tr("Chiudi"), Gtk.ResponseType.CLOSE)
         self.connect("response", lambda dialog, _response: dialog.destroy())
         self.connect("delete-event", lambda dialog, _event: (dialog.destroy(), True)[1])
 
@@ -2139,9 +2141,9 @@ class NetworkToolsDialog(Gtk.Dialog):
         image.set_pixel_size(38)
         header.pack_start(image, False, False, 0)
         text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        heading = Gtk.Label(label="Centro strumenti di rete", xalign=0)
+        heading = Gtk.Label(label=tr("Centro strumenti di rete"), xalign=0)
         heading.get_style_context().add_class("dialog-heading")
-        subtitle = Gtk.Label(label="Servizi, scansione, diagnostica e cattura organizzati per attività.", xalign=0)
+        subtitle = Gtk.Label(label=tr("Servizi, scansione, diagnostica e cattura organizzati per attività."), xalign=0)
         subtitle.get_style_context().add_class("muted")
         text_box.pack_start(heading, False, False, 0)
         text_box.pack_start(subtitle, False, False, 0)
@@ -2156,14 +2158,14 @@ class NetworkToolsDialog(Gtk.Dialog):
         sidebar_frame.get_style_context().add_class("network-tools-sidebar-frame")
         sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7, margin=8)
         sidebar_frame.add(sidebar_box)
-        label = Gtk.Label(label="STRUMENTI", xalign=0)
+        label = Gtk.Label(label=tr("STRUMENTI"), xalign=0)
         label.get_style_context().add_class("network-sidebar-heading")
         sidebar_box.pack_start(label, False, False, 2)
         self.sidebar_list = Gtk.ListBox()
         self.sidebar_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.sidebar_list.get_style_context().add_class("network-tools-sidebar")
         sidebar_box.pack_start(self.sidebar_list, False, False, 0)
-        tip = Gtk.Label(label="Le operazioni privilegiate richiedono conferma Polkit.", xalign=0)
+        tip = Gtk.Label(label=tr("Le operazioni privilegiate richiedono conferma Polkit."), xalign=0)
         tip.set_line_wrap(True)
         tip.get_style_context().add_class("muted")
         sidebar_box.pack_end(tip, False, False, 4)
@@ -2233,4 +2235,4 @@ class NetworkToolsDialog(Gtk.Dialog):
             self.sidebar_list.select_row(row)
 
 
-__all__ = ["NetworkToolsDialog", "RUNTIME"]
+__all__ = [tr("NetworkToolsDialog"), "RUNTIME"]

@@ -44,6 +44,10 @@ import sys
 import traceback
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
+try:
+    from .i18n import tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr, trn
 from urllib.parse import unquote, urlparse
 
 import gi
@@ -209,14 +213,14 @@ class TerminalPane(Gtk.Box):
         search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         search_box.get_style_context().add_class("terminal-search-bar")
         self.search_entry = Gtk.SearchEntry()
-        self.search_entry.set_placeholder_text("Cerca nello scrollback…")
+        self.search_entry.set_placeholder_text(tr("Cerca nello scrollback…"))
         self.search_entry.set_hexpand(True)
         prev_button = Gtk.Button.new_from_icon_name("go-up-symbolic", Gtk.IconSize.BUTTON)
-        prev_button.set_tooltip_text("Risultato precedente (Shift+Invio)")
+        prev_button.set_tooltip_text(tr("Risultato precedente (Shift+Invio)"))
         next_button = Gtk.Button.new_from_icon_name("go-down-symbolic", Gtk.IconSize.BUTTON)
-        next_button.set_tooltip_text("Risultato successivo (Invio)")
+        next_button.set_tooltip_text(tr("Risultato successivo (Invio)"))
         close_button = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.BUTTON)
-        close_button.set_tooltip_text("Chiudi ricerca (Esc)")
+        close_button.set_tooltip_text(tr("Chiudi ricerca (Esc)"))
         search_box.pack_start(self.search_entry, True, True, 4)
         search_box.pack_start(prev_button, False, False, 0)
         search_box.pack_start(next_button, False, False, 0)
@@ -332,7 +336,7 @@ class TerminalPane(Gtk.Box):
     def _spawn_done(self, _terminal, _pid, error, _data=None) -> None:  # noqa: ANN001
         if error:
             self.connected = False
-            self.terminal.feed(f"\r\nErrore avvio processo: {error}\r\n".encode("utf-8"))
+            self.terminal.feed(("\r\n" + tr("Errore avvio processo: {error}").format(error=error) + "\r\n").encode("utf-8"))
         else:
             self.connected = True
             # Il figlio e' partito dal costruttore, prima che il widget avesse
@@ -371,7 +375,7 @@ class TerminalPane(Gtk.Box):
             # Ligature: VTE le disegna se il font le fornisce (Fira Code,
             # JetBrains Mono, Cascadia Code…). Non serve alcuna API: basta
             # scegliere un font che le contenga nelle impostazioni.
-            font = Pango.FontDescription(family) if family else Pango.FontDescription("Monospace 11")
+            font = Pango.FontDescription(family) if family else Pango.FontDescription(tr("Monospace 11"))
             if self._font_scale != 1.0:
                 size = font.get_size() or int(11 * Pango.SCALE)
                 font.set_size(max(int(6 * Pango.SCALE), int(size * self._font_scale)))
@@ -437,7 +441,7 @@ class TerminalPane(Gtk.Box):
 
     @staticmethod
     def _log_clipboard_error(action: str, exc: BaseException) -> None:
-        print(f"[FedTermHub] Clipboard: {action} fallita: {exc!r}", file=sys.stderr)
+        print(tr("[FedTermHub] Clipboard: {action} fallita: {exc!r}").format(action=action, exc=exc), file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
 
     def _copy(self) -> None:
@@ -447,7 +451,7 @@ class TerminalPane(Gtk.Box):
         except Exception:
             pass
         if not has_selection:
-            print("[FedTermHub] Clipboard: copia richiesta senza selezione attiva.", file=sys.stderr)
+            print(tr("[FedTermHub] Clipboard: copia richiesta senza selezione attiva."), file=sys.stderr)
         try:
             self.terminal.copy_clipboard_format(Vte.Format.TEXT)
             return
@@ -456,7 +460,7 @@ class TerminalPane(Gtk.Box):
         try:
             self.terminal.copy_clipboard()
         except Exception as exc:
-            self._log_clipboard_error("copy_clipboard (fallback)", exc)
+            self._log_clipboard_error(tr("copy_clipboard (fallback)"), exc)
 
     def _paste(self) -> None:
         try:
@@ -471,13 +475,13 @@ class TerminalPane(Gtk.Box):
                         try:
                             self.terminal.feed_child(text.encode("utf-8"))
                         except Exception as feed_exc:
-                            self._log_clipboard_error("feed_child fallback", feed_exc)
+                            self._log_clipboard_error(tr("feed_child fallback"), feed_exc)
                     else:
-                        print("[FedTermHub] Clipboard: nessun testo disponibile negli appunti.", file=sys.stderr)
+                        print(tr("[FedTermHub] Clipboard: nessun testo disponibile negli appunti."), file=sys.stderr)
 
                 clipboard.request_text(_received, None)
             except Exception as fallback_exc:
-                self._log_clipboard_error("paste fallback via Gtk.Clipboard", fallback_exc)
+                self._log_clipboard_error(tr("paste fallback via Gtk.Clipboard"), fallback_exc)
 
     def zoom(self, direction: int) -> None:
         if direction == 0:
@@ -609,18 +613,7 @@ class TerminalPane(Gtk.Box):
         except Exception:
             rows = columns = -1
         script = (
-            "clear; "
-            f"printf '=== FedTermHub: diagnostica terminale ===\\n'; "
-            f"printf 'griglia VTE   : %s righe, %s colonne\\n' {rows} {columns}; "
-            "printf 'PTY (stty)    : %s\\n' \"$(stty size 2>/dev/null || echo n/d)\"; "
-            "printf 'ncurses (tput): %s righe, %s colonne\\n' "
-            "\"$(tput lines 2>/dev/null)\" \"$(tput cols 2>/dev/null)\"; "
-            "printf 'TERM          : %s (%s colori)\\n' \"$TERM\" \"$(tput colors 2>/dev/null)\"; "
-            "printf 'LINES/COLUMNS : [%s] [%s]  (devono essere vuote)\\n' \"$LINES\" \"$COLUMNS\"; "
-            "printf 'schermo alt.  : %s\\n' "
-            "\"$(infocmp -1 \\\"$TERM\\\" 2>/dev/null | grep -c smcup)\"; "
-            "printf 'nano          : %s\\n' \"$(nano --version 2>/dev/null | head -1)\"; "
-            "printf 'Le tre geometrie devono coincidere.\\n'\n"
+            tr("clear; printf '=== FedTermHub: diagnostica terminale ===\\n'; printf 'griglia VTE   : %s righe, %s colonne\\n' {rows} {columns}; printf 'PTY (stty)    : %s\\n' \"$(stty size 2>/dev/null || echo n/d)\"; printf 'ncurses (tput): %s righe, %s colonne\\n' \"$(tput lines 2>/dev/null)\" \"$(tput cols 2>/dev/null)\"; printf 'TERM          : %s (%s colori)\\n' \"$TERM\" \"$(tput colors 2>/dev/null)\"; printf 'LINES/COLUMNS : [%s] [%s]  (devono essere vuote)\\n' \"$LINES\" \"$COLUMNS\"; printf 'schermo alt.  : %s\\n' \"$(infocmp -1 \\\"$TERM\\\" 2>/dev/null | grep -c smcup)\"; printf 'nano          : %s\\n' \"$(nano --version 2>/dev/null | head -1)\"; printf 'Le tre geometrie devono coincidere.\\n'\n").format(rows=rows, columns=columns)
         )
         try:
             self.terminal.feed_child(script.encode("utf-8"))
@@ -858,27 +851,27 @@ class TerminalPane(Gtk.Box):
         uri = self._match_uri(event)
         menu = Gtk.Menu()
         entries = [
-            ("Copia", self._copy, self.terminal.get_has_selection()),
-            ("Incolla", self._paste, True),
-            ("Seleziona tutto", self.terminal.select_all, True),
+            (tr("Copia"), self._copy, self.terminal.get_has_selection()),
+            (tr("Incolla"), self._paste, True),
+            (tr("Seleziona tutto"), self.terminal.select_all, True),
         ]
         if uri:
-            entries.append((f"Apri link: {uri[:48]}", lambda u=uri: self._open_uri(u), True))
+            entries.append((tr("Apri link: {v}").format(v=uri[:48]), lambda u=uri: self._open_uri(u), True))
         entries += [
-            ("Riconnetti", lambda: self._request("reconnect"), True),
-            ("Cerca nello scrollback (Ctrl+Shift+F)", self.show_search, True),
-            ("Apri URL da tastiera — hints (Ctrl+Shift+H)", lambda: self._request("hints"), True),
-            ("Dividi in verticale (Ctrl+Shift+O)", lambda: self._request("split_v"), True),
-            ("Dividi in orizzontale (Ctrl+Shift+E)", lambda: self._request("split_h"), True),
-            ("Cambia layout (Ctrl+Shift+L)", lambda: self._request("cycle_layout"), True),
-            ("Broadcast input on/off (Ctrl+Shift+P)", lambda: self._request("toggle_broadcast"), True),
-            ("Chiudi riquadro (Ctrl+Shift+W)", lambda: self._request("close_pane"), True),
-            ("Aumenta testo", lambda: self.zoom(1), True),
-            ("Riduci testo", lambda: self.zoom(-1), True),
-            ("Testo predefinito", lambda: self.zoom(0), True),
-            ("Pulisci schermata", lambda: self.terminal.feed_child(b"clear\n"), True),
-            ("Diagnostica terminale", self.show_diagnostics, True),
-            ("Schermo intero (F11)", lambda: self._request("fullscreen"), True),
+            (tr("Riconnetti"), lambda: self._request("reconnect"), True),
+            (tr("Cerca nello scrollback (Ctrl+Shift+F)"), self.show_search, True),
+            (tr("Apri URL da tastiera — hints (Ctrl+Shift+H)"), lambda: self._request("hints"), True),
+            (tr("Dividi in verticale (Ctrl+Shift+O)"), lambda: self._request("split_v"), True),
+            (tr("Dividi in orizzontale (Ctrl+Shift+E)"), lambda: self._request("split_h"), True),
+            (tr("Cambia layout (Ctrl+Shift+L)"), lambda: self._request("cycle_layout"), True),
+            (tr("Broadcast input on/off (Ctrl+Shift+P)"), lambda: self._request("toggle_broadcast"), True),
+            (tr("Chiudi riquadro (Ctrl+Shift+W)"), lambda: self._request("close_pane"), True),
+            (tr("Aumenta testo"), lambda: self.zoom(1), True),
+            (tr("Riduci testo"), lambda: self.zoom(-1), True),
+            (tr("Testo predefinito"), lambda: self.zoom(0), True),
+            (tr("Pulisci schermata"), lambda: self.terminal.feed_child(b"clear\n"), True),
+            (tr("Diagnostica terminale"), self.show_diagnostics, True),
+            (tr("Schermo intero (F11)"), lambda: self._request("fullscreen"), True),
         ]
         for label, callback, sensitive in entries:
             item = Gtk.MenuItem(label=label)
@@ -1177,7 +1170,7 @@ class TerminalWorkspace(Gtk.Box):
         idx = LAYOUTS.index(self.layout) if self.layout in LAYOUTS else 0
         self.layout = LAYOUTS[(idx + 1) % len(LAYOUTS)]
         self._relayout()
-        self._toast_show(f"Layout: {self.layout}")
+        self._toast_show(tr("Layout: {layout}").format(layout=self.layout))
         if self.active_pane is not None:
             GLib.idle_add(lambda: (self.active_pane.focus(), False)[1])
 
@@ -1321,7 +1314,7 @@ class TerminalWorkspace(Gtk.Box):
     # ------------------------------------------------------- broadcast input
     def toggle_broadcast(self) -> None:
         self.broadcast = not self.broadcast
-        self._toast_show("Broadcast attivo: l'input va a tutti i riquadri" if self.broadcast else "Broadcast disattivato")
+        self._toast_show(tr("Broadcast attivo: l'input va a tutti i riquadri") if self.broadcast else tr("Broadcast disattivato"))
 
     # ----------------------------------------------------------------- hints
     def start_hints(self) -> None:
@@ -1332,7 +1325,7 @@ class TerminalWorkspace(Gtk.Box):
             return
         uris = pane.collect_uris()
         if not uris:
-            self._flash_status("Nessun URL visibile per gli hints.")
+            self._flash_status(tr("Nessun URL visibile per gli hints."))
             return
         labels = self._make_labels(len(uris))
         self._hint_map = {label: uri for label, uri in zip(labels, uris)}
@@ -1340,7 +1333,7 @@ class TerminalWorkspace(Gtk.Box):
         self._hint_pane = pane
         self._hint_active = True
         self._render_hints(pane, self._hint_map)
-        self._update_status(f"Hints: premi la lettera per aprire ({len(uris)} URL) · Esc annulla")
+        self._update_status(tr("Hints: premi la lettera per aprire ({n_uris} URL) · Esc annulla").format(n_uris=len(uris)))
 
     def _make_labels(self, count: int) -> List[str]:
         alpha = _HINT_ALPHABET
@@ -1376,8 +1369,7 @@ class TerminalWorkspace(Gtk.Box):
             row.set_xalign(0.0)
             short = uri if len(uri) <= 64 else uri[:61] + "…"
             row.set_markup(
-                f"<span background='#facc15' foreground='#111111'> {GLib.markup_escape_text(label)} </span>"
-                f"  <span foreground='#dbeafe'>{GLib.markup_escape_text(short)}</span>"
+                tr("<span background='#facc15' foreground='#111111'> {markup_escape_text} </span>  <span foreground='#dbeafe'>{markup_escape_text2}</span>").format(markup_escape_text=GLib.markup_escape_text(label), markup_escape_text2=GLib.markup_escape_text(short))
             )
             box.pack_start(row, False, False, 0)
         pane._hint_layer = box

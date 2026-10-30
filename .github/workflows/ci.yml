@@ -39,6 +39,9 @@ jobs:
       - name: Stessa versione in spec, programma, install.sh e metainfo
         run: python tests/test_versions.py
 
+      - name: Catalogo delle traduzioni aggiornato
+        run: python tools/i18n_update.py --check
+
       - name: Sito e script di installazione
         run: |
           bash packaging/render-site.sh /tmp/sito https://example.invalid/FedTermHub https://github.com/example/FedTermHub 0.0.0

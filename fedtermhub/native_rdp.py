@@ -18,6 +18,10 @@ import threading
 import time
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Tuple
+try:
+    from .i18n import tr, trn
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr, trn
 
 import gi
 
@@ -82,13 +86,13 @@ def native_helper_path() -> Path:
 def native_backend_status() -> Tuple[bool, str]:
     helper = native_helper_path()
     if cairo is None:
-        return False, "python3-cairo non disponibile"
+        return False, tr("python3-cairo non disponibile")
     if not helper.is_file():
-        return False, f"helper non trovato: {helper}"
+        return False, tr("helper non trovato: {helper}").format(helper=helper)
     if not os.access(helper, os.X_OK):
-        return False, f"helper non eseguibile: {helper}"
+        return False, tr("helper non eseguibile: {helper}").format(helper=helper)
     if not hasattr(os, "memfd_create"):
-        return False, "memfd_create non disponibile nel sistema"
+        return False, tr("memfd_create non disponibile nel sistema")
     return True, str(helper)
 
 
@@ -232,7 +236,7 @@ class ClipboardBridge:
         struct.pack_into("<I", self.map, 8, writing_seq)
         if payload:
             self.map[CLIP_HEADER_SIZE:CLIP_HEADER_SIZE + len(payload)] = payload
-        struct.pack_into("<II", self.map, 12, available, len(payload))
+        struct.pack_into(tr("<II"), self.map, 12, available, len(payload))
         struct.pack_into("<I", self.map, 32, kind)
         struct.pack_into("<I", self.map, 8, writing_seq + 1)  # pari: dato valido
 
@@ -388,22 +392,22 @@ class NativeRdpTab(Gtk.Box):
         toolbar.pack_start(self.state_dot, False, False, 0)
         self.spinner = Gtk.Spinner()
         toolbar.pack_start(self.spinner, False, False, 0)
-        self.state_label = Gtk.Label(label="Motore RDP nativo pronto", xalign=0)
+        self.state_label = Gtk.Label(label=tr("Motore RDP nativo pronto"), xalign=0)
         self.state_label.set_ellipsize(Pango.EllipsizeMode.END)
         toolbar.pack_start(self.state_label, True, True, 0)
 
         actions = [
-            ("Schermo intero", "view-fullscreen-symbolic", self._on_fullscreen),
+            (tr("Schermo intero"), "view-fullscreen-symbolic", self._on_fullscreen),
         ]
         if self.detach_callback is not None:
-            actions.append(("Sgancia", "window-new-symbolic", self._on_detach))
+            actions.append((tr("Sgancia"), "window-new-symbolic", self._on_detach))
         actions.extend([
-            ("Gestisci sessioni", "system-users-symbolic", self._on_manage_sessions),
-            ("Invia Ctrl+Alt+Canc", "input-keyboard-symbolic", self._on_ctrl_alt_del),
-            ("Aggiorna", "view-refresh-symbolic", self._on_refresh),
-            ("Riconnetti", "system-reboot-symbolic", self._on_reconnect),
-            ("Ferma", "media-playback-stop-symbolic", self._on_stop),
-            ("Diagnostica", "dialog-information-symbolic", self._on_diagnostics),
+            (tr("Gestisci sessioni"), "system-users-symbolic", self._on_manage_sessions),
+            (tr("Invia Ctrl+Alt+Canc"), "input-keyboard-symbolic", self._on_ctrl_alt_del),
+            (tr("Aggiorna"), "view-refresh-symbolic", self._on_refresh),
+            (tr("Riconnetti"), "system-reboot-symbolic", self._on_reconnect),
+            (tr("Ferma"), "media-playback-stop-symbolic", self._on_stop),
+            (tr("Diagnostica"), "dialog-information-symbolic", self._on_diagnostics),
         ])
         for label, icon, callback in actions:
             button = Gtk.Button()
@@ -416,12 +420,12 @@ class NativeRdpTab(Gtk.Box):
             button.get_style_context().add_class("mini-action")
             button.connect("clicked", callback)
             toolbar.pack_start(button, False, False, 0)
-            if label == "Sgancia":
+            if callback == self._on_detach:
                 self.detach_buttons.append(button)
 
         self.log_toggle = Gtk.ToggleButton()
         self.log_toggle.set_relief(Gtk.ReliefStyle.NONE)
-        self.log_toggle.set_tooltip_text("Mostra log nativo")
+        self.log_toggle.set_tooltip_text(tr("Mostra log nativo"))
         self.log_toggle.add(Gtk.Image.new_from_icon_name("text-x-generic-symbolic", Gtk.IconSize.MENU))
         self.log_toggle.connect("toggled", self._on_log_toggle)
         toolbar.pack_start(self.log_toggle, False, False, 0)
@@ -524,7 +528,7 @@ class NativeRdpTab(Gtk.Box):
         handle_icon.get_style_context().add_class("dim-label")
         drag_handle.add(handle_icon)
         drag_handle.set_tooltip_text(
-            "Trascina per spostare la barra ovunque. Doppio clic per riportarla in alto al centro."
+            tr("Trascina per spostare la barra ovunque. Doppio clic per riportarla in alto al centro.")
         )
         try:
             drag_handle.get_window()  # noop safe; cursor set on realize below
@@ -536,15 +540,15 @@ class NativeRdpTab(Gtk.Box):
         drag_handle.connect("button-release-event", self._on_fs_bar_drag_end)
         bar_row.pack_start(drag_handle, False, False, 2)
 
-        icon_button("view-refresh-symbolic", "Riconnetti la sessione", self._on_reconnect)
-        icon_button("zoom-fit-best-symbolic", "Adatta la risoluzione remota allo schermo", self._on_fit_resolution)
+        icon_button("view-refresh-symbolic", tr("Riconnetti la sessione"), self._on_reconnect)
+        icon_button("zoom-fit-best-symbolic", tr("Adatta la risoluzione remota allo schermo"), self._on_fit_resolution)
         if self.detach_callback is not None:
-            detach_button = icon_button("window-new-symbolic", "Sgancia in una finestra indipendente", self._on_detach)
+            detach_button = icon_button("window-new-symbolic", tr("Sgancia in una finestra indipendente"), self._on_detach)
             self.detach_buttons.append(detach_button)
-        icon_button("window-minimize-symbolic", "Riduci a icona", self._on_minimize_window)
-        icon_button("view-restore-symbolic", "Torna alla finestra principale", self._on_exit_fullscreen)
-        icon_button("media-playback-stop-symbolic", "Disconnetti la sessione", self._on_stop)
-        icon_button("window-close-symbolic", "Chiudi la scheda", self._on_close_session, destructive=True)
+        icon_button("window-minimize-symbolic", tr("Riduci a icona"), self._on_minimize_window)
+        icon_button("view-restore-symbolic", tr("Torna alla finestra principale"), self._on_exit_fullscreen)
+        icon_button("media-playback-stop-symbolic", tr("Disconnetti la sessione"), self._on_stop)
+        icon_button("window-close-symbolic", tr("Chiudi la scheda"), self._on_close_session, destructive=True)
 
         fullscreen_bar.add(bar_row)
         self.fullscreen_bar_revealer.add(fullscreen_bar)
@@ -578,9 +582,9 @@ class NativeRdpTab(Gtk.Box):
         self.status_card.set_valign(Gtk.Align.CENTER)
         self.status_card.set_size_request(430, -1)
         self.status_card.get_style_context().add_class("rdp-status-card")
-        self.status_title = Gtk.Label(label="Desktop remoto")
+        self.status_title = Gtk.Label(label=tr("Desktop remoto"))
         self.status_title.get_style_context().add_class("panel-title")
-        self.status_message = Gtk.Label(label="La connessione partirà appena la scheda è visibile.")
+        self.status_message = Gtk.Label(label=tr("La connessione partirà appena la scheda è visibile."))
         self.status_message.set_line_wrap(True)
         self.status_message.set_justify(Gtk.Justification.CENTER)
         self.status_card.pack_start(self.status_title, False, False, 0)
@@ -588,7 +592,7 @@ class NativeRdpTab(Gtk.Box):
         # Pulsante Riconnetti ben visibile: quando la sessione cade (per
         # esempio dopo il blocco/sospensione del PC) basta un click, senza
         # andare a cercare l'azione nella toolbar.
-        self.status_reconnect = Gtk.Button.new_with_mnemonic("  _Riconnetti  ")
+        self.status_reconnect = Gtk.Button.new_with_mnemonic(tr("  _Riconnetti  "))
         self.status_reconnect.get_style_context().add_class("suggested-action")
         self.status_reconnect.set_halign(Gtk.Align.CENTER)
         self.status_reconnect.set_no_show_all(True)
@@ -608,12 +612,12 @@ class NativeRdpTab(Gtk.Box):
         self.session_notice_label = Gtk.Label(label="", xalign=0)
         self.session_notice_label.set_line_wrap(True)
         self.session_notice.pack_start(self.session_notice_label, True, True, 0)
-        manage = Gtk.Button.new_with_mnemonic("_Gestisci sessioni")
+        manage = Gtk.Button.new_with_mnemonic(tr("_Gestisci sessioni"))
         manage.connect("clicked", self._on_manage_sessions)
         self.session_notice.pack_start(manage, False, False, 0)
         dismiss = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
         dismiss.set_relief(Gtk.ReliefStyle.NONE)
-        dismiss.set_tooltip_text("Chiudi questo avviso")
+        dismiss.set_tooltip_text(tr("Chiudi questo avviso"))
         dismiss.connect("clicked", self._dismiss_session_notice)
         self.session_notice.pack_start(dismiss, False, False, 0)
         self.overlay.add_overlay(self.session_notice)
@@ -676,14 +680,14 @@ class NativeRdpTab(Gtk.Box):
         for option in options:
             if "\n" in option or "\r" in option:
                 raise ValueError(
-                    "Un parametro RDP contiene un carattere di fine riga non consentito."
+                    tr("Un parametro RDP contiene un carattere di fine riga non consentito.")
                 )
         return options
 
     def _start(self) -> None:
         ok, detail = native_backend_status()
         if not ok:
-            self._set_state(STATE_ERROR, "Backend RDP nativo non disponibile", detail)
+            self._set_state(STATE_ERROR, tr("Backend RDP nativo non disponibile"), detail)
             return
         self.stop(silent=True)
         self.started = True
@@ -693,7 +697,7 @@ class NativeRdpTab(Gtk.Box):
         self._staging = None
         self.last_dimensions = (0, 0, 0)
         self.surface = None
-        self._set_state(STATE_CONNECTING, "Connessione RDP in corso", "Avvio libfreerdp…")
+        self._set_state(STATE_CONNECTING, tr("Connessione RDP in corso"), tr("Avvio libfreerdp…"))
 
         try:
             helper = native_helper_path()
@@ -738,7 +742,7 @@ class NativeRdpTab(Gtk.Box):
                     argv += ["--clip-fd", str(clip_fd)]
                     pass_fds.append(clip_fd)
                 else:
-                    self._append_log("[FedTermHub] Clipboard: impossibile creare la mailbox condivisa, disabilitata per questa sessione.\n")
+                    self._append_log(tr("[FedTermHub] Clipboard: impossibile creare la mailbox condivisa, disabilitata per questa sessione.\n"))
             try:
                 self.process = subprocess.Popen(
                     argv,
@@ -766,10 +770,10 @@ class NativeRdpTab(Gtk.Box):
             self.canvas.grab_focus()
             if self.clip_bridge is not None:
                 self.clip_bridge.start()
-            self._append_log("[FedTermHub] Backend nativo avviato; nessuna finestra X11 incorporata.\n")
+            self._append_log(tr("[FedTermHub] Backend nativo avviato; nessuna finestra X11 incorporata.\n"))
         except Exception as exc:
-            self._append_log(f"[FedTermHub] Errore avvio backend nativo: {exc}\n")
-            self._set_state(STATE_ERROR, "Avvio RDP fallito", str(exc))
+            self._append_log(tr("[FedTermHub] Errore avvio backend nativo: {exc}\n").format(exc=exc))
+            self._set_state(STATE_ERROR, tr("Avvio RDP fallito"), str(exc))
             self.stop(silent=True)
 
     def _start_log_threads(self) -> None:
@@ -789,7 +793,7 @@ class NativeRdpTab(Gtk.Box):
                     break
                 GLib.idle_add(self._append_log, f"[{prefix}] {line}")
         except Exception as exc:
-            GLib.idle_add(self._append_log, f"[LOG] {exc}\n")
+            GLib.idle_add(self._append_log, tr("[LOG] {exc}\n").format(exc=exc))
 
     def _read_header(self) -> Optional[Tuple[int, ...]]:
         if self.frame_map is None:
@@ -804,10 +808,10 @@ class NativeRdpTab(Gtk.Box):
 
     def _clipboard_status_text(self) -> str:
         if not self.clipboard_enabled:
-            return "disattivata (checkbox Clipboard non spuntata)"
+            return tr("disattivata (checkbox Clipboard non spuntata)")
         if self.clip_bridge is None or self.clip_bridge.map is None:
-            return "attivata ma mailbox non inizializzata"
-        return "attiva (testo, bidirezionale)"
+            return tr("attivata ma mailbox non inizializzata")
+        return tr("attiva (testo, bidirezionale)")
 
     def _apply_remote_clipboard_text(self, text: str) -> None:
         try:
@@ -815,7 +819,7 @@ class NativeRdpTab(Gtk.Box):
             clipboard.set_text(text, -1)
             clipboard.store()
         except Exception as exc:
-            self._append_log(f"[FedTermHub] Clipboard: impossibile impostare la clipboard host: {exc}\n")
+            self._append_log(tr("[FedTermHub] Clipboard: impossibile impostare la clipboard host: {exc}\n").format(exc=exc))
 
     def _shared_drive_path(self) -> Optional[Path]:
         """Percorso della cartella condivisa /drive: della sessione, se c'è.
@@ -945,17 +949,15 @@ class NativeRdpTab(Gtk.Box):
                 paths.append(uri)
         plain = "\n".join(paths)
         names = ", ".join(Path(p).name for p in paths[:3])
-        extra = f" e altri {len(paths) - 3}" if len(paths) > 3 else ""
+        extra = tr(" e altri {v}").format(v=len(paths) - 3) if len(paths) > 3 else ""
 
         tool = self._publish_uris_external(uris)
         if tool:
             self._append_log(
-                f"[FedTermHub] {len(uris)} file dalla sessione remota sono negli appunti "
-                f"tramite {tool} ({names}{extra}). Percorsi: {plain}\n"
+                tr("[FedTermHub] {n_uris} file dalla sessione remota sono negli appunti tramite {tool} ({names}{extra}). Percorsi: {plain}\n").format(n_uris=len(uris), tool=tool, names=names, extra=extra, plain=plain)
             )
             self._show_drop_toast(
-                f"{len(uris)} file dalla sessione remota sono negli appunti.\n"
-                "Incollali nel file manager di Linux (Ctrl+V)."
+                tr("{n_uris} file dalla sessione remota sono negli appunti.\nIncollali nel file manager di Linux (Ctrl+V).").format(n_uris=len(uris))
             )
             return
 
@@ -966,13 +968,12 @@ class NativeRdpTab(Gtk.Box):
         except Exception:
             pass
         self._append_log(
-            "[FedTermHub] Per incollare i FILE su Linux serve wl-clipboard (Wayland) oppure "
-            f"xclip (X11): installane uno con 'sudo dnf install wl-clipboard'. Percorsi: {plain}\n"
+            tr("[FedTermHub] Per incollare i FILE su Linux serve wl-clipboard (Wayland) oppure xclip (X11): installane uno con 'sudo dnf install wl-clipboard'. Percorsi: {plain}\n").format(plain=plain)
         )
         self._show_drop_toast(
-            "Per incollare i file serve wl-clipboard: installalo con\n"
+            tr("Per incollare i file serve wl-clipboard: installalo con\n"
             "sudo dnf install wl-clipboard\n"
-            "(intanto negli appunti trovi i percorsi come testo).",
+            "(intanto negli appunti trovi i percorsi come testo)."),
             seconds=12,
         )
 
@@ -1013,9 +1014,9 @@ class NativeRdpTab(Gtk.Box):
 
         if not valid:
             self._append_log(
-                "[FedTermHub] Drop ignorato: nessun file locale valido tra gli elementi trascinati.\n"
+                tr("[FedTermHub] Drop ignorato: nessun file locale valido tra gli elementi trascinati.\n")
             )
-            self._show_drop_toast("Nessun file locale valido tra gli elementi trascinati.")
+            self._show_drop_toast(tr("Nessun file locale valido tra gli elementi trascinati."))
             Gtk.drag_finish(drag_context, False, False, time_)
             return
 
@@ -1026,21 +1027,19 @@ class NativeRdpTab(Gtk.Box):
             copied, errors = self._copy_files_to_shared_drive(local_paths, shared)
             if copied:
                 nomi = ", ".join(p.name for p in local_paths[:3])
-                extra = f" e altri {len(local_paths) - 3}" if len(local_paths) > 3 else ""
+                extra = tr(" e altri {v}").format(v=len(local_paths) - 3) if len(local_paths) > 3 else ""
                 self._append_log(
-                    f"[FedTermHub] {copied} elementi copiati nella cartella condivisa {shared} "
-                    f"({nomi}{extra}). In Windows: Questo PC → fedtermhub.\n"
+                    tr("[FedTermHub] {copied} elementi copiati nella cartella condivisa {shared} ({nomi}{extra}). In Windows: Questo PC → fedtermhub.\n").format(copied=copied, shared=shared, nomi=nomi, extra=extra)
                 )
                 self._show_drop_toast(
-                    f"{copied} elementi copiati nella cartella condivisa.\n"
-                    "In Windows aprili da «Questo PC → fedtermhub»."
+                    tr("{copied} elementi copiati nella cartella condivisa.\nIn Windows aprili da «Questo PC → fedtermhub».").format(copied=copied)
                 )
                 accepted = True
             if errors:
                 for line in errors:
-                    self._append_log(f"[FedTermHub] Copia fallita — {line}\n")
+                    self._append_log(tr("[FedTermHub] Copia fallita — {line}\n").format(line=line))
                 if not copied:
-                    self._show_drop_toast("Copia nella cartella condivisa fallita: vedi il log.")
+                    self._show_drop_toast(tr("Copia nella cartella condivisa fallita: vedi il log."))
             Gtk.drag_finish(drag_context, accepted, False, time_)
             return
 
@@ -1049,13 +1048,13 @@ class NativeRdpTab(Gtk.Box):
         # trasferimento file; richiede comunque un Ctrl+V dentro la sessione.
         if self.clip_bridge is None:
             hint = (
-                "Attiva «Clipboard» nelle impostazioni della sessione, "
-                "oppure — molto più affidabile — imposta una «Cartella condivisa»."
+                tr("Attiva «Clipboard» nelle impostazioni della sessione, "
+                "oppure — molto più affidabile — imposta una «Cartella condivisa».")
             )
-            self._append_log(f"[FedTermHub] Drop ignorato: clipboard condivisa non attiva. {hint}\n")
+            self._append_log(tr("[FedTermHub] Drop ignorato: clipboard condivisa non attiva. {hint}\n").format(hint=hint))
             self._show_drop_toast(
-                "Per trascinare file serve una «Cartella condivisa» nelle "
-                "impostazioni della sessione (consigliata), oppure la clipboard attiva.",
+                tr("Per trascinare file serve una «Cartella condivisa» nelle "
+                "impostazioni della sessione (consigliata), oppure la clipboard attiva."),
                 seconds=10,
             )
             Gtk.drag_finish(drag_context, False, False, time_)
@@ -1064,22 +1063,19 @@ class NativeRdpTab(Gtk.Box):
         accepted = self.clip_bridge.write_host_uri_list(valid)
         if accepted:
             nomi = ", ".join(p.name for p in local_paths[:3])
-            extra = f" e altri {len(local_paths) - 3}" if len(local_paths) > 3 else ""
+            extra = tr(" e altri {v}").format(v=len(local_paths) - 3) if len(local_paths) > 3 else ""
             self._append_log(
-                f"[FedTermHub] {len(valid)} file pronti nella clipboard remota ({nomi}{extra}): "
-                "incolla (Ctrl+V) dentro la sessione per copiarli. Richiede il supporto file del server.\n"
+                tr("[FedTermHub] {n_valid} file pronti nella clipboard remota ({nomi}{extra}): incolla (Ctrl+V) dentro la sessione per copiarli. Richiede il supporto file del server.\n").format(n_valid=len(valid), nomi=nomi, extra=extra)
             )
             self._show_drop_toast(
-                f"{len(valid)} file pronti: premi Ctrl+V dentro la sessione Windows.\n"
-                "Se non succede nulla, il server non consente il trasferimento file "
-                "via clipboard: usa una «Cartella condivisa».",
+                tr("{n_valid} file pronti: premi Ctrl+V dentro la sessione Windows.\nSe non succede nulla, il server non consente il trasferimento file via clipboard: usa una «Cartella condivisa».").format(n_valid=len(valid)),
                 seconds=10,
             )
         else:
             self._append_log(
-                "[FedTermHub] Drop rifiutato: lista file troppo grande per la clipboard condivisa.\n"
+                tr("[FedTermHub] Drop rifiutato: lista file troppo grande per la clipboard condivisa.\n")
             )
-            self._show_drop_toast("Troppi file per la clipboard condivisa: usa una «Cartella condivisa».")
+            self._show_drop_toast(tr("Troppi file per la clipboard condivisa: usa una «Cartella condivisa»."))
         Gtk.drag_finish(drag_context, accepted, False, time_)
 
     def _poll_frame(self) -> bool:
@@ -1095,12 +1091,12 @@ class NativeRdpTab(Gtk.Box):
                 self.last_event_seq = event_seq
                 event_message = self._header_message()
                 if event_message:
-                    self._append_log(f"[Windows] {event_message}\n")
+                    self._append_log(tr("[Windows] {event_message}\n").format(event_message=event_message))
                     upper = event_message.upper()
                     if "BUMP" in upper or "SESSION" in upper or "LOGON" in upper:
                         self.session_notice_label.set_text(
-                            "Windows segnala una sessione esistente o una richiesta di accesso. "
-                            "Apri Gestisci sessioni per disconnettere, eseguire logoff o inviare un messaggio."
+                            tr("Windows segnala una sessione esistente o una richiesta di accesso. "
+                            "Apri Gestisci sessioni per disconnettere, eseguire logoff o inviare un messaggio.")
                         )
                         self.session_notice.set_no_show_all(False)
                         self.session_notice.show_all()
@@ -1162,7 +1158,7 @@ class NativeRdpTab(Gtk.Box):
             if state in {STATE_ERROR, STATE_DISCONNECTED} and self.process and self.process.poll() is not None:
                 self.started = False
         if self.process is not None and self.process.poll() is not None and self.last_state not in {STATE_ERROR, STATE_DISCONNECTED}:
-            self._set_state(STATE_ERROR, "Backend RDP terminato", f"Codice uscita: {self.process.returncode}")
+            self._set_state(STATE_ERROR, tr("Backend RDP terminato"), tr("Codice uscita: {returncode}").format(returncode=self.process.returncode))
             self.started = False
         return not self.destroyed
 
@@ -1175,12 +1171,12 @@ class NativeRdpTab(Gtk.Box):
     @staticmethod
     def _state_title(state: int) -> str:
         return {
-            STATE_IDLE: "RDP pronto",
-            STATE_CONNECTING: "Connessione RDP",
-            STATE_CONNECTED: "Connesso",
-            STATE_DISCONNECTED: "Sessione terminata",
-            STATE_ERROR: "Errore RDP",
-            STATE_STOPPING: "Chiusura RDP",
+            STATE_IDLE: tr("RDP pronto"),
+            STATE_CONNECTING: tr("Connessione RDP"),
+            STATE_CONNECTED: tr("Connesso"),
+            STATE_DISCONNECTED: tr("Sessione terminata"),
+            STATE_ERROR: tr("Errore RDP"),
+            STATE_STOPPING: tr("Chiusura RDP"),
         }.get(state, "RDP")
 
     def _set_state(self, state: int, title: str, message: str = "") -> None:
@@ -1576,7 +1572,7 @@ class NativeRdpTab(Gtk.Box):
         self.last_resize_request = (width, height)
         self.last_resize_sent_at = now
         self._send(CMD_RESIZE, width, height, 100)
-        self._append_log(f"[FedTermHub] Richiesta risoluzione remota {width}x{height}.\n")
+        self._append_log(tr("[FedTermHub] Richiesta risoluzione remota {width}x{height}.\n").format(width=width, height=height))
         return False
 
     def _on_fit_resolution(self, _button: Optional[Gtk.Button] = None) -> None:
@@ -1767,31 +1763,31 @@ class NativeRdpTab(Gtk.Box):
     def _on_diagnostics(self, _button: Gtk.Button) -> None:
         header = self._read_header()
         details = [
-            "Motore: libfreerdp3 nativo",
-            f"Helper: {native_helper_path()}",
-            f"PID: {self.process.pid if self.process else '-'}",
-            f"Stato processo: {self.process.poll() if self.process else '-'}",
-            f"Framebuffer: {self.last_dimensions[0]}x{self.last_dimensions[1]} stride={self.last_dimensions[2]}",
-            f"Sequenza frame: {self.last_seq}",
-            f"Backend GTK: {Gdk.Display.get_default().get_name() if Gdk.Display.get_default() else '-'}",
-            "XEmbed/Gtk.Socket: non utilizzati",
-            f"Schermo intero immersivo: {'ON' if self.fullscreen_active else 'OFF'}",
-            f"Auto-risoluzione: {'ON' if self.auto_resize else 'OFF'}",
-            f"Ultima richiesta risoluzione: {self.last_resize_request[0]}x{self.last_resize_request[1]}",
-            f"Clipboard bidirezionale: {self._clipboard_status_text()}",
+            tr("Motore: libfreerdp3 nativo"),
+            tr("Helper: {native_helper_path}").format(native_helper_path=native_helper_path()),
+            tr("PID: {v}").format(v=self.process.pid if self.process else '-'),
+            tr("Stato processo: {v}").format(v=self.process.poll() if self.process else '-'),
+            tr("Framebuffer: {v}x{v2} stride={v3}").format(v=self.last_dimensions[0], v2=self.last_dimensions[1], v3=self.last_dimensions[2]),
+            tr("Sequenza frame: {last_seq}").format(last_seq=self.last_seq),
+            tr("Backend GTK: {v}").format(v=Gdk.Display.get_default().get_name() if Gdk.Display.get_default() else '-'),
+            tr("XEmbed/Gtk.Socket: non utilizzati"),
+            tr("Schermo intero immersivo: {v}").format(v='ON' if self.fullscreen_active else 'OFF'),
+            tr("Auto-risoluzione: {v}").format(v='ON' if self.auto_resize else 'OFF'),
+            tr("Ultima richiesta risoluzione: {v}x{v2}").format(v=self.last_resize_request[0], v2=self.last_resize_request[1]),
+            tr("Clipboard bidirezionale: {clipboard_status_text}").format(clipboard_status_text=self._clipboard_status_text()),
         ]
         if header:
             details.extend([
-                f"Codice errore FreeRDP: 0x{header[8]:08x}",
-                f"Logon data/type: 0x{header[9]:08x} / 0x{header[10]:08x}",
-                f"Messaggio: {self._header_message()}",
+                tr("Codice errore FreeRDP: 0x{v:08x}").format(v=header[8]),
+                tr("Logon data/type: 0x{v:08x} / 0x{v2:08x}").format(v=header[9], v2=header[10]),
+                tr("Messaggio: {header_message}").format(header_message=self._header_message()),
             ])
         dialog = Gtk.MessageDialog(
             transient_for=self.get_toplevel() if isinstance(self.get_toplevel(), Gtk.Window) else None,
             modal=True,
             message_type=Gtk.MessageType.INFO,
             buttons=Gtk.ButtonsType.CLOSE,
-            text="Diagnostica RDP nativa",
+            text=tr("Diagnostica RDP nativa"),
         )
         dialog.format_secondary_text("\n".join(details))
         dialog.run()
@@ -1863,7 +1859,7 @@ class NativeRdpTab(Gtk.Box):
         if hasattr(self, "session_notice"):
             self._dismiss_session_notice()
         if not silent and not self.destroyed:
-            self._set_state(STATE_DISCONNECTED, "Sessione terminata", "Connessione RDP chiusa")
+            self._set_state(STATE_DISCONNECTED, tr("Sessione terminata"), tr("Connessione RDP chiusa"))
 
     def _on_destroy(self, _widget: Gtk.Widget) -> None:
         if self.fullscreen_active and self.fullscreen_callback:

@@ -3,13 +3,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Smoke test del renderer RDP stabile a frame completo."""
 from __future__ import annotations
-import mmap, struct, sys
+import mmap, os, struct, sys
 from pathlib import Path
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gtk
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# I test controllano i testi originali in italiano, qualunque sia la lingua del sistema.
+os.environ["FEDTERMHUB_LANGUAGE"] = "it"
 sys.path.insert(0, str(PROJECT_ROOT / "fedtermhub"))
 import native_rdp
 

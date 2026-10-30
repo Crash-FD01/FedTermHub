@@ -326,12 +326,30 @@ Tutto resta sul tuo computer; FedTermHub non manda dati da nessuna parte.
 | `~/.config/fedtermhub/sessions.json` | Sessioni e cartelle (senza password) |
 | `~/.config/fedtermhub/vault.json` | Credenziali cifrate |
 | `~/.config/fedtermhub/tunnels.json` | Tunnel SSH |
-| `~/.config/fedtermhub/settings.json` | Impostazioni |
+| `~/.config/fedtermhub/settings.json` | Impostazioni (anche la lingua) |
 | `~/.cache/fedtermhub/fedtermhub.log` | Log dell'applicazione |
 | `~/.cache/fedtermhub/labs/` | Dischi temporanei del laboratorio |
 
 I file di configurazione hanno permessi `0600` e vengono scritti in modo
 atomico.
+
+## Lingua
+
+FedTermHub è in italiano e in inglese. Con **Automatica** (il valore iniziale)
+segue la lingua del sistema: italiano se il sistema è in italiano, inglese in
+tutti gli altri casi. Per sceglierla a mano: **Impostazioni → Interfaccia →
+Lingua**. La nuova lingua vale dal riavvio successivo del programma.
+
+Per una sola volta, senza toccare le impostazioni:
+
+```bash
+FEDTERMHUB_LANGUAGE=en fedtermhub
+```
+
+Le traduzioni stanno in `fedtermhub/locale/en.po`, un normale file gettext che
+si apre con Poedit o con un editor di testo. Un testo non ancora tradotto
+compare in italiano. Comandi, nomi di protocolli e messaggi tecnici di
+FreeRDP restano volutamente uguali in tutte le lingue.
 
 ## Risoluzione dei problemi
 
@@ -348,7 +366,8 @@ atomico.
 
 ## Limiti noti
 
-- L'interfaccia è in italiano; la traduzione in inglese è prevista.
+- Le lingue disponibili sono italiano e inglese; il cambio di lingua richiede
+  il riavvio del programma.
 - Il motore RDP nativo richiede FreeRDP 3: su sistemi con FreeRDP 2 si usa il
   ripiego `xfreerdp`.
 - L'inseguimento della cartella nei file remoti richiede bash o zsh sul server.

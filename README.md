@@ -30,6 +30,7 @@ cifrato per le credenziali, con le sessioni organizzate in cartelle. Gratuito e 
   generatore; cifrate con AES-256-GCM, mai scritte nel file delle sessioni né sulla riga di comando dei processi.
 - 🧰 **Strumenti di rete** — tunnel SSH, scansione di rete e porte, cattura pacchetti, server temporanei e
   un laboratorio Linux usa e getta su libvirt.
+- 🌍 **Italiano e inglese** — segue la lingua del sistema; si cambia in Impostazioni → Interfaccia.
 
 ## Installazione
 
@@ -84,5 +85,5 @@ Apache 2.0 ([LICENSES/Apache-2.0.txt](LICENSES/Apache-2.0.txt)).
 
 *English: FedTermHub is a free, open-source session manager for Linux system administrators: local
 terminals, SSH, RDP and VNC desktops, SFTP file transfer and an encrypted credential vault in one GTK
-window, with sessions organized in folders. Built for Fedora. The interface is currently in Italian; an
-English translation is planned.*
+window, with sessions organized in folders. Built for Fedora. The interface is available in English and
+Italian: it follows the system language and can be changed in Settings → Interface → Language.*

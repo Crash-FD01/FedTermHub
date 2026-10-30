@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# I test controllano i testi originali in italiano, qualunque sia la lingua del sistema.
+os.environ["FEDTERMHUB_LANGUAGE"] = "it"
 sys.path.insert(0, str(ROOT / "fedtermhub"))
 
 import ephemeral_lab  # noqa: E402

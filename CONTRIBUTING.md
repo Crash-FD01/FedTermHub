@@ -57,6 +57,29 @@ xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . light docs
 
 e le altre tre varianti indicate in `tools/screenshots.py`.
 
+### Testi e traduzioni
+
+I testi dell'interfaccia si scrivono in italiano dentro `tr()` (o `trn()` per
+singolare e plurale); i valori variabili vanno in segnaposto con nome, così chi
+traduce può spostarli dove la frase lo richiede:
+
+```python
+tr("Sessione aggiunta: {name}").format(name=sess.name)
+trn("{n} sessione", "{n} sessioni", n).format(n=n)
+```
+
+Dopo aver aggiunto o cambiato testi, aggiorna il catalogo e traduci le righe
+`msgstr` rimaste vuote in `fedtermhub/locale/en.po`:
+
+```bash
+python3 tools/i18n_update.py
+```
+
+`tests/test_i18n.py` fallisce se il catalogo non è aggiornato, se una
+traduzione perde un segnaposto o il mnemonico (`_Salva` → `_Save`), o se il
+programma non parte in inglese. Per provare l'interfaccia in inglese:
+`FEDTERMHUB_LANGUAGE=en python3 fedtermhub/fedtermhub.py`.
+
 Alcune regole che il progetto si è dato, quasi sempre dopo averle imparate a
 proprie spese:
 
