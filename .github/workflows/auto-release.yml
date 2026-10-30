@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Pubblicazione automatica
+
+# Pubblicare una versione = aggiornare la versione (python3 tests/test_versions.py dice dove) e unire
+# su main. Questo workflow vede che per quella versione non c'e' ancora il tag, lo crea e avvia
+# «Rilascio». Se il tag esiste gia' non fa niente: unire altre modifiche non ripubblica nulla.
+# Il tag a mano (git push origin vX.Y.Z) continua a funzionare.
+on:
+  push:
+    branches: [main]
+    paths:
+      - fedtermhub.spec
+      - .github/workflows/auto-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pubblicazione-automatica
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag della nuova versione
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: tag
+        name: Crea il tag se la versione e' nuova
+        run: |
+          version=$(sed -n 's/^Version:[[:space:]]*//p' fedtermhub.spec | head -n1)
+          tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "::notice title=Nessuna nuova versione::$tag esiste gia', niente da pubblicare."
+            exit 0
+          fi
+          # Stessa versione in spec, programma, install.sh e metainfo, altrimenti niente tag.
+          if ! python3 tests/test_versions.py "$tag" | tee /tmp/versioni.txt; then
+            echo "::error title=Versione::$tag non e' coerente in tutti i file:%0A$(grep ERR /tmp/versioni.txt | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "FedTermHub $version"
+          git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Nuova versione::Creato $tag, parte il rilascio."
+
+  release:
+    name: Rilascio
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit

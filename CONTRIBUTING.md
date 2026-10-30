@@ -96,16 +96,15 @@ Per ogni versione successiva:
    `install.sh` e il blocco `<releases>` di
    `packaging/io.github.crash_fd01.fedtermhub.metainfo.xml`.
    `python3 tests/test_versions.py` controlla di non averne dimenticato nessuno.
-3. Commit e push, poi il tag con la **stessa** versione dello spec:
-   ```bash
-   git tag -a v0.9.08 -m "FedTermHub 0.9.08"
-   git push origin v0.9.08
-   ```
-4. Il workflow *Rilascio* verifica che il tag coincida con la versione in tutti
-   quei file, costruisce gli RPM
-   su Fedora 43, li firma, pubblica la release con `SHA256SUMS` firmato e
-   aggiorna repository dnf e sito. Chi ha installato con `setup.sh` riceve
-   l'aggiornamento con `sudo dnf upgrade`.
+3. Unisci su `main` (con una pull request o con un push). Il workflow
+   *Pubblicazione automatica* vede che per quella versione non c'è ancora il
+   tag, lo crea e avvia *Rilascio*. Se la versione non è coerente in tutti i
+   file si ferma con un errore e non crea niente. Unire modifiche senza
+   cambiare versione non pubblica nulla.
+   Il tag a mano funziona ancora: `git tag -a vX.Y.Z -m "FedTermHub X.Y.Z" && git push origin vX.Y.Z`.
+4. *Rilascio* costruisce gli RPM su Fedora 43, li firma, pubblica la release
+   con `SHA256SUMS` firmato e aggiorna repository dnf e sito. Chi ha
+   installato con `setup.sh` riceve l'aggiornamento con `sudo dnf upgrade`.
 5. Subito dopo, il workflow *Verifica installazione* installa la nuova versione
    dal sito su Fedora 43 e 44 puliti, con lo stesso comando del README, e
    controlla firme, versione, avvio e rimozione. Gira anche ogni lunedì: se

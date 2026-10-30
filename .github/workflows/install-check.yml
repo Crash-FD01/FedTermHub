@@ -9,7 +9,7 @@ name: Verifica installazione
 # ogni lunedi', cosi' un sito o un repository rotto si scopre prima che lo segnali qualcuno.
 on:
   workflow_run:
-    workflows: [Rilascio]
+    workflows: [Rilascio, Pubblicazione automatica]
     types: [completed]
   schedule:
     - cron: '17 6 * * 1'
