@@ -2,7 +2,7 @@
 Type=Application
 Name=FedTermHub
 Comment=Terminal and session manager for SSH, RDP, VNC, SFTP, serial and tunnels
-Comment[it]=Terminale e session manager SSH/RDP/VNC/SFTP/Seriale/Tunnel per Fedora
+Comment[it]=Terminale e session manager SSH/RDP/VNC/SFTP/Seriale/Tunnel per Linux
 Exec=fedtermhub
 Icon=io.github.crash_fd01.fedtermhub
 Terminal=false

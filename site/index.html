@@ -82,9 +82,9 @@ html[lang="en"] [data-l="en"] { display: revert; }
   <div class="hero">
     <h1><span data-l="it">Terminali, SSH e desktop remoto in un'unica finestra.</span><span data-l="en">Terminals, SSH and remote desktops in one window.</span></h1>
     <p class="lead" data-l="it">FedTermHub riunisce terminali locali, sessioni SSH, desktop RDP e VNC, file SFTP e un vault cifrato
-      per le credenziali, con le sessioni organizzate in cartelle. Pensato per chi amministra sistemi. Open source, gratuito, per Fedora.</p>
+      per le credenziali, con le sessioni organizzate in cartelle. Pensato per chi amministra sistemi. Open source, gratuito, per Linux.</p>
     <p class="lead" data-l="en">FedTermHub brings local terminals, SSH sessions, RDP and VNC desktops, SFTP files and an encrypted
-      credential vault together, with sessions organized in folders. Built for system administrators. Open source, free, for Fedora.</p>
+      credential vault together, with sessions organized in folders. Built for system administrators. Open source, free, for Linux.</p>
     <picture>
       <source srcset="screenshot-dark.png" media="(prefers-color-scheme: dark)">
       <img class="shot" src="screenshot-light.png" width="1360" height="840" alt="FedTermHub: sessions in folders and an open SSH terminal">
@@ -93,25 +93,43 @@ html[lang="en"] [data-l="en"] { display: revert; }
 
   <section id="install" class="primary">
     <h2><span data-l="it">Installa</span><span data-l="en">Install</span></h2>
-    <p class="muted" data-l="it">Fedora 43 o più recente, x86_64. Un comando: aggiunge il repository firmato di FedTermHub e lo installa.</p>
-    <p class="muted" data-l="en">Fedora 43 or newer, x86_64. One command: adds FedTermHub's signed repository and installs it.</p>
+    <p class="muted" data-l="it">Debian 12+, Ubuntu 22.04+, Linux Mint 21+ e derivate, Fedora 43+, RHEL/AlmaLinux/Rocky 9+,
+      openSUSE Tumbleweed e Leap 16+; x86_64 e ARM64. Un comando: aggiunge il repository firmato di FedTermHub e lo installa.</p>
+    <p class="muted" data-l="en">Debian 12+, Ubuntu 22.04+, Linux Mint 21+ and derivatives, Fedora 43+, RHEL/AlmaLinux/Rocky 9+,
+      openSUSE Tumbleweed and Leap 16+; x86_64 and ARM64. One command: adds FedTermHub's signed repository and installs it.</p>
     <div class="cmd"><pre>curl -fsSL @SITE_URL@/setup.sh | sudo sh</pre><button class="copy">Copia</button></div>
-    <p data-l="it"><b>Aggiornamenti:</b> arrivano insieme a quelli del sistema, con <code>sudo dnf upgrade</code> o con GNOME Software e Discover.</p>
-    <p data-l="en"><b>Updates</b> arrive with your system's: <code>sudo dnf upgrade</code>, GNOME Software or Discover.</p>
+    <p data-l="it"><b>Aggiornamenti:</b> arrivano insieme a quelli del sistema, con <code>sudo apt upgrade</code>, <code>sudo dnf upgrade</code>,
+      <code>sudo zypper update</code> o con il centro aggiornamenti del desktop.</p>
+    <p data-l="en"><b>Updates</b> arrive with your system's: <code>sudo apt upgrade</code>, <code>sudo dnf upgrade</code>,
+      <code>sudo zypper update</code> or your desktop's software center.</p>
 
     <details>
       <summary><span data-l="it">Preferisci farlo a mano?</span><span data-l="en">Rather do it by hand?</span></summary>
+      <p class="muted">Debian, Ubuntu, Mint</p>
+      <div class="cmd"><pre>sudo install -d -m 755 /etc/apt/keyrings
+sudo curl -fsSL @SITE_URL@/fedtermhub.asc -o /etc/apt/keyrings/fedtermhub.asc
+echo "deb [signed-by=/etc/apt/keyrings/fedtermhub.asc] @SITE_URL@/apt ./" | sudo tee /etc/apt/sources.list.d/fedtermhub.list
+sudo apt update &amp;&amp; sudo apt install fedtermhub</pre><button class="copy">Copia</button></div>
+      <p class="muted">Fedora</p>
       <div class="cmd"><pre>sudo rpm --import @SITE_URL@/fedtermhub.asc
 sudo curl -fsSL @SITE_URL@/fedtermhub.repo -o /etc/yum.repos.d/fedtermhub.repo
 sudo dnf install fedtermhub</pre><button class="copy">Copia</button></div>
       <p class="muted" data-l="it">Silverblue, Kinoite, Bazzite: come sopra, poi <code>rpm-ostree install fedtermhub</code> e riavvia.</p>
       <p class="muted" data-l="en">Silverblue, Kinoite, Bazzite: as above, then <code>rpm-ostree install fedtermhub</code> and reboot.</p>
+      <p class="muted">RHEL, AlmaLinux, Rocky</p>
+      <div class="cmd"><pre>sudo rpm --import @SITE_URL@/fedtermhub.asc
+sudo curl -fsSL @SITE_URL@/fedtermhub-universal.repo -o /etc/yum.repos.d/fedtermhub.repo
+sudo dnf install fedtermhub</pre><button class="copy">Copia</button></div>
+      <p class="muted">openSUSE</p>
+      <div class="cmd"><pre>sudo rpm --import @SITE_URL@/fedtermhub.asc
+sudo zypper addrepo --refresh @SITE_URL@/fedtermhub-universal.repo
+sudo zypper install fedtermhub</pre><button class="copy">Copia</button></div>
     </details>
     <details>
-      <summary><span data-l="it">Altre distribuzioni: dai sorgenti</span><span data-l="en">Other distributions: from source</span></summary>
-      <p data-l="it">Serve FreeRDP 3 con i file di sviluppo, GTK 3, VTE 2.91 e PyGObject. Dettagli nella <a href="@REPO_URL@/blob/main/docs/GUIDA.md#dai-sorgenti">guida</a>.</p>
-      <p data-l="en">Requires FreeRDP 3 with development files, GTK 3, VTE 2.91 and PyGObject. Details in the <a href="@REPO_URL@/blob/main/docs/GUIDA.md#dai-sorgenti">guide</a> (Italian).</p>
-      <div class="cmd"><pre>git clone @REPO_URL@.git &amp;&amp; cd FedTermHub &amp;&amp; bash install.sh</pre><button class="copy">Copia</button></div>
+      <summary><span data-l="it">Arch e altre distribuzioni: dai sorgenti</span><span data-l="en">Arch and other distributions: from source</span></summary>
+      <p data-l="it"><code>install.sh</code> installa le dipendenze con pacman, apt, dnf o zypper e compila il motore RDP. Dettagli nella <a href="@REPO_URL@/blob/main/docs/GUIDA.md#dai-sorgenti">guida</a>.</p>
+      <p data-l="en"><code>install.sh</code> installs the dependencies with pacman, apt, dnf or zypper and builds the RDP engine. Details in the <a href="@REPO_URL@/blob/main/docs/GUIDA.md#dai-sorgenti">guide</a> (Italian).</p>
+      <div class="cmd"><pre>git clone @REPO_URL@.git &amp;&amp; cd FedTermHub &amp;&amp; ./install.sh</pre><button class="copy">Copia</button></div>
     </details>
     <p class="muted" style="margin-top:16px"><span data-l="it">Impronta della chiave che firma i pacchetti:</span><span data-l="en">Fingerprint of the package signing key:</span><br>
       <span class="fp">@FINGERPRINT@</span></p>

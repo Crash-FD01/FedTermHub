@@ -45,17 +45,22 @@ jobs:
     # qui parte anche su tutte le altre.
     container: almalinux:9
     steps:
-      - name: Strumenti di compilazione
-        run: |
-          dnf -y -q install epel-release dnf-plugins-core
-          dnf config-manager --set-enabled crb
-          dnf -y -q install gcc make cmake ninja-build pkgconf-pkg-config openssl-devel zlib-devel krb5-devel \
-            pulseaudio-libs-devel cups-devel pcsc-lite-devel fuse3-devel fuse3-libs rpm-build redhat-rpm-config \
-            dpkg binutils findutils tar gzip zstd curl python3 diffutils which
+      # checkout prima di tutto il resto: serve lo script che riporta gli errori nelle annotazioni
+      - name: Strumenti per il checkout
+        run: dnf -y -q install tar gzip bash
 
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.ref }}
+
+      - name: Strumenti di compilazione
+        run: |
+          .github/scripts/annotate.sh "dnf (${{ matrix.arch }})" sh -c '
+            dnf -y install epel-release dnf-plugins-core &&
+            dnf config-manager --set-enabled crb &&
+            dnf -y install gcc make cmake ninja-build pkgconf-pkg-config openssl-devel zlib-devel krb5-devel \
+              pulseaudio-libs-devel cups-devel pcsc-lite-devel fuse3-devel fuse3-libs rpm-build redhat-rpm-config \
+              dpkg binutils findutils zstd diffutils which'
 
       - name: Versione di FreeRDP inclusa
         id: freerdp
@@ -69,11 +74,12 @@ jobs:
 
       - name: Pacchetti
         run: |
-          [ -f /opt/freerdp/lib/pkgconfig/freerdp3.pc ] || packaging/build-freerdp.sh /opt/freerdp
+          [ -f /opt/freerdp/lib/pkgconfig/freerdp3.pc ] || \
+            .github/scripts/annotate.sh "FreeRDP (${{ matrix.arch }})" packaging/build-freerdp.sh /opt/freerdp
           # Il pacchetto principale è uguale per tutte le architetture: si costruisce una volta.
           export FREERDP_PREFIX=/opt/freerdp
           if [ "${{ matrix.arch }}" != x86_64 ]; then export SKIP_MAIN=1; fi
-          packaging/build-packages.sh ${{ matrix.arch }} 2>&1 | grep -v -e 'deprecated' -e '^ *|' -e '^ *[0-9]* |' -e 'note:' -e 'In function' -e 'from /' -e 'In file included'
+          .github/scripts/annotate.sh "Pacchetti (${{ matrix.arch }})" packaging/build-packages.sh ${{ matrix.arch }}
           ls -l dist/packages
 
       - uses: actions/upload-artifact@v7

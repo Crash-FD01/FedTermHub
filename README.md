@@ -9,7 +9,7 @@
 
 **Terminali, SSH, desktop remoto e file in un'unica finestra, per chi amministra sistemi.**
 FedTermHub riunisce terminali locali, sessioni SSH, desktop RDP e VNC, trasferimento file e un vault
-cifrato per le credenziali, con le sessioni organizzate in cartelle. Gratuito e open source, per Fedora.
+cifrato per le credenziali, con le sessioni organizzate in cartelle. Gratuito e open source, per Linux.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/principale-scuro.png">
@@ -34,16 +34,17 @@ cifrato per le credenziali, con le sessioni organizzate in cartelle. Gratuito e 
 
 ## Installazione
 
-**Fedora 43 o più recente** — apri un terminale e incolla:
+**Linux** (Debian, Ubuntu, Mint, Fedora, RHEL/Alma/Rocky, openSUSE e derivate; x86_64 e ARM64) — apri un
+terminale e incolla:
 
 ```bash
 curl -fsSL https://crash-fd01.github.io/FedTermHub/setup.sh | sudo sh
 ```
 
 Poi lo trovi nel menu delle applicazioni. Gli aggiornamenti arrivano con quelli del sistema
-(`sudo dnf upgrade`).
+(`sudo apt upgrade`, `sudo dnf upgrade`, `sudo zypper update`).
 
-Installazione a mano, sistemi immutabili, altre distribuzioni e compilazione dai sorgenti:
+Versioni supportate, installazione a mano, sistemi immutabili, Arch e compilazione dai sorgenti:
 [guida completa](docs/GUIDA.md#installazione).
 
 ## Come si usa
@@ -85,5 +86,6 @@ Apache 2.0 ([LICENSES/Apache-2.0.txt](LICENSES/Apache-2.0.txt)).
 
 *English: FedTermHub is a free, open-source session manager for Linux system administrators: local
 terminals, SSH, RDP and VNC desktops, SFTP file transfer and an encrypted credential vault in one GTK
-window, with sessions organized in folders. Built for Fedora. The interface is available in English and
+window, with sessions organized in folders. Runs on Debian, Ubuntu, Mint, Fedora, RHEL/Alma/Rocky and openSUSE
+(x86_64 and ARM64): `curl -fsSL https://crash-fd01.github.io/FedTermHub/setup.sh | sudo sh`. The interface is available in English and
 Italian: it follows the system language and can be changed in Settings → Interface → Language.*
