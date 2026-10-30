@@ -98,10 +98,19 @@ cartelle dentro **Home Session**.
   della cartella si cambia dal menu contestuale.
 - **Connessione rapida** (`Ctrl+L`): scrivi nel campo in alto e premi Invio,
   senza salvare una sessione. Accetta `utente@host`, `utente@host:2222`,
-  `rdp:host`, `vnc:host` e `serial:/dev/ttyUSB0@9600`.
+  `utente@[fe80::1]:22` (IPv6 tra parentesi quadre), `rdp:host:3390`,
+  `vnc:host` e `serial:/dev/ttyUSB0@9600`.
 - **Command palette** (`Ctrl+K`): cerca una sessione per nome e aprila.
-- **Importa / Esporta**: dal menu contestuale di Home Session o di una cartella.
-  Le esportazioni non contengono password in chiaro.
+- **Importa / Esporta**: menu **Sessioni** oppure menu contestuale.
+  *Esporta tutte le sessioni*, *Esporta la selezione*, *Importa sessioni nella
+  cartella selezionata* (legge anche i file delle versioni vecchie) e
+  *Sostituisci tutte le sessioni con un file*. Le esportazioni non contengono
+  password. Le sessioni importate vengono controllate prima di connettersi:
+  una sessione con dati non validi viene rifiutata.
+- La finestra di una sessione non salva se manca l'host o la porta non è un
+  numero: resta aperta e dice cosa correggere.
+- **Apri tutte le sessioni** di una cartella chiede conferma quando sono più
+  di cinque.
 
 Doppio clic su una sessione per aprirla in una scheda.
 
@@ -116,6 +125,13 @@ Il terminale è basato su VTE, lo stesso componente di GNOME Terminal e Ptyxis.
 - **Hints** (`Ctrl+Shift+H`): assegna una lettera a ogni URL visibile e lo apri
   da tastiera.
 - **Ricerca** nello scrollback con `Ctrl+Shift+F`.
+- **Chiusura**: una shell locale o uno strumento rapido chiude la sua scheda
+  quando termina (`exit`, oppure Invio dove lo chiede). Una sessione SSH, SFTP
+  o seriale si chiude con `exit`; se invece la connessione cade la scheda resta
+  aperta con ⟳ per riconnettere. `Ctrl+Shift+W` sull'ultimo riquadro chiude la
+  scheda. Le sessioni *Comando* restano aperte per leggere l'output.
+- **MultiExec** (menu Terminale): scrivi un comando e scegli a quali schede
+  mandarlo; le sessioni SSH sono già spuntate.
 - **Appunti**: `Ctrl+Shift+C` e `Ctrl+Shift+V`. I programmi remoti possono
   copiare negli appunti locali con OSC 52 (vim, tmux).
 - **Le combinazioni `Ctrl+lettera` appartengono al terminale** quando il
@@ -176,7 +192,9 @@ Se il motore nativo non è disponibile, FedTermHub ripiega su `xfreerdp`.
 
 ## VNC e console seriale
 
-- **VNC** apre `vncviewer` (TigerVNC) con i parametri della sessione.
+- **VNC** apre `vncviewer` (TigerVNC) con i parametri della sessione. Nel
+  campo *Display/porta* un numero piccolo è un display (`1` = porta 5901),
+  un numero da 100 in su è una porta (`5901`).
 - **Seriale**: indica il dispositivo (`/dev/ttyUSB0`) e la velocità. Serve
   `python3-pyserial` e l'appartenenza al gruppo `dialout`.
 
@@ -275,7 +293,7 @@ terminale. Dentro il terminale:
 | `Ctrl+Shift+O` / `Ctrl+Shift+E` | Dividi affiancato / sopra e sotto |
 | `Ctrl+Shift+L` | Cambia layout dei riquadri |
 | `Ctrl+Shift+[` / `Ctrl+Shift+]` | Riquadro precedente / successivo |
-| `Ctrl+Shift+W` | Chiudi il riquadro |
+| `Ctrl+Shift+W` | Chiudi il riquadro (l'ultimo chiude la scheda) |
 | `Ctrl+Shift+P` | Broadcast dell'input |
 | `Ctrl+Shift+H` | Hints: apri un URL da tastiera |
 | `Ctrl+Shift+F` | Cerca nello scrollback |

@@ -104,7 +104,7 @@ def friendly_sftp_error(error: str) -> str:
     if "permission denied" in lowered or "authentication" in lowered or "/dev/tty" in lowered:
         return (
             "Autenticazione SFTP non disponibile. Completa l'accesso nel terminale SSH "
-            "oppure sblocca il vault, quindi premi Aggiorna."
+            "oppure sblocca il Password Manager, quindi premi Aggiorna."
         )
     if "host key verification failed" in lowered:
         return "Chiave host non accettata. Verifica la sessione SSH e riprova."
@@ -198,7 +198,8 @@ class SftpBatchClient:
         target = self.connection.host.strip()
         if self.connection.user.strip():
             target = f"{self.connection.user.strip()}@{target}"
-        argv.append(target)
+        # "--": un host che comincia con "-" non deve diventare un'opzione di sftp.
+        argv += ["--", target]
         env = os.environ.copy()
         if self.connection.password:
             sshpass = shutil.which("sshpass")
@@ -700,13 +701,9 @@ class RemoteFilesSidebar(Gtk.Box):
         return False
 
     def refresh(self) -> None:
-        selected = self.selected_entry()
-        if selected and selected.kind == "directory":
-            self.load_root(selected.path)
-        elif selected:
-            self.load_root(posixpath.dirname(selected.path) or "/")
-        else:
-            self.load_root(self.path_label.get_text() or self.home_path)
+        # Aggiorna ricarica la cartella in cui sei. Prima, con una cartella selezionata, ci entrava:
+        # "Aggiorna" cambiava posizione.
+        self.load_root(self.current_path() or self.home_path)
 
     def selected_entry(self) -> Optional[RemoteEntry]:
         model, tree_iter = self.tree.get_selection().get_selected()
@@ -1106,5 +1103,7 @@ class RemoteFilesSidebar(Gtk.Box):
             return False
         self.status_label.set_text(f"Operazione SFTP fallita: {friendly_sftp_error(error)}" if error else message)
         if refresh_path and not error:
-            self.load_root(refresh_path)
+            # Dopo un caricamento si ricarica la vista corrente, senza saltare nella cartella di
+            # destinazione (che con il trascinamento e' spesso una sottocartella).
+            self.refresh()
         return False

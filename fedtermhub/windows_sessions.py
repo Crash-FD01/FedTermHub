@@ -210,7 +210,7 @@ class WindowsSessionsDialog(Gtk.Dialog):
         if winrm is None:
             self._set_status("Modulo WinRM mancante. Installa: sudo dnf install python3-winrm", error=True)
         elif not self.password:
-            self._set_status("Password non disponibile: sblocca il vault o inseriscila nella sessione RDP.", error=True)
+            self._set_status("Password non disponibile: sblocca il Password Manager o inseriscila nella sessione RDP.", error=True)
         else:
             GLib.idle_add(self.refresh)
 

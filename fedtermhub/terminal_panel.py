@@ -133,6 +133,7 @@ class TerminalPane(Gtk.Box):
         # (scorciatoie globali / broadcast): impostato dal contenitore.
         self.on_key: Optional[Callable[["TerminalPane", "Gdk.EventKey"], bool]] = None
         self.connected = False
+        self.exit_status: Optional[int] = None
 
         # Overlay per i marcatori "hints" (impostato dal workspace).
         self._hint_layer: Optional[Gtk.Widget] = None
@@ -347,6 +348,7 @@ class TerminalPane(Gtk.Box):
             self.terminal.reset(True, True)
         except Exception:
             pass
+        self.exit_status = None
         self.terminal.feed(b"\r\n\x1b[2m[riconnessione in corso...]\x1b[0m\r\n")
         self.spawn()
 
@@ -753,7 +755,10 @@ class TerminalPane(Gtk.Box):
         self._sync_pty_size()
         return False
 
-    def _on_child_exited(self, _terminal, _status) -> None:  # noqa: ANN001
+    def _on_child_exited(self, _terminal, status) -> None:  # noqa: ANN001
+        # Stato di uscita del processo (0 = uscita normale, per esempio "exit" in ssh): la scheda
+        # decide se chiudersi da sola o restare aperta con il pulsante di riconnessione.
+        self.exit_status = int(status)
         self.connected = False
         if self.on_state is not None:
             self.on_state(self)
@@ -1050,13 +1055,18 @@ class TerminalWorkspace(Gtk.Box):
         if pane is self.active_pane and title:
             self.title = title
 
-    def _on_pane_exit(self, pane: TerminalPane) -> None:
+    def _on_pane_exit(self, pane: TerminalPane, explicit: bool = False) -> None:
+        """Un riquadro e' finito (processo uscito) o l'utente ha chiesto di chiuderlo.
+
+        Con piu' riquadri si chiude quello; con l'ultimo decide chi ospita il workspace
+        (on_last_pane_close), perche' solo lui sa se la scheda va chiusa o tenuta per riconnettere.
+        """
         if len(self.panes) > 1:
             self._close_pane(pane)
         else:
             closer = getattr(self, "on_last_pane_close", None)
             if callable(closer):
-                closer(self)
+                closer(self, pane, explicit)
 
     # --------------------------------------------------- input broadcast/keys
     def _on_pane_key(self, pane: TerminalPane, event: "Gdk.EventKey") -> bool:
@@ -1121,7 +1131,7 @@ class TerminalWorkspace(Gtk.Box):
         elif action == "new_pane":
             self.add_pane()
         elif action == "close_pane":
-            self._on_pane_exit(pane)
+            self._on_pane_exit(pane, explicit=True)
         elif action == "next_pane":
             self._cycle_pane(1)
         elif action == "prev_pane":
@@ -1467,6 +1477,12 @@ class TerminalWorkspace(Gtk.Box):
                 pane.apply_terminal_theme(theme)
             except Exception:
                 pass
+
+    def stop(self) -> None:
+        """Chiude tutti i riquadri: i processi ricevono SIGHUP, i timer vengono cancellati."""
+        for pane in list(self.panes):
+            pane.shutdown()
+        self.panes = []
 
     def feed_all(self, data: bytes) -> int:
         """Invia ``data`` a tutti i riquadri (usato da MultiExec)."""

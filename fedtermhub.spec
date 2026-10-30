@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.9.08
+Version:        0.9.09
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -125,6 +125,7 @@ xvfb-run -a /usr/bin/python3 tests/test_ephemeral_lab.py
 xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
 xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
 xvfb-run -a /usr/bin/python3 tests/test_vault_ui.py
+xvfb-run -a /usr/bin/python3 tests/test_revisione.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt
@@ -137,6 +138,24 @@ xvfb-run -a /usr/bin/python3 tests/test_vault_ui.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Fri Oct 30 2026 Crash-FD01 - 1:0.9.09-1
+- Sicurezza: un file di sessioni importato con un host o un utente che comincia con "-" (per esempio -oProxyCommand=...) faceva eseguire un comando locale alla connessione. Ora ssh, sftp, tunnel e file remoti ricevono "--" prima della destinazione e le sessioni con dati non validi vengono rifiutate prima di connettersi
+- VNC: nel campo Display/porta il valore 5901 (suggerito dal campo stesso) veniva passato come display e TigerVNC si collegava alla porta 11801. Ora un numero da 100 in su e' una porta (host::porta), uno piu' piccolo un display
+- Connessione rapida: IPv6 tra parentesi quadre ([fe80::1]:22) e rdp:host:porta / vnc:host:porta; prima la porta finiva nell'host. Dal menu, con il campo vuoto, porta al campo invece di non fare niente
+- Terminale: una shell locale uscita con "exit" lasciava la scheda aperta e morta; gli strumenti rapidi dicevano "Invio per chiudere" senza chiudere. Ora la scheda si chiude quando il programma termina; SSH, SFTP e seriale si chiudono con un'uscita normale e restano aperte con il pulsante di riconnessione se la connessione cade; le sessioni Comando restano aperte per leggere l'output. Ctrl+Shift+W sull'ultimo riquadro chiude la scheda
+- Schede: un solo percorso di chiusura (pulsante, Ctrl+W, chiusura automatica); prima erano quattro diversi e uno lasciava la scheda chiusa nell'elenco di MultiExec
+- MultiExec: mostra le schede aperte e invia solo a quelle scelte (le sessioni SSH sono gia' spuntate); prima inviava a tutte, compresi strumenti, journal e console seriali
+- Sessioni: l'albero ricorda le cartelle aperte; prima ogni modifica, aggiunta o eliminazione le richiudeva tutte tranne Home Session. Il duplicato compare sotto l'originale ed e' selezionato. Le tre strade per creare una sessione si comportano allo stesso modo
+- Sessioni: la finestra non salva una sessione senza host, con porta non numerica o con un comando vuoto; resta aperta e dice cosa correggere
+- Sessioni: un file sessioni illeggibile veniva sostituito dagli esempi senza avvisare e la copia di sicurezza poteva essere sovrascritta da quella successiva. Ora la copia ha la data nel nome e all'avvio compare un avviso con il percorso
+- Sessioni: l'eliminazione di una cartella conta sessioni e sottocartelle di tutti i livelli; "Apri tutte le sessioni" chiede conferma sopra le cinque sessioni; nel menu contestuale "Apri" diventa "Connetti" per le sessioni ed "Espandi o comprimi" per le cartelle
+- Menu Sessioni: quattro voci di import/export al posto di sei quasi doppie; l'importazione legge anche il formato vecchio
+- Password Manager: la password salvata modificando una sessione prende il gruppo della sua cartella; "Blocca password" non dice piu' "bloccato" quando non c'era niente da bloccare; "vault" sostituito da "Password Manager" in tutti i testi
+- File remoti: Aggiorna ricarica la cartella corrente (prima, con una cartella selezionata, ci entrava); dopo un caricamento la vista resta dove era
+- Seriale: un campo "comando" arrivato da un file importato faceva uscire subito il ponte seriale
+- Impostazioni aperte una sola volta; finestra Scorciatoie completa (mancavano Ctrl+K, Ctrl+H e il terminale); menu Aiuto con la Guida
+- Test: tests/test_revisione.py copre tutte queste correzioni con GTK reale sotto Xvfb
+
 * Thu Oct 29 2026 Crash-FD01 - 1:0.9.08-1
 - Password Manager ridisegnato a due pannelli: elenco a sinistra con ricerca, dettaglio della credenziale a destra con i pulsanti Copia accanto a ogni dato, password nascosta finche' non la si chiede e di nuovo nascosta cambiando credenziale. Prima era una tabella con le azioni divise fra la barra in alto e quella in basso, e Esporta/Importa/Blocca avevano lo stesso peso di Copia password
 - Password Manager: credenziali raggruppate (di solito per cliente) e ordinate per gruppo e nome, "Senza gruppo" in fondo; la ricerca trova anche il gruppo e accetta piu' parole. Per le credenziali senza gruppo propone il nome della cartella delle sessioni che le usano, con un clic. La password RDP salvata da una sessione prende il gruppo della sua cartella
