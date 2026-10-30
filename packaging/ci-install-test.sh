@@ -93,14 +93,24 @@ xvfb() {  # xvfb comando argomenti...
         status=$?
         kill "$xpid" 2> /dev/null
         return $status
+    elif command -v mutter > /dev/null; then
+        # RHEL 10 non ha più Xorg né Xvfb: GTK gira su Wayland, in un mutter senza schermo.
+        XDG_RUNTIME_DIR="$(mktemp -d)" dbus-run-session -- sh -c '
+            mutter --headless --wayland --no-x11 --virtual-monitor 1400x900 > /tmp/mutter.log 2>&1 &
+            for _ in $(seq 1 40); do [ -S "$XDG_RUNTIME_DIR/wayland-0" ] && break; sleep 0.25; done
+            WAYLAND_DISPLAY=wayland-0 GDK_BACKEND=wayland "$@"; status=$?
+            kill %1 2> /dev/null; exit $status' sh "$@"
     else
-        echo "Xvfb non disponibile in questa distribuzione"
+        echo "nessun display virtuale (Xvfb o mutter) in questa distribuzione"
         return 127
     fi
 }
+if ! command -v xvfb-run > /dev/null && ! command -v Xvfb > /dev/null && [[ "$family" == rpm-dnf ]]; then
+    tools mutter
+fi
 HAVE_X=1
-command -v xvfb-run > /dev/null || command -v Xvfb > /dev/null || HAVE_X=0
-[[ $HAVE_X -eq 1 ]] || annotate warning "Xvfb" "nessun server X virtuale installabile: provati solo doctor e motore RDP senza finestra"
+command -v xvfb-run > /dev/null || command -v Xvfb > /dev/null || command -v mutter > /dev/null || HAVE_X=0
+[[ $HAVE_X -eq 1 ]] || annotate warning "Display" "nessun display virtuale installabile: provati solo doctor e motore RDP senza finestra"
 
 # ------------------------------------------------------------------ installazione
 if [[ "$MODE" == site ]]; then
