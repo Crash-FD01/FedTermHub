@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 name: Rilascio
 
-# Sul tag di versione (v0.9.07):
+# Parte in tre modi: dal tag di versione (v0.9.09), dal workflow «Pubblicazione automatica» quando
+# su main arriva una versione nuova senza tag, oppure a mano (Actions → Rilascio → Run workflow).
+# Per il tag:
 #   1. costruisce RPM e pacchetto sorgente su Fedora 43, la versione supportata piu' vecchia, cosi'
 #      il pacchetto si installa anche sulle successive;
 #   2. firma i pacchetti con la chiave del progetto (secret FEDTERMHUB_GPG_PRIVATE_KEY, creato da
@@ -17,7 +19,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Tag gia' pubblicato da (ri)rilasciare, per esempio v0.9.07
+        description: Tag gia' pubblicato da (ri)rilasciare, per esempio v0.9.09
+        required: true
+  # Chiamato da «Pubblicazione automatica»: un tag creato con il GITHUB_TOKEN non avvia altri
+  # workflow, quindi chi lo crea deve chiamare il rilascio direttamente.
+  workflow_call:
+    inputs:
+      tag:
+        type: string
         required: true
 
 permissions:
@@ -28,7 +37,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:

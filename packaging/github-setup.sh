@@ -138,4 +138,4 @@ echo "  Poi il sito: $SITE_URL"
 echo "  Installazione per gli utenti: curl -fsSL $SITE_URL/setup.sh | sudo sh"
 echo
 echo "  Prossime versioni: aggiorna la versione (python3 tests/test_versions.py ti dice dove),"
-echo "  fai commit e push, poi: git tag -a vX.Y.Z -m 'FedTermHub X.Y.Z' && git push origin vX.Y.Z"
+echo "  e unisci su main: il workflow «Pubblicazione automatica» crea il tag e pubblica."
