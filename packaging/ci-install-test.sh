@@ -116,7 +116,9 @@ command -v xvfb-run > /dev/null || command -v Xvfb > /dev/null || command -v mut
 if [[ "$MODE" == site ]]; then
     curl -fsSL "$SOURCE/setup.sh" -o /tmp/setup.sh
     if ! sh /tmp/setup.sh > /tmp/setup.log 2>&1; then
-        fail "setup.sh" /tmp/setup.log
+        # Le righe utili (errori dei gestori di pacchetti) prima della coda, che con zypper è solo
+        # l'elenco dei pacchetti scaricati.
+        fail "setup.sh" "$(grep -iE 'error|errore|fail|conflict|warning|problem|signature|exit' /tmp/setup.log | grep -v '^Preloading' | tail -25; echo ---; tail -8 /tmp/setup.log)"
         exit 1
     fi
     tail -3 /tmp/setup.log
