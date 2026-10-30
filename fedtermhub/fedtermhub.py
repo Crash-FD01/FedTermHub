@@ -90,7 +90,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 # controlla che coincidano. Sta in cima perche' il doctor la stampa anche quando GTK non si carica.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.9.09"
+APP_VERSION = "0.9.10"
 
 RAW_ARGV = sys.argv[:]
 DOCTOR_MODE = "--doctor" in RAW_ARGV or "--doctor-strict" in RAW_ARGV
@@ -2105,7 +2105,7 @@ def session_problem(sess: "Session") -> str:
     """
     proto = (sess.protocol or "").lower()
     host = (sess.host or "").strip()
-    if proto in {"ssh", "sftp", "rdp", "vnc"}:
+    if proto in {"ssh", "sftp", "rdp", "vnc", "telnet"}:
         if not host:
             return "manca l'host (nome o indirizzo del server)"
         if host.startswith("-") or any(ch.isspace() for ch in host):
@@ -3252,7 +3252,9 @@ class VaultManagerDialog(Gtk.Dialog):
         self.listbox.get_style_context().add_class("vault-list")
         self.listbox.set_header_func(self._row_header, None)
         self.listbox.connect("row-selected", self.on_row_selected)
-        self.listbox.connect("row-activated", lambda *_a: self.on_edit(None))
+        # Nessuna azione sull'attivazione della riga: Gtk.ListBox attiva con un clic singolo, e cosi'
+        # scegliere una credenziale apriva la modifica. Si modifica solo con il pulsante Modifica.
+        self.listbox.set_activate_on_single_click(False)
         self.no_match = Gtk.Label(label="", xalign=0.5)
         self.no_match.set_line_wrap(True)
         self.no_match.set_margin_top(24)
@@ -3412,7 +3414,7 @@ class VaultManagerDialog(Gtk.Dialog):
             self.parent_app, Gtk.Label.new_with_mnemonic("_Modifica"),
             ["document-edit-symbolic", "accessories-text-editor-symbolic"], self.on_edit,
         )
-        self.btn_edit.set_tooltip_text("Invio o doppio clic sull'elenco")
+        self.btn_edit.set_tooltip_text("Modifica la credenziale selezionata")
         self.btn_del = _vault_button(
             self.parent_app, Gtk.Label.new_with_mnemonic("_Elimina"),
             ["user-trash-symbolic", "edit-delete-symbolic"], self.on_delete, "vault-delete",
@@ -5676,6 +5678,7 @@ class SessionDialog(Gtk.Dialog):
         ("rdp", "RDP"),
         ("vnc", "VNC"),
         ("sftp", "SFTP"),
+        ("telnet", "Telnet"),
         ("serial", "Seriale"),
         ("local", "Terminale locale"),
         ("command", "Comando"),
@@ -6358,6 +6361,16 @@ class SessionDialog(Gtk.Dialog):
         self.sftp_user = self.labeled_entry(grid, 2, "Utente", sess.user, "utente SFTP")
         self.stack.add_named(page, "sftp")
 
+        # Telnet
+        page, grid = self.protocol_page(
+            "Telnet",
+            "Console Telnet in una scheda: apparati di rete, stampanti, UPS e vecchi server. "
+            "Il traffico non è cifrato: usalo solo in reti fidate.",
+        )
+        self.telnet_host = self.labeled_entry(grid, 0, "Host/IP", sess.host, "es. 192.168.1.1")
+        self.telnet_port = self.labeled_entry(grid, 1, "Porta", (sess.port if sess.protocol == "telnet" else "") or "23", "23")
+        self.stack.add_named(page, "telnet")
+
         # Seriale
         page, grid = self.protocol_page("Seriale", "Console seriale integrata, utile per switch, firewall, router e apparati industriali.")
         self.serial_device = Gtk.ComboBoxText.new_with_entry()
@@ -6489,6 +6502,7 @@ class SessionDialog(Gtk.Dialog):
             "rdp": "RDP nativo: PC/IP, utente, dominio e password. Il desktop viene disegnato direttamente da libfreerdp in GTK; la password può essere salvata nel Password Manager.",
             "vnc": "VNC: TigerVNC normalmente richiede la password nella sua finestra; il Password Manager resta utile per ricordarla.",
             "sftp": "SFTP: apre il client sftp nel terminale. Password automatica solo se sshpass è disponibile.",
+            "telnet": "Telnet: login e password si scrivono nel terminale, il collegamento non è cifrato. Ctrl+] e poi quit per uscire.",
             "serial": "Seriale: scegli una porta rilevata oppure scrivila manualmente. Se non hai permessi, aggiungi l'utente al gruppo dialout/uucp a seconda della distro.",
             "local": "Terminale locale: apre la shell predefinita di Fedora.",
             "command": "Comando: utile per scorciatoie come ping, tail, journalctl o script ricorrenti.",
@@ -6595,6 +6609,11 @@ class SessionDialog(Gtk.Dialog):
                 routing_mode=routing_mode, required_tunnel_id=required_tunnel_id,
                 wait_for_tunnel=wait_for_tunnel, jump_host=jump_host,
                 jump_port=jump_port, jump_user=jump_user,
+            )
+        if proto == "telnet":
+            return Session(
+                name=name, protocol=proto, host=self.telnet_host.get_text().strip(),
+                port=self.telnet_port.get_text().strip() or "23", notes=notes,
             )
         if proto == "serial":
             return Session(name=name, protocol=proto, host=get_combo_text(self.serial_device, "/dev/ttyUSB0"), port=get_combo_text(self.serial_baud, "115200"), notes=notes, serial_databits=self.serial_databits.get_active_id() or "8", serial_parity=self.serial_parity.get_active_id() or "N", serial_stopbits=self.serial_stopbits.get_active_id() or "1")
@@ -8802,6 +8821,7 @@ class AppWindow(Gtk.ApplicationWindow):
             "rdp": first_available_icon(["video-display", "computer", "preferences-desktop-display", "video-display-symbolic"]),
             "vnc": first_available_icon(["computer", "network-workgroup", "video-display", "computer-symbolic"]),
             "serial": first_available_icon(["network-wired", "network-transmit-receive", "input-keyboard", "network-wired-symbolic"]),
+            "telnet": first_available_icon(["utilities-terminal", "network-wired", "utilities-terminal-symbolic"]),
         }
         return mapping.get(protocol, first_available_icon(["network-server", "applications-system", "network-server-symbolic"]))
 
@@ -9208,6 +9228,7 @@ class AppWindow(Gtk.ApplicationWindow):
             ("Nuova SSH", lambda *_: self.on_add_proto_session("ssh")),
             ("Nuova RDP", lambda *_: self.on_add_proto_session("rdp")),
             ("Nuova VNC", lambda *_: self.on_add_proto_session("vnc")),
+            ("Nuova Telnet", lambda *_: self.on_add_proto_session("telnet")),
             ("Nuova seriale", lambda *_: self.on_add_proto_session("serial")),
             ("Nuova cartella", lambda *_: self.on_add_folder(None)),
             ("---", None),
@@ -9236,6 +9257,7 @@ class AppWindow(Gtk.ApplicationWindow):
             ("Traceroute", lambda *_: self.run_quick_tool("Traceroute", self.quick_tool_commands()["Traceroute"])),
             ("DNS lookup", lambda *_: self.run_quick_tool("DNS lookup", self.quick_tool_commands()["DNS lookup"])),
             ("Check porta TCP", lambda *_: self.run_quick_tool("Check porta TCP", self.quick_tool_commands()["Check porta TCP"])),
+            ("Connessione Telnet", lambda *_: self.start_quick_telnet()),
             ("Route", lambda *_: self.run_quick_tool("Route", self.quick_tool_commands()["Route"])),
             ("Socket aperti", lambda *_: self.run_quick_tool("Socket aperti", self.quick_tool_commands()["Socket aperti"])),
         ]))
@@ -9980,7 +10002,10 @@ class AppWindow(Gtk.ApplicationWindow):
         }
 
     def run_quick_tool(self, label: str, command: str) -> None:
-        self.add_terminal_tab(label, [os.environ.get("SHELL") or "/bin/sh", "-lc", command], close_on_exit="always")
+        # I comandi sono scritti per bash (read -rp, /dev/tcp): con la shell dell'utente fallivano
+        # su zsh (dove read -p e' un'altra cosa) e su fish.
+        shell = shutil.which("bash") or os.environ.get("SHELL") or "/bin/sh"
+        self.add_terminal_tab(label, [shell, "-lc", command], close_on_exit="always")
 
     def show_tools_dialog(self) -> None:
         self.show_tools_menu(None)
@@ -10031,6 +10056,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self._add_popup_item(menu, "Nuova SSH", ["network-workgroup-symbolic", "network-workgroup"], lambda: self.on_add_proto_session("ssh"))
             self._add_popup_item(menu, "Nuova RDP", ["video-display-symbolic", "video-display"], lambda: self.on_add_proto_session("rdp"))
             self._add_popup_item(menu, "Nuova VNC", ["computer-symbolic", "video-display-symbolic"], lambda: self.on_add_proto_session("vnc"))
+            self._add_popup_item(menu, "Nuova Telnet", ["network-wired-symbolic", "utilities-terminal-symbolic"], lambda: self.on_add_proto_session("telnet"))
             self._add_popup_item(menu, "Nuova seriale", ["network-wired-symbolic", "input-keyboard-symbolic"], lambda: self.on_add_proto_session("serial"))
             self._add_popup_item(menu, "Nuova cartella", ["folder-new-symbolic", "folder-new"], lambda: self.on_add_folder(None))
             sep()
@@ -10055,6 +10081,7 @@ class AppWindow(Gtk.ApplicationWindow):
             commands = self.quick_tool_commands()
             for name in ("Ping", "Traceroute", "DNS lookup", "Check porta TCP", "Route", "Socket aperti"):
                 self._add_popup_item(menu, name, ["system-run-symbolic", "applications-system-symbolic"], lambda n=name, c=commands[name]: self.run_quick_tool(n, c))
+            self._add_popup_item(menu, "Connessione Telnet", ["utilities-terminal-symbolic", "network-wired-symbolic"], self.start_quick_telnet)
         elif category == "tools":
             self._add_popup_heading(menu, "Strumenti")
             self._add_popup_item(menu, "Tunneling SSH", ["network-vpn-symbolic", "network-transmit-receive-symbolic"], lambda: self.on_tunnel_manager(None))
@@ -10140,6 +10167,8 @@ class AppWindow(Gtk.ApplicationWindow):
             ("Nuova SSH", "crea sessione ssh", lambda: self.on_add_proto_session("ssh")),
             ("Nuova RDP", "crea sessione desktop remoto", lambda: self.on_add_proto_session("rdp")),
             ("Nuova VNC", "crea sessione vnc", lambda: self.on_add_proto_session("vnc")),
+            ("Nuova Telnet", "crea sessione telnet switch router", lambda: self.on_add_proto_session("telnet")),
+            ("Connessione Telnet", "telnet al volo host porta", lambda: self.start_quick_telnet()),
             ("Nuova seriale", "crea console seriale", lambda: self.on_add_proto_session("serial")),
             ("Gestore tunnel SSH", "tunnel port forwarding socks", lambda: self.on_tunnel_manager(None)),
             ("Password Manager", "vault credenziali password", lambda: self.on_password_manager(None)),
@@ -10246,7 +10275,7 @@ class AppWindow(Gtk.ApplicationWindow):
         if make_target is None:
             return None
         protocol = (session.protocol or "").lower()
-        if protocol not in {"rdp", "ssh", "sftp", "vnc"}:
+        if protocol not in {"rdp", "ssh", "sftp", "vnc", "telnet"}:
             return None
         routing_mode = getattr(session, "routing_mode", "direct")
         if routing_mode == "rd_gateway":
@@ -10477,6 +10506,7 @@ class AppWindow(Gtk.ApplicationWindow):
             "ssh": Session(name="Nuova SSH", protocol="ssh", port="22"),
             "rdp": Session(name="Nuova RDP", protocol="rdp", port="3389"),
             "serial": Session(name="Nuova seriale", protocol="serial", host="/dev/ttyUSB0", port="115200"),
+            "telnet": Session(name="Nuova Telnet", protocol="telnet", port="23"),
             "vnc": Session(name="Nuova VNC", protocol="vnc"),
             "sftp": Session(name="Nuova SFTP", protocol="sftp", port="22"),
         }
@@ -10518,14 +10548,18 @@ class AppWindow(Gtk.ApplicationWindow):
         dialog.show_all()
         dialog.present()
 
-    def create_session_from_network_tool(self, protocol: str, host: str) -> None:
+    def create_session_from_network_tool(self, protocol: str, host: str, port: str = "") -> None:
         defaults = {
             "ssh": Session(name=f"SSH {host}", protocol="ssh", host=host, port="22"),
             "rdp": Session(name=f"RDP {host}", protocol="rdp", host=host, port="3389"),
             "vnc": Session(name=f"VNC {host}", protocol="vnc", host=host, port="5900"),
             "sftp": Session(name=f"SFTP {host}", protocol="sftp", host=host, port="22"),
+            "telnet": Session(name=f"Telnet {host}", protocol="telnet", host=host, port="23"),
         }
         session_template = defaults.get(protocol, Session(name=f"Sessione {host}", protocol=protocol, host=host))
+        if port:
+            # Porta trovata dal port scanner (SSH sulla 2222, VNC sulla 5901...).
+            session_template.port = port
         dialog = SessionDialog(
             self,
             session_template,
@@ -12443,7 +12477,7 @@ class AppWindow(Gtk.ApplicationWindow):
             if not self.sidebar.get_visible():
                 self.toggle_sidebar(True)
             self.quick.grab_focus()
-            self.set_status("Scrivi utente@host[:porta], rdp:host, vnc:host o serial:/dev/ttyUSB0@115200 e premi Invio.")
+            self.set_status("Scrivi utente@host[:porta], rdp:host, vnc:host, telnet:host o serial:/dev/ttyUSB0@115200 e premi Invio.")
             return
         lower = text.lower()
         try:
@@ -12453,6 +12487,9 @@ class AppWindow(Gtk.ApplicationWindow):
             elif lower.startswith("vnc:"):
                 host, port = split_host_port(text.split(":", 1)[1].strip().lstrip("/"), "")
                 sess = Session(name=f"VNC {host}", protocol="vnc", host=host, port=port)
+            elif lower.startswith("telnet:"):
+                host, port = split_host_port(text.split(":", 1)[1].strip().lstrip("/"), "23")
+                sess = Session(name=f"Telnet {host}", protocol="telnet", host=host, port=port)
             elif lower.startswith("serial:"):
                 rest = text.split(":", 1)[1].strip()
                 device, baud = (rest.split("@", 1) + ["115200"])[:2] if "@" in rest else (rest, "115200")
@@ -12478,6 +12515,15 @@ class AppWindow(Gtk.ApplicationWindow):
             self.quick.set_text("")
         except Exception as exc:
             self.set_status(f"Quick connect non valido: {exc}")
+
+    def start_quick_telnet(self) -> None:
+        """Telnet al volo senza salvare una sessione: prepara la connessione rapida."""
+        if not self.sidebar.get_visible():
+            self.toggle_sidebar(True)
+        self.quick.set_text("telnet:")
+        self.quick.grab_focus()
+        self.quick.set_position(-1)
+        self.set_status("Completa con host[:porta] (porta 23 se non la scrivi) e premi Invio.")
 
     def on_session_activated(self, _tree: Gtk.TreeView, tree_path: Gtk.TreePath, _column: Gtk.TreeViewColumn) -> None:
         tree_iter = self.tree_store.get_iter(tree_path)
@@ -13067,6 +13113,8 @@ class AppWindow(Gtk.ApplicationWindow):
                 self.launch_vnc(sess)
             elif proto == "sftp":
                 self.launch_sftp(sess)
+            elif proto == "telnet":
+                self.open_telnet(sess)
             elif proto == "serial":
                 self.open_serial(sess)
             else:
@@ -13149,6 +13197,19 @@ class AppWindow(Gtk.ApplicationWindow):
         if sess.command:
             argv.append(sess.command)
         self.add_terminal_tab(sess.name or target, argv, extra_env=env, session=sess, close_on_exit="on_success")
+
+    def open_telnet(self, sess: Session) -> None:
+        binary = shutil.which("telnet")
+        if not binary:
+            self.report_session_error(
+                "Client Telnet non installato",
+                "Per le sessioni Telnet serve il client telnet.",
+                "Installa: sudo dnf install telnet",
+            )
+            return
+        # "--" come per ssh: un host che comincia con "-" non diventa un'opzione.
+        argv = [binary, "--", sess.host, sess.port or "23"]
+        self.add_terminal_tab(sess.name or f"Telnet {sess.host}", argv, session=sess, close_on_exit="on_success")
 
     def open_command(self, sess: Session) -> None:
         if not sess.command:
@@ -14320,7 +14381,7 @@ class AppWindow(Gtk.ApplicationWindow):
             add_item("Dettagli", self.on_show_selected_details)
             return menu
 
-        if isinstance(node, Session) and node.protocol.lower() in {"rdp", "ssh", "sftp", "vnc"} and bool(node.host.strip()):
+        if isinstance(node, Session) and node.protocol.lower() in {"rdp", "ssh", "sftp", "vnc", "telnet"} and bool(node.host.strip()):
             add_item("Diagnostica connessione", self.on_diagnose_selected)
 
         add_item("Modifica", self.on_edit_selected)

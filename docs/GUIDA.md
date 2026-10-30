@@ -8,7 +8,7 @@
 - [SSH e file remoti](#ssh-e-file-remoti)
 - [Tunnel SSH](#tunnel-ssh)
 - [Desktop remoto RDP](#desktop-remoto-rdp)
-- [VNC e console seriale](#vnc-e-console-seriale)
+- [VNC, Telnet e console seriale](#vnc-telnet-e-console-seriale)
 - [Password Manager](#password-manager)
 - [Strumenti di rete](#strumenti-di-rete)
 - [Laboratorio Linux usa e getta](#laboratorio-linux-usa-e-getta)
@@ -190,11 +190,15 @@ sessione dentro la scheda o in una finestra indipendente.
 
 Se il motore nativo non è disponibile, FedTermHub ripiega su `xfreerdp`.
 
-## VNC e console seriale
+## VNC, Telnet e console seriale
 
 - **VNC** apre `vncviewer` (TigerVNC) con i parametri della sessione. Nel
   campo *Display/porta* un numero piccolo è un display (`1` = porta 5901),
   un numero da 100 in su è una porta (`5901`).
+- **Telnet**: per switch, router, UPS e apparati che non hanno SSH. Crea una
+  sessione Telnet oppure scrivi `telnet:host` (o `telnet:host:porta`) nella
+  connessione rapida. Usa il client `telnet` di Fedora; il traffico non è
+  cifrato. Per uscire: `Ctrl+]` e poi `quit`.
 - **Seriale**: indica il dispositivo (`/dev/ttyUSB0`) e la velocità. Serve
   `python3-pyserial` e l'appartenenza al gruppo `dialout`.
 
@@ -230,7 +234,6 @@ chiedere la password, e nel file delle sessioni non finisce mai una password.
 | `Ctrl+N` | Nuova credenziale |
 | `Ctrl+C` | Copia la password della credenziale selezionata |
 | `Ctrl+B` | Copia l'utente (`DOMINIO\utente` per gli account di dominio) |
-| `Invio` / doppio clic | Modifica |
 | `Canc` | Elimina (chiede conferma e dice quali sessioni la usano) |
 
 Le password copiate si cancellano dagli appunti dopo 30 secondi (si cambia
@@ -250,11 +253,26 @@ password.
 
 ## Strumenti di rete
 
-Dal menu **Rete**: network scanner e port scanner (`nmap`; l'ARP con privilegi
-mostra MAC e produttore), cattura pacchetti (`tcpdump`), Wake-on-LAN, porte in
-ascolto e server locali (SSH, FTP, TFTP, HTTP, NFS, VNC) da avviare al volo per
-un intervento. Le operazioni che richiedono privilegi chiedono conferma con
-Polkit.
+Dal menu **Rete**:
+
+- **Network scanner** e **port scanner** (`nmap`; l'ARP con privilegi mostra
+  MAC e produttore). Dal port scanner *Crea sessione dal servizio* apre una
+  sessione SSH, RDP, VNC o Telnet con la porta trovata (un SSH sulla 2222
+  diventa una sessione sulla 2222).
+- **Cattura pacchetti** (`tcpdump`): ogni cattura va in un file nuovo; si ferma
+  senza chiedere di nuovo la password.
+- **Wake-on-LAN**: propone il broadcast delle reti a cui sei collegato (per
+  esempio `192.168.1.255`), che funziona meglio di `255.255.255.255`.
+- **Porte in ascolto**, con il programma che usa ogni porta.
+- **Server locali** (SSH, FTP, TFTP, Telnet, HTTP, NFS, VNC) da avviare al volo
+  per un intervento. Il server HTTP propone la cartella *Pubblici*, non tutta
+  la home.
+- **Connessione Telnet** e strumenti rapidi (ping, traceroute, DNS, porta TCP,
+  route, socket aperti).
+
+Le operazioni che richiedono privilegi chiedono l'autorizzazione con Polkit
+**una volta sola** per ogni azione (prima, applicare più cartelle FTP la
+chiedeva per ogni comando).
 
 ## Laboratorio Linux usa e getta
 

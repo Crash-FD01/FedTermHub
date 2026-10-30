@@ -19,6 +19,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
 import tempfile
@@ -74,6 +75,22 @@ def _privileged_command(args: Sequence[str]) -> List[str]:
     return [pkexec, *args] if pkexec else list(args)
 
 
+def _run_privileged_script(lines: Sequence[str], timeout: int = 180) -> subprocess.CompletedProcess[str]:
+    """Esegue piu' comandi da amministratore con UNA sola richiesta di autorizzazione.
+
+    pkexec chiede la password a ogni chiamata: applicare tre cartelle FTP ne chiedeva una decina di
+    fila. Le righe sono gia' comandi di shell quotati (shlex.join) o costrutti di controllo.
+    """
+    script = "set -e\n" + "\n".join(lines) + "\n"
+    return _run(_privileged_command(["sh", "-c", script]), timeout=timeout)
+
+
+def _privileged_error(proc: subprocess.CompletedProcess[str]) -> str:
+    if proc.returncode in (126, 127) and os.geteuid() != 0:
+        return "Autorizzazione negata o annullata."
+    return (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()
+
+
 def _split_endpoint(endpoint: str) -> Tuple[str, str]:
     endpoint = endpoint.strip()
     if endpoint.startswith("[") and "]:" in endpoint:
@@ -85,6 +102,20 @@ def _split_endpoint(endpoint: str) -> Tuple[str, str]:
         host, port = endpoint.rsplit(":", 1)
         return host, port
     return endpoint, ""
+
+
+def _ss_process_text(raw: str) -> str:
+    """'users:(("sshd",pid=812,fd=3),("sshd",pid=900,fd=3))' -> 'sshd (pid 812, 900)'.
+
+    Prima veniva mostrato il testo grezzo di ss, con parentesi e fd. Senza privilegi ss non vede i
+    processi degli altri utenti: la colonna resta vuota.
+    """
+    found: Dict[str, List[str]] = {}
+    for name, pid in re.findall(r'\("([^"]+)",pid=(\d+)', raw or ""):
+        found.setdefault(name, [])
+        if pid not in found[name]:
+            found[name].append(pid)
+    return ", ".join(f"{name} (pid {', '.join(pids)})" for name, pids in found.items())
 
 
 def _interfaces() -> List[str]:
@@ -319,9 +350,17 @@ class NetworkRuntime:
             except Exception:
                 pid = None
         if pid:
+            # tcpdump gira con -Z utente: lascia i privilegi dopo aver aperto l'interfaccia, quindi
+            # di norma l'utente puo' fermarlo da se'. Prima si passava sempre da pkexec e fermare la
+            # cattura chiedeva di nuovo la password di amministratore.
             try:
-                subprocess.Popen(_privileged_command(["kill", "-INT", str(pid)]))
-            except Exception:
+                os.kill(pid, signal.SIGINT)
+            except PermissionError:
+                try:
+                    subprocess.Popen(_privileged_command(["kill", "-INT", str(pid)]))
+                except Exception:
+                    pass
+            except (ProcessLookupError, OSError):
                 pass
         proc = self.capture_process
         if proc and proc.poll() is None:
@@ -750,61 +789,45 @@ class ServicesPage(ToolPage):
 
         def worker() -> str:
             desired_names = {row["name"] for row in shares}
+            lines: List[str] = []
             for child in root.iterdir():
                 if child.name not in desired_names and _is_mountpoint(child):
-                    proc = _run(_privileged_command(["umount", str(child)]), timeout=90)
-                    if proc.returncode != 0:
-                        raise RuntimeError((proc.stderr or proc.stdout).strip() or f"Impossibile smontare {child}")
+                    lines.append(shlex.join(["umount", str(child)]))
             for row in shares:
                 source = Path(row["path"])
                 target = root / row["name"]
                 if not source.is_dir():
                     raise RuntimeError(f"Cartella sorgente non disponibile: {source}")
                 target.mkdir(parents=True, exist_ok=True)
-                if _is_mountpoint(target):
-                    _run(_privileged_command(["umount", str(target)]), timeout=90)
-                proc = _run(_privileged_command(["mount", "--bind", str(source), str(target)]), timeout=90)
-                if proc.returncode != 0:
-                    raise RuntimeError((proc.stderr or proc.stdout).strip() or f"Bind mount fallito: {source}")
+                quoted = shlex.quote(str(target))
+                lines.append(f"if mountpoint -q {quoted}; then umount {quoted}; fi")
+                lines.append(shlex.join(["mount", "--bind", str(source), str(target)]))
                 if row.get("mode") == "ro":
-                    proc = _run(_privileged_command(["mount", "-o", "remount,bind,ro", str(target)]), timeout=90)
-                    if proc.returncode != 0:
-                        raise RuntimeError((proc.stderr or proc.stdout).strip() or f"Impossibile rendere sola lettura {target}")
+                    lines.append(shlex.join(["mount", "-o", "remount,bind,ro", str(target)]))
 
             conf_dir = CACHE_DIR / "vsftpd"
             conf_dir.mkdir(parents=True, exist_ok=True)
-            main_conf_path = Path("/etc/vsftpd/vsftpd.conf")
-            if not main_conf_path.exists():
-                main_conf_path = Path("/etc/vsftpd.conf")
-            if not main_conf_path.exists():
-                raise RuntimeError("Configurazione principale vsftpd non trovata.")
-            current = main_conf_path.read_text(encoding="utf-8", errors="replace")
-            match = re.search(r"^\s*user_config_dir\s*=\s*(.+?)\s*$", current, re.M)
-            user_config_dir = Path(match.group(1).strip()) if match else Path("/etc/vsftpd/user_conf")
-            if not match:
-                updated = current.rstrip() + f"\n\n# Gestito da FedTermHub\nuser_config_dir={user_config_dir}\n"
-                temp = conf_dir / "vsftpd.conf"
-                temp.write_text(updated, encoding="utf-8")
-                os.chmod(temp, 0o600)
-                proc = _run(_privileged_command(["install", "-m", "0600", str(temp), str(main_conf_path)]), timeout=90)
-                if proc.returncode != 0:
-                    raise RuntimeError((proc.stderr or proc.stdout).strip() or "Impossibile aggiornare vsftpd.conf")
-
             user_conf = conf_dir / username
             user_conf.write_text(
                 f"local_root={root}\nwrite_enable=YES\nchroot_local_user=YES\nallow_writeable_chroot=YES\n",
                 encoding="utf-8",
             )
             os.chmod(user_conf, 0o600)
-            install_user_conf = _run(
-                _privileged_command(["install", "-D", "-m", "0644", str(user_conf), str(user_config_dir / username)]),
-                timeout=90,
-            )
-            if install_user_conf.returncode != 0:
-                raise RuntimeError((install_user_conf.stderr or install_user_conf.stdout).strip() or "Configurazione utente vsftpd non installata")
-            restart = _run(_privileged_command(["systemctl", "restart", "vsftpd.service"]), timeout=120)
-            if restart.returncode != 0:
-                raise RuntimeError((restart.stderr or restart.stdout).strip() or "Riavvio vsftpd fallito")
+            # vsftpd.conf su Fedora e' leggibile solo da root: prima veniva letto da qui con i
+            # permessi dell'utente e l'applicazione falliva sempre con "Permission denied".
+            lines += [
+                'conf=/etc/vsftpd/vsftpd.conf; [ -f "$conf" ] || conf=/etc/vsftpd.conf',
+                '[ -f "$conf" ] || { echo "Configurazione principale vsftpd non trovata." >&2; exit 3; }',
+                "dir=$(sed -n 's/^[[:space:]]*user_config_dir[[:space:]]*=[[:space:]]*//p' \"$conf\" | tail -n1)",
+                'if [ -z "$dir" ]; then dir=/etc/vsftpd/user_conf; '
+                'printf "\\n# Gestito da FedTermHub\\nuser_config_dir=%s\\n" "$dir" >> "$conf"; fi',
+                f'install -D -m 0644 {shlex.quote(str(user_conf))} "$dir"/{shlex.quote(username)}',
+                "systemctl restart vsftpd.service",
+            ]
+            proc = _run_privileged_script(lines, timeout=240)
+            user_conf.unlink(missing_ok=True)
+            if proc.returncode != 0:
+                raise RuntimeError(_privileged_error(proc))
             return f"{len(shares)} cartelle FTP applicate. Radice utente: {root}"
 
         def done(result: object, error: Optional[BaseException]) -> None:
@@ -831,7 +854,10 @@ class ServicesPage(ToolPage):
         http_box.pack_start(note, False, False, 0)
         form = Gtk.Grid(column_spacing=10, row_spacing=8)
         self.http_dir = Gtk.FileChooserButton(title="Cartella da condividere", action=Gtk.FileChooserAction.SELECT_FOLDER)
-        self.http_dir.set_filename(str(Path.home()))
+        # Non l'intera home: con "Rete locale" sarebbe visibile a tutta la rete. Si propone la
+        # cartella Pubblici dell'utente, se c'e'.
+        public = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PUBLIC_SHARE)
+        self.http_dir.set_filename(public if public and Path(public).is_dir() else str(Path.home()))
         self.http_bind = Gtk.ComboBoxText()
         self.http_bind.append("127.0.0.1", "Solo questo computer")
         self.http_bind.append("0.0.0.0", "Rete locale")  # nosec B104
@@ -996,39 +1022,81 @@ class ServicesPage(ToolPage):
         except (OSError, subprocess.SubprocessError):
             return False
 
-    def refresh_status(self) -> bool:
-        for service in self.SERVICES:
-            installed = self._package_installed(service.package)
-            package_label = self.package_labels.get(service.unit)
-            state_label = self.status_labels.get(service.unit)
-            actions = self.service_action_buttons.get(service.unit, {})
-            install_button = self.install_buttons.get(service.unit)
-            if package_label:
+    def refresh_status(self, recheck_packages: bool = False) -> bool:
+        """Aggiorna lo stato dei servizi senza bloccare l'interfaccia.
+
+        Prima rpm -q e systemctl giravano nel thread di GTK ogni 4 secondi, per cinque servizi: la
+        finestra si bloccava per una frazione di secondo a ogni giro. Ora girano in un thread e i
+        pacchetti installati si ricontrollano solo all'apertura e dopo un'installazione.
+        """
+        self._refresh_local_runtime()
+        if getattr(self, "_status_running", False):
+            return True
+        self._status_running = True
+        cached = dict(getattr(self, "_installed_cache", {}))
+
+        def worker() -> Dict[str, Tuple[bool, bool]]:
+            result: Dict[str, Tuple[bool, bool]] = {}
+            for service in self.SERVICES:
+                installed = cached.get(service.package)
+                if installed is None or recheck_packages:
+                    installed = self._package_installed(service.package)
+                active = False
                 if installed:
-                    package_label.set_markup('<span foreground="#39c879" weight="bold">● Installato</span>')
-                    package_label.get_style_context().add_class("installed-badge")
-                else:
-                    package_label.set_markup('<span foreground="#e8a84a" weight="bold">● Non installato</span>')
-            if install_button:
-                install_button.set_sensitive(not installed)
-                install_button.set_tooltip_text("Pacchetto già installato" if installed else f"Installa {service.package}")
-            for action_name, button in actions.items():
-                if action_name != "install":
-                    button.set_sensitive(installed)
-            if not installed:
-                if state_label:
-                    state_label.set_markup('<span foreground="#8792a2">● Non disponibile</span>')
-                continue
-            proc = _run(["systemctl", "is-active", service.unit], timeout=4)
-            active = proc.returncode == 0 and proc.stdout.strip() == "active"
+                    try:
+                        proc = _run(["systemctl", "is-active", service.unit], timeout=4)
+                        active = proc.returncode == 0 and proc.stdout.strip() == "active"
+                    except (OSError, subprocess.SubprocessError):
+                        active = False
+                result[service.unit] = (installed, active)
+            return result
+
+        def done(result: object, error: Optional[BaseException]) -> None:
+            self._status_running = False
+            if error or not isinstance(result, dict):
+                return
+            self._installed_cache = {
+                service.package: result[service.unit][0] for service in self.SERVICES if service.unit in result
+            }
+            for service in self.SERVICES:
+                installed, active = result.get(service.unit, (False, False))
+                self._show_service_state(service, installed, active)
+
+        _async(worker, done)
+        return True
+
+    def _show_service_state(self, service: ServiceDefinition, installed: bool, active: bool) -> None:
+        package_label = self.package_labels.get(service.unit)
+        state_label = self.status_labels.get(service.unit)
+        actions = self.service_action_buttons.get(service.unit, {})
+        install_button = self.install_buttons.get(service.unit)
+        if package_label:
+            if installed:
+                package_label.set_markup('<span foreground="#39c879" weight="bold">● Installato</span>')
+                package_label.get_style_context().add_class("installed-badge")
+            else:
+                package_label.set_markup('<span foreground="#e8a84a" weight="bold">● Non installato</span>')
+        if install_button:
+            install_button.set_sensitive(not installed)
+            install_button.set_tooltip_text("Pacchetto già installato" if installed else f"Installa {service.package}")
+        for action_name, button in actions.items():
+            if action_name != "install":
+                button.set_sensitive(installed)
+        if not installed:
             if state_label:
-                state_label.set_markup(
-                    '<span foreground="#4cc38a" weight="bold">● Attivo</span>' if active
-                    else '<span foreground="#9aa5b2">● Fermo</span>'
-                )
-            if actions:
-                actions.get("start") and actions["start"].set_sensitive(not active)
-                actions.get("stop") and actions["stop"].set_sensitive(active)
+                state_label.set_markup('<span foreground="#8792a2">● Non disponibile</span>')
+            return
+        if state_label:
+            state_label.set_markup(
+                '<span foreground="#4cc38a" weight="bold">● Attivo</span>' if active
+                else '<span foreground="#9aa5b2">● Fermo</span>'
+            )
+        if actions:
+            actions.get("start") and actions["start"].set_sensitive(not active)
+            actions.get("stop") and actions["stop"].set_sensitive(active)
+
+    def _refresh_local_runtime(self) -> None:
+        """Server HTTP/VNC avviati da FedTermHub: stato in memoria, nessun comando esterno."""
         proc = RUNTIME.http_process
         if proc and proc.poll() is None:
             self.http_status.set_markup(f'<span foreground="#4cc38a" weight="bold">● Attivo</span> — {GLib.markup_escape_text(RUNTIME.http_description)}')
@@ -1042,7 +1110,7 @@ class ServicesPage(ToolPage):
         if RUNTIME.vnc_log:
             self.vnc_log_label.set_text("\n".join(RUNTIME.vnc_log[-4:]))
         self.refresh_share_views()
-        return True
+
 
     def _confirm_insecure(self, service: ServiceDefinition, action: str) -> bool:
         if not service.insecure or action not in {"start", "enable", "firewall"}:
@@ -1072,11 +1140,12 @@ class ServicesPage(ToolPage):
             if not _command_exists("firewall-cmd"):
                 self.message(self.parent, "Firewalld non disponibile", "Installa e avvia firewalld per gestire le regole dall'interfaccia.", True)
                 return
-            commands = [
-                _privileged_command(["firewall-cmd", "--permanent", f"--add-service={firewall_service}"])
+            # Una sola autorizzazione per tutte le regole e il reload.
+            lines = [
+                shlex.join(["firewall-cmd", "--permanent", f"--add-service={firewall_service}"])
                 for firewall_service in service.firewall_services
-            ]
-            commands.append(_privileged_command(["firewall-cmd", "--reload"]))
+            ] + [shlex.join(["firewall-cmd", "--reload"])]
+            commands = [_privileged_command(["sh", "-c", "set -e\n" + "\n".join(lines)])]
         else:
             verb = "enable" if action == "enable" else action
             args = ["systemctl", verb]
@@ -1098,7 +1167,7 @@ class ServicesPage(ToolPage):
             return "\n".join(messages)
 
         def done(_result: object, error: Optional[BaseException]) -> None:
-            self.refresh_status()
+            self.refresh_status(recheck_packages=(action == "install"))
             if error:
                 self.message(self.parent, f"Operazione {service.name} non riuscita", str(error), True)
 
@@ -1125,15 +1194,38 @@ class ServicesPage(ToolPage):
         folder = self.http_dir.get_filename() or str(Path.home())
         bind = self.http_bind.get_active_id() or "127.0.0.1"
         port = int(self.http_port.get_value())
-        command = ["python3", "-m", "http.server", str(port), "--bind", bind, "--directory", folder]
+        command = [sys.executable or "python3", "-m", "http.server", str(port), "--bind", bind, "--directory", folder]
         try:
-            proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
+            proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         except Exception as exc:
             self.message(self.parent, "Server HTTP non avviato", str(exc), True)
             return
-        time.sleep(0.12)
-        if proc.poll() is not None:
-            self.message(self.parent, "Server HTTP non avviato", "La porta potrebbe essere già occupata.", True)
+        # Si considera avviato quando risponde sulla porta: prima si aspettavano 0,12 s e un server
+        # morto subito dopo (porta occupata) veniva mostrato come attivo.
+        probe_host = "127.0.0.1" if bind in {"0.0.0.0", "127.0.0.1"} else bind  # nosec B104
+        started = time.monotonic()
+        listening = False
+        while time.monotonic() < started + 3.0 and proc.poll() is None:
+            try:
+                with socket.create_connection((probe_host, port), timeout=0.3):
+                    listening = True
+                    break
+            except OSError:
+                time.sleep(0.1)
+        if listening:
+            # A rispondere potrebbe essere un altro programma che occupa gia' la porta: in quel caso
+            # il nostro server esce subito con "Address already in use". Si controlla che sia vivo.
+            time.sleep(max(0.0, started + 0.8 - time.monotonic()))
+            listening = proc.poll() is None
+        if not listening:
+            error = ""
+            if proc.poll() is None:
+                proc.terminate()
+            else:
+                error = (proc.stderr.read() if proc.stderr else "").strip().splitlines()[-1:] or [""]
+                error = error[0]
+            hint = "La porta è già usata da un altro programma." if "Address already in use" in error else error
+            self.message(self.parent, "Server HTTP non avviato", hint or "Il server non risponde.", True)
             return
         RUNTIME.http_process = proc
         host = _primary_ipv4() if bind == "0.0.0.0" else bind  # nosec B104
@@ -1178,16 +1270,14 @@ class ServicesPage(ToolPage):
         self.nfs_status.set_text("Applicazione export NFS in corso…")
 
         def worker() -> str:
-            commands = [
-                _privileged_command(["install", "-D", "-m", "0644", str(temp), "/etc/exports.d/fedtermhub.exports"]),
-                _privileged_command(["exportfs", "-ra"]),
-                _privileged_command(["systemctl", "enable", "--now", "nfs-server.service"]),
-            ]
             try:
-                for command in commands:
-                    proc = _run(command, timeout=120)
-                    if proc.returncode != 0:
-                        raise RuntimeError((proc.stderr or proc.stdout).strip() or f"exit {proc.returncode}")
+                proc = _run_privileged_script([
+                    shlex.join(["install", "-D", "-m", "0644", str(temp), "/etc/exports.d/fedtermhub.exports"]),
+                    shlex.join(["exportfs", "-ra"]),
+                    shlex.join(["systemctl", "enable", "--now", "nfs-server.service"]),
+                ])
+                if proc.returncode != 0:
+                    raise RuntimeError(_privileged_error(proc))
                 verify = _run(["exportfs", "-v"], timeout=10)
                 return verify.stdout.strip() or export_line.strip()
             finally:
@@ -1203,13 +1293,12 @@ class ServicesPage(ToolPage):
         self.nfs_status.set_text("Rimozione export in corso…")
 
         def worker() -> str:
-            for command in (
-                _privileged_command(["rm", "-f", "/etc/exports.d/fedtermhub.exports"]),
-                _privileged_command(["exportfs", "-ra"]),
-            ):
-                proc = _run(command, timeout=90)
-                if proc.returncode != 0:
-                    raise RuntimeError((proc.stderr or proc.stdout).strip() or f"exit {proc.returncode}")
+            proc = _run_privileged_script([
+                shlex.join(["rm", "-f", "/etc/exports.d/fedtermhub.exports"]),
+                shlex.join(["exportfs", "-ra"]),
+            ])
+            if proc.returncode != 0:
+                raise RuntimeError(_privileged_error(proc))
             return "Export gestito da FedTermHub rimosso."
 
         _async(worker, lambda result, error: self.nfs_status.set_text(f"Errore: {error}" if error else str(result)))
@@ -1320,13 +1409,12 @@ class ServicesPage(ToolPage):
         port = int(self.vnc_port.get_value())
 
         def worker() -> str:
-            for command in (
-                _privileged_command(["firewall-cmd", "--permanent", f"--add-port={port}/tcp"]),
-                _privileged_command(["firewall-cmd", "--reload"]),
-            ):
-                proc = _run(command, timeout=90)
-                if proc.returncode != 0:
-                    raise RuntimeError((proc.stderr or proc.stdout).strip() or f"exit {proc.returncode}")
+            proc = _run_privileged_script([
+                shlex.join(["firewall-cmd", "--permanent", f"--add-port={port}/tcp"]),
+                shlex.join(["firewall-cmd", "--reload"]),
+            ])
+            if proc.returncode != 0:
+                raise RuntimeError(_privileged_error(proc))
             return f"Porta {port}/tcp aperta in firewalld."
 
         _async(worker, lambda result, error: self.message(self.parent, "Firewall VNC", str(error or result), bool(error)))
@@ -1393,8 +1481,7 @@ class ListeningPortsPage(ToolPage):
                 proto, state, _recv, _send, local, _peer = parts[:6]
                 process = parts[6] if len(parts) > 6 else ""
                 host, port = _split_endpoint(local)
-                process = process.replace("users:((", "").rstrip(")")
-                rows.append((proto.upper(), state, host, port, process))
+                rows.append((proto.upper(), state, host, port, _ss_process_text(process)))
             return rows
 
         def done(result: object, error: Optional[BaseException]) -> None:
@@ -1427,7 +1514,20 @@ class WakeOnLanPage(ToolPage):
         card.add(form)
         self.mac = Gtk.Entry()
         self.mac.set_placeholder_text("AA:BB:CC:DD:EE:FF")
-        self.broadcast = Gtk.Entry(text="255.255.255.255")
+        # 255.255.255.255 esce spesso da una sola interfaccia: si propongono anche i broadcast delle
+        # reti a cui il PC e' collegato (per esempio 192.168.1.255), che sono quelli che funzionano.
+        self.broadcast = Gtk.ComboBoxText.new_with_entry()
+        broadcasts = []
+        for network in _detected_networks():
+            try:
+                address = str(ipaddress.ip_network(network, strict=False).broadcast_address)
+            except ValueError:
+                continue
+            if address not in broadcasts:
+                broadcasts.append(address)
+        for address in broadcasts + ["255.255.255.255"]:
+            self.broadcast.append_text(address)
+        self.broadcast.set_active(0)
         self.port = Gtk.SpinButton.new_with_range(1, 65535, 1)
         self.port.set_value(9)
         self.repeat = Gtk.SpinButton.new_with_range(1, 10, 1)
@@ -1449,7 +1549,7 @@ class WakeOnLanPage(ToolPage):
             self.message(self.parent, "MAC non valido", "Usa il formato AA:BB:CC:DD:EE:FF.", True)
             return
         packet = bytes.fromhex("FF" * 6 + mac * 16)
-        destination = (self.broadcast.get_text().strip() or "255.255.255.255", int(self.port.get_value()))
+        destination = (self.broadcast.get_child().get_text().strip() or "255.255.255.255", int(self.port.get_value()))
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -1605,7 +1705,21 @@ class NetworkScannerPage(ToolPage):
     def _create_selected(self, protocol: str) -> None:
         ip = self._selected_ip()
         if ip and self.create_session:
-            self.create_session(protocol, ip)
+            self.create_session(protocol, ip, "")
+
+
+def session_protocol_for_service(port: str, service: str) -> str:
+    """Il tipo di sessione per una porta trovata dal port scanner, oppure "" se non ce n'e' uno."""
+    service = (service or "").lower()
+    if "ssh" in service or port == "22":
+        return "ssh"
+    if "ms-wbt" in service or "rdp" in service or port == "3389":
+        return "rdp"
+    if "vnc" in service or (port.isdigit() and 5900 <= int(port) <= 5999):
+        return "vnc"
+    if "telnet" in service or port == "23":
+        return "telnet"
+    return ""
 
 
 class PortScannerPage(ToolPage):
@@ -1675,7 +1789,8 @@ class PortScannerPage(ToolPage):
             self.message(self.parent, "Nmap non installato", "Installa il pacchetto nmap.", True)
             return
         target = self.target.get_text().strip()
-        if not target or any(ch.isspace() for ch in target):
+        # Una destinazione che comincia con "-" verrebbe letta da nmap come opzione (-oN file...).
+        if not target or any(ch.isspace() for ch in target) or target.startswith("-"):
             self.message(self.parent, "Destinazione non valida", "Inserisci un singolo IP o nome host.", True)
             return
         profile = self.profile.get_active_id() or "common"
@@ -1756,9 +1871,19 @@ class PortScannerPage(ToolPage):
         if not tree_iter or not self.create_session:
             return
         port = str(model[tree_iter][0])
-        service = str(model[tree_iter][3]).lower()
-        protocol = "ssh" if port == "22" or "ssh" in service else "rdp" if port == "3389" or "ms-wbt" in service else "vnc" if port.startswith("59") or "vnc" in service else "ssh"
-        self.create_session(protocol, self.target.get_text().strip())
+        protocol = session_protocol_for_service(port, str(model[tree_iter][3]))
+        if not protocol:
+            # Prima ogni servizio sconosciuto (HTTP, SMB, database...) diventava una sessione SSH.
+            self.message(
+                self.parent,
+                "Nessun tipo di sessione per questo servizio",
+                f"FedTermHub apre sessioni SSH, RDP, VNC e Telnet: la porta {port} "
+                f"({model[tree_iter][3] or 'servizio sconosciuto'}) non corrisponde a nessuna.",
+                True,
+            )
+            return
+        # La porta trovata va nella sessione: un SSH sulla 2222 non deve diventare una sessione sulla 22.
+        self.create_session(protocol, self.target.get_text().strip(), port)
 
     def copy_results(self, _button: Gtk.Button) -> None:
         lines = ["\t".join(str(row[i]) for i in range(5)) for row in self.store]
@@ -1836,6 +1961,13 @@ class PacketCapturePage(ToolPage):
     def _set_default_output(self) -> None:
         path = CAPTURE_DIR / f"capture-{datetime.now():%Y%m%d-%H%M%S}.pcap"
         self.output.set_text(str(path))
+
+    def _next_output_name(self, finished: Path) -> bool:
+        if Path(self.output.get_text().strip() or "") == finished:
+            self._set_default_output()
+            if Path(self.output.get_text()) == finished:
+                self.output.set_text(str(finished.with_name(f"{finished.stem}-2{finished.suffix}")))
+        return False
 
     def choose_output(self, _button: Gtk.Button) -> None:
         chooser = Gtk.FileChooserDialog(title="Salva cattura PCAP", transient_for=self.parent, action=Gtk.FileChooserAction.SAVE)
@@ -1925,7 +2057,11 @@ class PacketCapturePage(ToolPage):
                     except Exception:
                         pass
             GLib.idle_add(self.append_log, f"Cattura terminata con codice {proc.returncode}.")
-            GLib.idle_add(self._refresh_state)
+            # _refresh_state restituisce True perche' fa da timer: passata cosi' a idle_add veniva
+            # richiamata all'infinito e dopo ogni cattura il programma restava al 100% di CPU.
+            GLib.idle_add(lambda: (self._refresh_state(), False)[1])
+            # Nome nuovo per la cattura successiva: prima la seconda sovrascriveva la prima.
+            GLib.idle_add(self._next_output_name, output)
 
         threading.Thread(target=read_output, daemon=True).start()
 

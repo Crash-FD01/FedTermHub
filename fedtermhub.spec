@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.9.09
+Version:        0.9.10
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -35,6 +35,7 @@ Recommends:     nmap
 Recommends:     tcpdump
 Requires:       freerdp
 Recommends:     tigervnc
+Recommends:     telnet
 Requires:       python3-cryptography
 Requires:       python3-defusedxml
 Recommends:     python3-pyserial
@@ -126,6 +127,7 @@ xvfb-run -a /usr/bin/python3 tests/test_external_rdp_cli.py
 xvfb-run -a /usr/bin/python3 tests/test_ui_behaviours.py
 xvfb-run -a /usr/bin/python3 tests/test_vault_ui.py
 xvfb-run -a /usr/bin/python3 tests/test_revisione.py
+xvfb-run -a /usr/bin/python3 tests/test_network_tools.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt
@@ -138,6 +140,20 @@ xvfb-run -a /usr/bin/python3 tests/test_revisione.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Fri Oct 30 2026 Crash-FD01 - 1:0.9.10-1
+- Password Manager: cliccare su una credenziale apriva subito la modifica (Gtk.ListBox attiva la riga con un clic singolo). Ora la seleziona e basta; si modifica con il pulsante Modifica
+- Telnet: nuovo tipo di sessione (Nuova Telnet), connessione rapida telnet:host[:porta], voce Connessione Telnet nel menu Rete, diagnostica di connessione; usa il client telnet di Fedora (ora tra i Recommends) con "--" prima dell'host
+- Cattura pacchetti: dopo ogni cattura FedTermHub restava al 100% di CPU (una callback idle che si riproponeva all'infinito). Fermare la cattura non chiede piu' di nuovo la password (tcpdump gira gia' come utente con -Z) e ogni cattura usa un file nuovo invece di sovrascrivere la precedente
+- Server locali: lo stato dei servizi (rpm -q e systemctl per cinque servizi) veniva letto ogni 4 secondi nel thread dell'interfaccia, che si bloccava a ogni giro; ora in un thread separato
+- Condivisioni FTP: applicarle falliva sempre per un utente normale (vsftpd.conf su Fedora e' leggibile solo da root) e chiedeva la password per ogni comando, una decina di volte con tre cartelle. Ora un unico script con una sola autorizzazione; lo stesso per NFS, firewall dei servizi e firewall VNC
+- Server HTTP: una porta gia' occupata veniva mostrata come server attivo; ora l'avvio e' verificato. Propone la cartella Pubblici invece dell'intera home, che con "Rete locale" diventava visibile a tutta la rete
+- Port scanner: "Crea sessione dal servizio" usava sempre la porta predefinita (un SSH sulla 2222 diventava una sessione sulla 22) e trasformava in SSH qualunque servizio sconosciuto, HTTP compreso; ora porta trovata e solo SSH, RDP, VNC o Telnet. Una destinazione che comincia con "-" non viene passata a nmap
+- Porte in ascolto: la colonna Processo mostrava il testo grezzo di ss; ora per esempio "sshd (pid 812)"
+- Wake-on-LAN: propone i broadcast delle reti collegate, oltre a 255.255.255.255
+- Strumenti rapidi: girano con bash anche se la shell dell'utente e' zsh o fish (i comandi usano read -rp e /dev/tcp)
+- Diagnostica di connessione: per VNC con display 1 provava la porta TCP 1 invece della 5901
+- Test: tests/test_network_tools.py prova gli strumenti dal vivo sotto Xvfb (nmap e tcpdump quando presenti)
+
 * Fri Oct 30 2026 Crash-FD01 - 1:0.9.09-1
 - Sicurezza: un file di sessioni importato con un host o un utente che comincia con "-" (per esempio -oProxyCommand=...) faceva eseguire un comando locale alla connessione. Ora ssh, sftp, tunnel e file remoti ricevono "--" prima della destinazione e le sessioni con dati non validi vengono rifiutate prima di connettersi
 - VNC: nel campo Display/porta il valore 5901 (suggerito dal campo stesso) veniva passato come display e TigerVNC si collegava alla porta 11801. Ora un numero da 100 in su e' una porta (host::porta), uno piu' piccolo un display
