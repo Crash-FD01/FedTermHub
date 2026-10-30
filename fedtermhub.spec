@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.9.12
+Version:        0.9.13
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -142,6 +142,10 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Fri Oct 30 2026 Crash-FD01 - 1:0.9.13-1
+- openSUSE: setup.sh si fermava con «Installation has completed with error». zypper (il download in parallelo di libzypp su Tumbleweed e Leap 16) ignora l'indirizzo xml:base dei metadati e cercava i pacchetti accanto al repository, ricevendo 404. Il repository per RHEL e openSUSE ora ha i pacchetti accanto ai metadati sul sito
+- CI: le prove sulle distribuzioni installano con setup.sh da un sito di prova con repository firmati da una chiave usa e getta, come un utente: un problema dei repository si vede sulla pull request e non dopo il rilascio
+
 * Fri Oct 30 2026 Crash-FD01 - 1:0.9.12-1
 - Altre distribuzioni: pacchetti e repository firmati per Debian 12+, Ubuntu 22.04+, Linux Mint 21+ e derivate (APT), RHEL/AlmaLinux/Rocky 9+ (dnf) e openSUSE Tumbleweed e Leap 16 (zypper), x86_64 e aarch64; Fedora resta con il suo RPM, ora anche per aarch64. setup.sh riconosce la distribuzione e usa apt, dnf, rpm-ostree o zypper
 - Fuori da Fedora il motore RDP e' nel pacchetto fedtermhub-rdp con la sua copia di FreeRDP 3.32.2 (solo client, compilata da packaging/build-freerdp.sh con SHA-256 fissato) e di libfuse3, trovate via RPATH in /usr/libexec/fedtermhub/lib: desktop remoto uguale ovunque, anche dove FreeRDP 3 non c'e' (Ubuntu 22.04, Mint 21, RHEL 9). Costruito su AlmaLinux 9 (glibc 2.34)

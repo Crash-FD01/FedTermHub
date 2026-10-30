@@ -9,10 +9,12 @@
 # Variabile obbligatoria: GPG_KEY_ID (chiave già importata in gpg, senza passphrase).
 #
 # Uscita in <uscita>/site/:
-#   rpm/repodata/            repository dnf per Fedora (RPM costruiti da fedtermhub.spec, nome *.fcNN.*)
-#   rpm-universal/repodata/  repository per RHEL/Alma/Rocky e openSUSE (RPM di build-packages.sh)
-#                            In entrambi i casi i pacchetti NON sono qui: restano tra gli allegati della
-#                            release e i metadati li indicano con xml:base.
+#   rpm/repodata/            repository dnf per Fedora (RPM costruiti da fedtermhub.spec, nome *.fcNN.*).
+#                            I pacchetti NON sono qui: restano tra gli allegati della release e i metadati
+#                            li indicano con xml:base.
+#   rpm-universal/           repository per RHEL/Alma/Rocky e openSUSE (RPM di build-packages.sh), con i
+#                            pacchetti accanto ai metadati: zypper (libzypp con il download in parallelo
+#                            di Tumbleweed e Leap 16) ignora xml:base e li cercava qui, ricevendo 404.
 #   apt/                     repository APT «piatto» per Debian, Ubuntu, Mint: indici firmati e i .deb
 #                            (apt vuole i pacchetti sotto lo stesso indirizzo degli indici).
 #   fedtermhub.repo          file per /etc/yum.repos.d su Fedora
@@ -27,6 +29,9 @@ OUT="$2"
 RPM_BASEURL="${3%/}/"
 SITE_URL="${4%/}"
 : "${GPG_KEY_ID:?serve GPG_KEY_ID}"
+# ALLOW_MISSING=1: un repository senza pacchetti si salta invece di fermarsi (prove della CI, che
+# costruiscono solo i pacchetti universali).
+ALLOW_MISSING="${ALLOW_MISSING:-0}"
 
 rm -rf "$OUT/site/rpm" "$OUT/site/rpm-universal" "$OUT/site/apt"
 mkdir -p "$OUT/site/rpm" "$OUT/site/rpm-universal" "$OUT/site/apt"
@@ -47,14 +52,18 @@ for rpm in "${all[@]}"; do
 done
 for repo in rpm rpm-universal; do
     dir="$OUT/site/$repo"
-    if compgen -G "$dir/*.rpm" > /dev/null; then
-        createrepo_c --quiet --general-compress-type gz --baseurl "$RPM_BASEURL" "$dir"
-        rm -f "$dir"/*.rpm
-        gpg --batch --yes --local-user "$GPG_KEY_ID" --detach-sign --armor "$dir/repodata/repomd.xml"
-    else
+    if ! compgen -G "$dir/*.rpm" > /dev/null; then
         echo "Nessun RPM per $repo" >&2
+        [[ "$ALLOW_MISSING" == 1 ]] && continue
         exit 1
     fi
+    if [[ "$repo" == rpm ]]; then
+        createrepo_c --quiet --general-compress-type gz --baseurl "$RPM_BASEURL" "$dir"
+        rm -f "$dir"/*.rpm
+    else
+        createrepo_c --quiet --general-compress-type gz "$dir"
+    fi
+    gpg --batch --yes --local-user "$GPG_KEY_ID" --detach-sign --armor "$dir/repodata/repomd.xml"
 done
 
 repo_file() {  # repo_file <id> <nome> <cartella>
