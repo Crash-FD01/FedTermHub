@@ -113,7 +113,7 @@ pacchetti (la privata resta tua e nel secret di GitHub) e pubblica il primo tag.
 Per ogni versione successiva:
 
 1. Aggiorna `Version` e aggiungi la voce di `%changelog` in `fedtermhub.spec`.
-2. Aggiorna `APP_VERSION` in `fedtermhub/fedtermhub.py`, `APP_VERSION` in
+2. Aggiorna `APP_VERSION` in `fedtermhub/model.py`, `APP_VERSION` in
    `install.sh` e il blocco `<releases>` di
    `packaging/io.github.crash_fd01.fedtermhub.metainfo.xml`.
    `python3 tests/test_versions.py` controlla di non averne dimenticato nessuno.

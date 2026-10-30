@@ -25,7 +25,11 @@ def _without_tr(text: str) -> str:
 
 
 def verify_ui_source_invariants() -> None:
-    source = _without_tr((PROJECT_ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8"))
+    # Il nucleo senza interfaccia (sessioni, vault, impostazioni) sta in model.py: si controllano insieme.
+    source = _without_tr(
+        (PROJECT_ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8")
+        + (PROJECT_ROOT / "fedtermhub" / "model.py").read_text(encoding="utf-8")
+    )
     assert "def make_theme_toggle_button" in source
     assert "ribbon.pack_end(self.make_theme_toggle_button()" in source
     assert '("Tema scuro", lambda *_: self.set_theme_from_menu("dark"))' not in source
@@ -174,12 +178,11 @@ def main() -> int:
         import fedtermhub as app  # noqa: PLC0415
         import network_tools  # noqa: PLC0415
 
+        import model  # noqa: PLC0415
+
         config = Path(os.environ["XDG_CONFIG_HOME"]) / "fedtermhub"
-        app.CONFIG_DIR = config
-        app.SESSIONS_FILE = config / "sessions.json"
-        app.TUNNELS_FILE = config / "tunnels.json"
-        app.VAULT_FILE = config / "vault.json"
-        app.SETTINGS_FILE = config / "settings.json"
+        # i percorsi vengono da XDG_CONFIG_HOME, letto quando model.py viene importato
+        assert model.CONFIG_DIR == config and app.SESSIONS_FILE == config / "sessions.json"
 
         sessions = app.SessionStore(app.SESSIONS_FILE)
         assert sessions.home_node().name == app.HOME_SESSION_NAME

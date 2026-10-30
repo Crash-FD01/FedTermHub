@@ -116,7 +116,7 @@ if VISTA == "password":
     bianchi[2].credential_id = credenziali[4].id
     albero[1].children[0].credential_id = credenziali[5].id
     win.store.save()
-    app.KDF_ITERATIONS = 2_000
+    sys.modules["model"].KDF_ITERATIONS = 2_000  # il KDF vero è in model.py
     win.vault.create("demo-solo-per-schermate")
     win.vault.credentials = credenziali
     win.vault.save()

@@ -34,8 +34,8 @@ APP_ID="io.github.crash_fd01.fedtermhub"
 # 0.9.x come un downgrade rispetto ai pacchetti già installati.
 EPOCH=1
 RELEASE=1
-VERSION="$(sed -n 's/^APP_VERSION = "\([^"]*\)"/\1/p' "$ROOT/fedtermhub/fedtermhub.py")"
-[[ -n "$VERSION" ]] || { echo "APP_VERSION non trovata in fedtermhub/fedtermhub.py" >&2; exit 1; }
+VERSION="$(sed -n 's/^APP_VERSION = "\([^"]*\)"/\1/p' "$ROOT/fedtermhub/model.py")"
+[[ -n "$VERSION" ]] || { echo "APP_VERSION non trovata in fedtermhub/model.py" >&2; exit 1; }
 case "$ARCH" in
     x86_64) DEB_ARCH=amd64 ;;
     aarch64) DEB_ARCH=arm64 ;;
