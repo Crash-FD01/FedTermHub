@@ -92,8 +92,9 @@ jobs:
   test:
     name: ${{ matrix.image }} ${{ matrix.arch }}
     needs: build
-    # Chiamato dal Rilascio con test=false si salta; sulle pull request e a mano «inputs.test» è vuoto.
-    if: inputs.test != false
+    # Chiamato dal Rilascio (che passa sempre «ref») si fa solo con test=true; sulle pull request e a
+    # mano «inputs» è vuoto e le prove si fanno sempre.
+    if: ${{ !inputs.ref || inputs.test }}
     strategy:
       fail-fast: false
       matrix:
