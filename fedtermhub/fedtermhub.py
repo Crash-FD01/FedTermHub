@@ -98,7 +98,7 @@ except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
 # controlla che coincidano. Sta in cima perche' il doctor la stampa anche quando GTK non si carica.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.9.11"
+APP_VERSION = "0.9.12"
 
 RAW_ARGV = sys.argv[:]
 DOCTOR_MODE = "--doctor" in RAW_ARGV or "--doctor-strict" in RAW_ARGV

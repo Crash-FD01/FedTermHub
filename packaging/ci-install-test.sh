@@ -18,7 +18,7 @@ set -uo pipefail
 MODE="" SOURCE="" EXPECTED="" SOURCE_TESTS=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --packages) MODE=packages; SOURCE="$2"; shift ;;
+        --packages) MODE=packages; SOURCE="$(cd "$2" && pwd)"; shift ;;  # apt vuole percorsi assoluti
         --site) MODE=site; SOURCE="${2%/}"; shift ;;
         --version) EXPECTED="$2"; shift ;;
         --source-tests) SOURCE_TESTS=1 ;;

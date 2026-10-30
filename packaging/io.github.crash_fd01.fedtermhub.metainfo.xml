@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.9.12" date="2026-10-30">
+      <description>
+        <p>Packages for Debian, Ubuntu, Linux Mint, RHEL/AlmaLinux/Rocky and openSUSE, x86_64 and ARM64, with one install command. The RDP engine carries its own FreeRDP 3, so remote desktops work the same everywhere.</p>
+        <p xml:lang="it">Pacchetti per Debian, Ubuntu, Linux Mint, RHEL/AlmaLinux/Rocky e openSUSE, x86_64 e ARM64, con un solo comando di installazione. Il motore RDP porta con sé la sua FreeRDP 3, così il desktop remoto funziona allo stesso modo ovunque.</p>
+      </description>
+    </release>
     <release version="0.9.11" date="2026-10-30">
       <description>
         <p>English interface. FedTermHub follows the system language (Italian or English) and the language can be chosen in Settings. The serial console, the diagnostics report and the doctor output are translated too.</p>

@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.9.11
+Version:        0.9.12
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -142,6 +142,14 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Fri Oct 30 2026 Crash-FD01 - 1:0.9.12-1
+- Altre distribuzioni: pacchetti e repository firmati per Debian 12+, Ubuntu 22.04+, Linux Mint 21+ e derivate (APT), RHEL/AlmaLinux/Rocky 9+ (dnf) e openSUSE Tumbleweed e Leap 16 (zypper), x86_64 e aarch64; Fedora resta con il suo RPM, ora anche per aarch64. setup.sh riconosce la distribuzione e usa apt, dnf, rpm-ostree o zypper
+- Fuori da Fedora il motore RDP e' nel pacchetto fedtermhub-rdp con la sua copia di FreeRDP 3.32.2 (solo client, compilata da packaging/build-freerdp.sh con SHA-256 fissato) e di libfuse3, trovate via RPATH in /usr/libexec/fedtermhub/lib: desktop remoto uguale ovunque, anche dove FreeRDP 3 non c'e' (Ubuntu 22.04, Mint 21, RHEL 9). Costruito su AlmaLinux 9 (glibc 2.34)
+- fedtermhub/distro.py: famiglia della distribuzione da /etc/os-release; i messaggi «Installa: …» mostrano il comando giusto (apt, dnf, zypper, pacman, rpm-ostree) e il nome del pacchetto di quella distribuzione
+- Strumenti di rete: nomi dei servizi (ssh/sshd, tftpd-hpa…), cartella TFTP (/srv/tftp su Debian e Ubuntu), firewall con firewalld o ufw; il server Telnet e' disattivato dove non esiste come servizio. Senza python3-defusedxml (RHEL 9) l'output di nmap si legge comunque, rifiutando DTD ed entita'
+- install.sh: dipendenze con dnf, apt, zypper o pacman (Arch e derivate si installano da qui); il motore RDP si compila contro la FreeRDP 3 del sistema o, se manca, contro una copia compilata al momento
+- Test: tests/test_distro.py (riconoscimento, pacchetti, servizi, firewall). La CI costruisce i pacchetti universali e li installa su Debian 12/13, Ubuntu 22.04/24.04, AlmaLinux 9/10, Rocky 9, Tumbleweed e Leap 16 (x86_64 e aarch64): doctor, finestra sotto Xvfb, motore RDP collegato a un xrdp locale (tests/rdp_engine_probe.py) e alcuni test dei sorgenti con il GTK di ogni distribuzione
+
 * Fri Oct 30 2026 Crash-FD01 - 1:0.9.11-1
 - Lingua inglese: tutta l'interfaccia e' tradotta (finestre, menu, messaggi, diagnostica, console seriale, output del doctor). Con "Automatica" FedTermHub segue la lingua del sistema: italiano per it_*, inglese per il resto; si sceglie a mano in Impostazioni > Interfaccia > Lingua e vale dal riavvio. FEDTERMHUB_LANGUAGE=it|en la forza per una sola esecuzione
 - Traduzioni in fedtermhub/locale/en.po (formato gettext, si modifica con Poedit); tools/i18n_update.py aggiorna il catalogo quando cambiano i testi
