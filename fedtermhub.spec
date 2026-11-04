@@ -90,6 +90,8 @@ mkdir -p %{buildroot}%{_libexecdir}/fedtermhub
 mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 cp -R fedtermhub %{buildroot}%{_datadir}/fedtermhub/
+# L'interfaccia Qt (fedtermhub/qtui) per ora serve solo alla versione Windows.
+rm -rf %{buildroot}%{_datadir}/fedtermhub/fedtermhub/qtui
 install -m 0755 native/fedtermrdp-native %{buildroot}%{_libexecdir}/fedtermhub/fedtermrdp-native
 install -m 0644 fedtermhub.desktop %{buildroot}%{_datadir}/applications/io.github.crash_fd01.fedtermhub.desktop
 mkdir -p %{buildroot}%{_metainfodir}

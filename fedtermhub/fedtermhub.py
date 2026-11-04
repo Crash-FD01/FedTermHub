@@ -388,6 +388,9 @@ try:
     node_from_dict,
     node_to_dict,
     make_default_tree,
+    SESSION_PACKAGE_FORMAT,
+    session_package,
+    node_from_session_package,
     SessionStore,
     TunnelSession,
     TunnelStore,
@@ -439,6 +442,9 @@ except ImportError:
     node_from_dict,
     node_to_dict,
     make_default_tree,
+    SESSION_PACKAGE_FORMAT,
+    session_package,
+    node_from_session_package,
     SessionStore,
     TunnelSession,
     TunnelStore,
@@ -11370,12 +11376,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
 
     def _session_export_payload_for_node(self, node: Node, scope: str) -> Dict[str, object]:
-        return {
-            "version": APP_VERSION,
-            "format": tr("FedTermHub session package"),
-            "scope": scope,
-            "root": node_to_dict(node),
-        }
+        return session_package(node, scope)
 
     def _choose_save_json(self, title: str, default_name: str, parent: Optional[Gtk.Window] = None) -> Optional[Path]:
         dialog = Gtk.FileChooserDialog(title=title, transient_for=parent or self, action=Gtk.FileChooserAction.SAVE)
@@ -11402,14 +11403,7 @@ class AppWindow(Gtk.ApplicationWindow):
             dialog.destroy()
 
     def _node_from_session_package(self, src: Path) -> Node:
-        raw = json.loads(src.read_text(encoding="utf-8"))
-        if isinstance(raw, dict) and isinstance(raw.get("root"), dict):
-            return node_from_dict(raw["root"])  # type: ignore[arg-type]
-        items = raw.get("items", raw) if isinstance(raw, dict) else raw
-        if isinstance(items, list):
-            imported = [node_from_dict(x) for x in items if isinstance(x, dict)]
-            return FolderNode(name=tr("Import {stem}").format(stem=src.stem), children=imported)
-        raise ValueError(tr("Il file non contiene una Home Session, cartella o sessione valida."))
+        return node_from_session_package(json.loads(src.read_text(encoding="utf-8")), src.stem)
 
     def export_home_session(self, *_args) -> None:
         try:

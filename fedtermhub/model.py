@@ -539,6 +539,9 @@ class AppSettings:
     clear_clipboard_seconds: int = 30  # 0 = mai
     confirm_close_active_sessions: bool = True
 
+    # Avviso delle nuove versioni (versione Windows: su Linux arrivano con il gestore dei pacchetti)
+    check_updates: bool = True
+
     ui_layout_version: int = 3
 
     @staticmethod
@@ -620,6 +623,7 @@ class AppSettings:
                 lock_vault_on_minimize=bool(raw.get("lock_vault_on_minimize", False)),
                 clear_clipboard_seconds=cls._clamp(raw.get("clear_clipboard_seconds", 30), 0, 600, 30),
                 confirm_close_active_sessions=bool(raw.get("confirm_close_active_sessions", True)),
+                check_updates=bool(raw.get("check_updates", True)),
                 ui_layout_version=3,
             )
         except Exception:
@@ -669,6 +673,7 @@ class AppSettings:
             "lock_vault_on_minimize": self.lock_vault_on_minimize,
             "clear_clipboard_seconds": self.clear_clipboard_seconds,
             "confirm_close_active_sessions": self.confirm_close_active_sessions,
+            "check_updates": self.check_updates,
             "ui_layout_version": 3,
         }
 
@@ -992,6 +997,25 @@ def node_to_dict(node: Node) -> Dict[str, object]:
     if isinstance(node, FolderNode):
         return node.to_dict()
     return node.to_dict()
+
+
+SESSION_PACKAGE_FORMAT = "FedTermHub session package"
+
+
+def session_package(node: Node, scope: str) -> Dict[str, object]:
+    """Il contenuto di un file di sessioni esportato (stesso formato su Linux e Windows)."""
+    return {"version": APP_VERSION, "format": SESSION_PACKAGE_FORMAT, "scope": scope, "root": node_to_dict(node)}
+
+
+def node_from_session_package(raw: object, stem: str) -> Node:
+    """La cartella o la sessione di un file esportato; accetta anche i formati delle versioni 0.x."""
+    if isinstance(raw, dict) and isinstance(raw.get("root"), dict):
+        return node_from_dict(raw["root"])  # type: ignore[arg-type]
+    items = raw.get("items", raw) if isinstance(raw, dict) else raw
+    if isinstance(items, list):
+        imported = [node_from_dict(x) for x in items if isinstance(x, dict)]
+        return FolderNode(name=tr("Import {stem}").format(stem=stem), children=imported)
+    raise ValueError(tr("Il file non contiene una Home Session, cartella o sessione valida."))
 
 
 def make_default_tree() -> List[Node]:

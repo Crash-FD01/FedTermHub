@@ -205,6 +205,7 @@ echo "[3/6] Copio FedTermHub ${APP_VERSION}..."
 mkdir -p "${APPDIR}" "${BINDIR}" "${DESKTOPDIR}" "${ICONROOT}" "${PIXMAPDIR}"
 rm -rf "${APPDIR}/fedtermhub" "${APPDIR}/native"
 cp -R fedtermhub "${APPDIR}/"
+rm -rf "${APPDIR}/fedtermhub/qtui"  # interfaccia Qt: per ora solo nella versione Windows
 install -m 0755 native/fedtermrdp-native "${LIBEXECDIR}/fedtermrdp-native"
 rm -f "${DESKTOPDIR}/fedtermhub.desktop" "${DESKTOPDIR}/FedTermHub.desktop" "${DESKTOPDIR}/io.github.crash_fd01.fedtermhub.desktop"
 sed "s|^Exec=.*|Exec=${BINDIR}/fedtermhub|" fedtermhub.desktop > "${DESKTOPDIR}/${DESKTOP_ID}.desktop"

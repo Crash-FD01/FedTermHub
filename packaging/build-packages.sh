@@ -74,8 +74,9 @@ if [[ "${SKIP_MAIN:-0}" != 1 ]]; then
     STAGE="$WORK/main"
     APPDIR="$STAGE/usr/share/fedtermhub"
     mkdir -p "$APPDIR"
-    # solo i file del programma: niente cache di Python né file dei test
-    tar -C "$ROOT" --exclude='__pycache__' --exclude='*.pyc' -cf - fedtermhub | tar -C "$APPDIR" -xf -
+    # solo i file del programma: niente cache di Python né file dei test; l'interfaccia Qt
+    # (fedtermhub/qtui) per ora serve solo alla versione Windows
+    tar -C "$ROOT" --exclude='__pycache__' --exclude='*.pyc' --exclude='fedtermhub/qtui' -cf - fedtermhub | tar -C "$APPDIR" -xf -
     find "$APPDIR" -type d -exec chmod 0755 {} +
     find "$APPDIR" -type f -exec chmod 0644 {} +
     chmod 0755 "$APPDIR/fedtermhub/fedtermhub.py"
