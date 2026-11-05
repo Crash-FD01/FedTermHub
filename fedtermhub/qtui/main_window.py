@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QProgressDialog,
     QPushButton,
     QSplitter,
     QTabWidget,
@@ -262,8 +264,15 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(300, lambda: QMessageBox.warning(self, tr("Sessioni non leggibili"), load_warning))
         if any(t.auto_start for t in self.tunnels.store.tunnels):
             QTimer.singleShot(1500, self.tunnels.start_auto)
+        self._update_offered: set = set()
+        self._update_button: Optional[QPushButton] = None
+        self._pending_setup = None
         if self.settings.check_updates and updates.enabled():
-            QTimer.singleShot(4000, self._check_updates)
+            QTimer.singleShot(3000, self._check_updates)
+            self._update_timer = QTimer(self)
+            self._update_timer.setInterval(updates.RECHECK_MS)
+            self._update_timer.timeout.connect(self._check_updates)
+            self._update_timer.start()
 
     # ------------------------------------------------------------------ interfaccia
     def _action(self, text: str, slot, shortcut: str = "", icon_name: str = "", tip: str = "") -> QAction:  # noqa: ANN001
@@ -298,6 +307,7 @@ class MainWindow(QMainWindow):
         self.act_close_tab = self._action(tr("Chiudi la scheda"), self.close_current_tab, "Ctrl+W")
         self.act_quit = self._action(tr("Esci"), self.close, "Ctrl+Q")
         self.act_about = self._action(tr("Informazioni"), self.about)
+        self.act_updates = self._action(tr("Cerca aggiornamenti"), lambda: self._check_updates(manual=True))
         self.act_guide = self._action(tr("Guida"), lambda: QDesktopServices.openUrl(
             QUrl("https://github.com/Crash-FD01/FedTermHub/blob/main/docs/GUIDA.md")))
 
@@ -315,6 +325,8 @@ class MainWindow(QMainWindow):
             tools_menu.addSeparator() if act is None else tools_menu.addAction(act)
         help_menu = menubar.addMenu(tr("Aiuto"))
         help_menu.addAction(self.act_guide)
+        if updates.enabled():
+            help_menu.addAction(self.act_updates)
         help_menu.addAction(self.act_about)
 
         toolbar = QToolBar(tr("Comandi"))
@@ -1019,6 +1031,11 @@ class MainWindow(QMainWindow):
                 pass
         self.vault.lock()
         event.accept()
+        if self._pending_setup is not None:
+            try:
+                updates.launch_setup(self._pending_setup)
+            except OSError as exc:
+                QMessageBox.warning(None, tr("Aggiornamento non riuscito"), str(exc))
 
     # ------------------------------------------------------------------ impostazioni, aggiornamenti, informazioni
     def open_settings(self) -> None:
@@ -1033,16 +1050,89 @@ class MainWindow(QMainWindow):
                     widget.view.send_theme()
             self.set_status(tr("Impostazioni applicate"))
 
-    def _check_updates(self) -> None:
-        def done(latest: Optional[str]) -> None:
-            if latest and updates.newer(latest, model.APP_VERSION):
-                button = QPushButton(tr("Scarica FedTermHub {version}").format(version=latest))
-                button.setFlat(True)
-                button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(updates.RELEASES_PAGE)))
-                self.statusBar().addPermanentWidget(button)
-                self.set_status(tr("È disponibile FedTermHub {version}").format(version=latest), 0)
+    def _check_updates(self, manual: bool = False) -> None:
+        def done(release: Optional[updates.Release]) -> None:
+            if release is None:
+                if manual:
+                    QMessageBox.warning(self, tr("Aggiornamenti"), tr("Non riesco a raggiungere GitHub per controllare "
+                                                                         "gli aggiornamenti. Controlla la connessione."))
+                return
+            if not updates.newer(release.version, model.APP_VERSION):
+                if manual:
+                    QMessageBox.information(self, tr("Aggiornamenti"), tr("Hai già l'ultima versione ({version}).").format(
+                        version=model.APP_VERSION))
+                return
+            self._offer_update(release, ask=manual or release.version not in self._update_offered)
 
         updates.check_async(self, done)
+
+    def _offer_update(self, release: "updates.Release", ask: bool) -> None:
+        self._update_offered.add(release.version)
+        if self._update_button is None:
+            self._update_button = QPushButton()
+            self._update_button.setProperty("role", "accent")
+            self.statusBar().addPermanentWidget(self._update_button)
+        try:
+            self._update_button.clicked.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        self._update_button.setText(tr("Aggiorna a {version}").format(version=release.version))
+        self._update_button.clicked.connect(lambda: self._ask_update(release))
+        self._update_button.show()
+        if ask:
+            self._ask_update(release)
+
+    def _ask_update(self, release: "updates.Release") -> None:
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle(tr("Nuova versione di FedTermHub"))
+        box.setText(tr("È disponibile FedTermHub {new} (questa è la {current}).").format(new=release.version,
+                                                                                          current=model.APP_VERSION))
+        box.setInformativeText(tr("Aggiorno adesso? Scarico il programma di installazione, chiudo FedTermHub e lo "
+                                  "riapro alla fine. Sessioni, tunnel e password restano."))
+        update = box.addButton(tr("Aggiorna ora"), QMessageBox.ButtonRole.AcceptRole)
+        notes = box.addButton(tr("Novità"), QMessageBox.ButtonRole.HelpRole)
+        box.addButton(tr("Più tardi"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(update)
+        box.exec()
+        if box.clickedButton() is notes:
+            QDesktopServices.openUrl(QUrl(release.page))
+        elif box.clickedButton() is update:
+            if release.setup_url:
+                self._download_update(release)
+            else:
+                QDesktopServices.openUrl(QUrl(release.page))
+
+    def _download_update(self, release: "updates.Release") -> None:
+        cancel = threading.Event()
+        dialog = QProgressDialog(tr("Scarico FedTermHub {version}…").format(version=release.version), tr("Annulla"), 0, 1000, self)
+        dialog.setWindowTitle(tr("Aggiornamento"))
+        dialog.setMinimumDuration(0)
+        dialog.setAutoClose(False)
+        dialog.canceled.connect(cancel.set)
+
+        def progress(done: int, total: int) -> None:
+            if total:
+                dialog.setValue(int(done * 1000 / total))
+                dialog.setLabelText(tr("Scarico FedTermHub {version}… {done} di {total} MB").format(
+                    version=release.version, done=done // 1048576, total=total // 1048576))
+
+        def finished(path) -> None:  # noqa: ANN001
+            dialog.close()
+            self._pending_setup = path
+            if not self.close():  # chiusura annullata (sessioni aperte): l'installazione non parte
+                self._pending_setup = None
+                self.set_status(tr("Aggiornamento rimandato: chiudi FedTermHub e riprova da Aiuto › Cerca aggiornamenti."), 0)
+
+        def failed(message: str) -> None:
+            dialog.close()
+            if not cancel.is_set():
+                QMessageBox.warning(self, tr("Aggiornamento non riuscito"),
+                                    tr("{error}\n\nPuoi scaricare il Setup.exe dalla pagina della release.").format(error=message))
+                QDesktopServices.openUrl(QUrl(release.page))
+
+        updates.download_async(self, release, progress, finished, failed, cancel)
+        dialog.show()
 
     def about(self) -> None:
         QMessageBox.about(

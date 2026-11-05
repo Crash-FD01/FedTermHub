@@ -353,10 +353,12 @@ release](https://github.com/Crash-FD01/FedTermHub/releases/latest) e aprilo. Si 
 di installarlo per tutti gli utenti). Il programma non è firmato con un certificato: la prima volta Windows
 SmartScreen può mostrare «PC protetto da Windows» → *Ulteriori informazioni* → *Esegui comunque*.
 
-**Aggiornamenti.** Una volta al giorno il programma chiede a GitHub qual è l'ultima versione (nessun dato
-inviato oltre alla richiesta); se ce n'è una nuova compare un pulsante nella barra di stato. Si disattiva in
-*Impostazioni › Avvisami quando esce una nuova versione*. Per aggiornare basta aprire il nuovo Setup.exe:
-sessioni, impostazioni e password restano.
+**Aggiornamenti.** All'avvio e poi ogni 6 ore il programma chiede a GitHub qual è l'ultima versione (nessun
+dato inviato oltre alla richiesta). Se ce n'è una nuova propone *Aggiorna ora*: scarica il Setup.exe, controlla
+la sua impronta SHA-256 con quella pubblicata nella release, chiude FedTermHub, lo aggiorna e lo riapre;
+sessioni, tunnel, impostazioni e password restano. Con *Più tardi* resta il pulsante *Aggiorna a …* nella
+barra di stato; *Aiuto › Cerca aggiornamenti* controlla subito. L'avviso si disattiva in *Impostazioni ›
+Avvisami quando esce una nuova versione*.
 
 **Cosa c'è.**
 

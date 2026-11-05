@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.11.0
+Version:        0.11.1
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -144,6 +144,9 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.11.1-1
+- Windows: l'avviso di una nuova versione arrivava solo il giorno dopo. La risposta di GitHub restava in memoria 24 ore dal primo avvio, quindi una versione uscita più tardi non si vedeva. Ora il controllo si fa a ogni avvio e poi ogni 6 ore
+- Windows: aggiornamento dal programma. Una finestra propone «Aggiorna ora»: scarica il Setup.exe della release, controlla l'impronta SHA-256 pubblicata in SHA256SUMS, chiude FedTermHub, installa e lo riapre. Il pulsante «Aggiorna a …» resta nella barra di stato e c'è Aiuto › Cerca aggiornamenti
 * Thu Nov 05 2026 Crash-FD01 - 1:0.11.0-1
 - Windows, seconda fase: file remoti SFTP accanto al terminale SSH e in una scheda propria (paramiko: password salvata, chiavi, agente, jump host, known_hosts condiviso con ssh.exe; trascinamento, apertura con il programma di Windows, segue il cd della shell con OSC 7 come su Linux)
 - Windows: tunnel SSH locali, remoti e SOCKS (gli stessi di tunnels.json), con stato e log, riavvio automatico e avvio prima della sessione che li richiede

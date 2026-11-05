@@ -67,6 +67,7 @@ def apply(app: QApplication, name: str) -> None:
         QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border-color: {c['accent']}; }}
         QPushButton {{ padding: 5px 14px; border: 1px solid {c['border']}; border-radius: 6px; background: {c['panel']}; }}
         QPushButton:hover {{ background: {c['alt']}; }}
+        QPushButton[role="accent"] {{ background: {c['accent']}; color: {c['accentText']}; border-color: {c['accent']}; padding: 2px 12px; }}
         QPushButton:default {{ background: {c['accent']}; color: {c['accentText']}; border-color: {c['accent']}; }}
         QTabWidget::pane {{ border: 0; }}
         QTabBar::tab {{ padding: 6px 12px; border: 0; border-bottom: 2px solid transparent; }}
