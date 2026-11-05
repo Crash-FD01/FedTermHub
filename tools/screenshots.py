@@ -127,6 +127,9 @@ def mostra():
         dialogo.select_credential(win.vault.credentials[0].id)
         finestra["w"] = dialogo
         return False
+    if VISTA == "diviso":
+        tab.dispatch("split_v", tab.active_pane)
+        tab.dispatch("split_h", tab.active_pane)
     for pane in getattr(tab, "panes", []):
         pane.terminal.feed(testo.encode())
     win._show_remote_files_for_page(tab)

@@ -368,9 +368,19 @@ stato. Sotto, le due versioni hanno in comune sessioni, password, impostazioni, 
 strumenti di rete; sopra, ognuna usa quello che funziona meglio sul suo sistema (su Windows il terminale
 ConPTY, il desktop remoto di Windows, il Setup.exe che si aggiorna da solo).
 
-**Cosa c'è.** L'elenco completo, voce per voce, è in [PARITA.md](PARITA.md). In breve, mancano ancora su
-Windows il terminale diviso, MultiExec e la condivisione FTP/SFTP; non ci sono, perché servono solo su Linux,
-la cattura dei pacchetti, il Journal, la diagnostica e il Lab.
+**Cosa c'è.** L'elenco completo, voce per voce, è in [PARITA.md](PARITA.md). In breve, manca ancora su
+Windows la condivisione FTP/SFTP; non ci sono, perché servono solo su Linux, la cattura dei pacchetti, il
+Journal, la diagnostica e il Lab.
+
+**Riquadri e MultiExec.** *Terminale › Terminale diviso* apre una scheda locale con due riquadri. Ogni scheda
+terminale si divide come su Linux: `Ctrl+Maiusc+O` affianca, `Ctrl+Maiusc+E` mette sopra e sotto,
+`Ctrl+Maiusc+Invio` aggiunge un riquadro, `Ctrl+Maiusc+[` e `]` passano da uno all'altro, `Ctrl+Maiusc+L` cambia
+disposizione (stack, tall, fat, grid), `Ctrl+Maiusc+P` scrive in tutti i riquadri insieme (testo, Invio, cancella,
+tab, Esc; non frecce e `Ctrl+tasto`), `Ctrl+Maiusc+W` chiude il riquadro e l'ultimo chiude la scheda. Le stesse azioni
+sono in *Terminale › Riquadri*, perché qui il clic destro copia e incolla. Un riquadro di una sessione SSH apre una
+connessione nuova. Con il fuoco fuori dal terminale `Ctrl+Maiusc+E` apre i file remoti e `Ctrl+Maiusc+P` il Password
+Manager. *Terminale › MultiExec* manda un comando alle schede che scegli, a tutti i loro riquadri; le sessioni SSH
+sono già spuntate.
 
 **Portare le sessioni da Linux.** Su Linux usa *Sessioni › Esporta tutte le sessioni* (o seleziona una cartella
 e *Esporta la selezione*); su Windows *Sessioni › Importa sessioni nella cartella selezionata* e scegli il file.

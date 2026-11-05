@@ -13,7 +13,7 @@
 # compilata qui e messa accanto al motore (packaging/build-freerdp.sh).
 set -euo pipefail
 
-APP_VERSION="0.12.0"
+APP_VERSION="0.13.0"
 APPDIR="${HOME}/.local/share/fedtermhub"
 BINDIR="${HOME}/.local/bin"
 LIBEXECDIR="${HOME}/.local/libexec/fedtermhub"

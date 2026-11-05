@@ -16,7 +16,7 @@ import traceback
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QCursor, QDesktopServices, QIcon, QKeySequence, QShortcut, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QApplication,
@@ -42,17 +42,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import model
+from .. import model, termcore
 from ..i18n import tr, trn
 from . import connect, quick_tools, theme, updates
-from .chrome import KIND_ROLE, PATH_ROLE, FolderDialog, LogDialog, SessionTree, ShortcutsDialog, add_heading, drop_target
+from .chrome import (
+    KIND_ROLE, PATH_ROLE, FolderDialog, LogDialog, MultiExecDialog, SessionTree, ShortcutsDialog, add_heading, drop_target,
+)
 from .rdp_tab import RdpTab
 from .session_dialog import AVAILABLE, SessionDialog
 from .tunnels import TunnelManager, TunnelsDialog
 from .net_tools import NetworkToolsDialog
 from .vnc_tab import VncTab
 from .settings_dialog import SettingsDialog
-from .terminal_view import TerminalView
+from .terminal_tab import TerminalPane, TerminalTab
 from .files_panel import FilesPanel
 from .sftp_client import SftpTarget
 from .vault_dialogs import MasterPasswordDialog, VaultManagerDialog
@@ -81,143 +83,6 @@ def app_icon() -> QIcon:
         if candidate.is_file():
             return QIcon(str(candidate))
     return QIcon()
-
-
-class TerminalTab(QWidget):
-    """Una scheda con un programma in un terminale (SSH, Telnet, PowerShell…).
-
-    Per le sessioni SSH ha il suo pannello dei file remoti (SFTP), che la finestra mostra nella scheda
-    «File remoti» del pannello laterale, come la versione Linux, e che segue la cartella della shell
-    quando la shell la dichiara (OSC 7).
-    """
-
-    finished = Signal(int)
-    status = Signal(str)
-    files_created = Signal(object)
-    files_unavailable = Signal()
-
-    def __init__(self, parent: QWidget, launch: connect.Launch, settings: model.AppSettings,
-                 files_target: Optional[Callable[[], "SftpTarget"]] = None) -> None:
-        super().__init__(parent)
-        self.launch = launch
-        self.settings = settings
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        font_px = max(9, round(settings.terminal_font_size * 1.33))
-        self.view = TerminalView(self, font_size=font_px, scrollback=settings.terminal_scrollback_lines,
-                                 blink=settings.terminal_cursor_blink,
-                                 process=launch.factory() if launch.factory else None)
-        layout.addWidget(self.view)
-        self.files_target = files_target
-        self.files: Optional[FilesPanel] = None
-        self.files_missing = False
-        self._osc7_sent = False
-        self._first_output = False
-        self.view.cwd_changed.connect(self._cwd_changed)
-        self.feeder = connect.PasswordFeeder(launch.password)
-        self.view.pty.output.connect(self._output)
-        self.view.pty.finished.connect(self._finished)
-        self.exit_code: Optional[int] = None
-        self.start()
-
-    # ------------------------------------------------------------------ file remoti
-    @property
-    def has_files(self) -> bool:
-        return self.files_target is not None and not self.files_missing
-
-    def ensure_files(self) -> Optional[FilesPanel]:
-        """Crea e collega il pannello dei file remoti, se non c'è ancora (la finestra lo mette nel pannello laterale)."""
-        if not self.has_files:
-            return None
-        if self.files is None:
-            self.files = FilesPanel(self.files_target(), None, follow_terminal=self.settings.follow_remote_directory,
-                                    compact=True, ask_password=False)
-            self.files.status.connect(self.status)
-            self.files.connected_changed.connect(self._files_connected)
-            self.files.sftp_missing.connect(self._sftp_missing)
-            self.files.follow_button.toggled.connect(self._follow_toggled)
-            if self.view.last_cwd:
-                self.files.pending_follow = self.view.last_cwd
-            self.files_created.emit(self.files)
-            self.files.connect_server()
-        return self.files
-
-    def _follow_toggled(self, active: bool) -> None:
-        self.settings.follow_remote_directory = active
-        if active:
-            self._schedule_osc7()
-
-    def _files_connected(self, ok: bool) -> None:
-        if ok:
-            self._schedule_osc7()
-
-    def _sftp_missing(self, message: str) -> None:
-        self.files_missing = True
-        self.files_unavailable.emit()
-        self.status.emit(tr("{message} Pannello dei file chiuso.").format(message=message))
-
-    def _schedule_osc7(self) -> None:
-        # Solo se il server ha SFTP (quindi una shell Unix, non un apparato) e la shell non dichiara già la
-        # cartella da sola: la riga si scrive nella shell remota, come fa la versione Linux.
-        if self._osc7_sent or self.view.last_cwd or not self.settings.follow_remote_directory:
-            return
-        if self.files is not None and re.match(r"^/?[A-Za-z]:", self.files.home or ""):
-            return  # server Windows (OpenSSH di Windows): la shell è cmd o PowerShell, niente riga per bash
-        QTimer.singleShot(1800, self._send_osc7)
-
-    def _send_osc7(self) -> None:
-        if self._osc7_sent or self.view.last_cwd or not self.running:
-            return
-        self._osc7_sent = True
-        self.view.pty.write(connect.OSC7_BOOTSTRAP)
-
-    def _cwd_changed(self, path: str) -> None:
-        if self.files is not None:
-            self.files.follow_directory(path)
-
-    def start(self) -> None:
-        self.exit_code = None
-        self.start_error = ""
-        self.feeder = connect.PasswordFeeder(self.launch.password)
-        try:
-            self.view.pty.start(self.launch.argv, str(Path.home()), self.launch.env)
-        except Exception as exc:  # noqa: BLE001
-            self.start_error = f"{type(exc).__name__}: {exc}"
-            self.view.write_local(tr("Errore avvio processo: {error}").format(error=exc) + "\n")
-            self.exit_code = -1
-
-    def _output(self, text: str) -> None:
-        answer = self.feeder.feed(text)
-        if answer:
-            self.view.pty.write(answer)
-        if not self._first_output and self.files_target is not None and self.settings.show_remote_files:
-            # Il pannello dei file si collega poco dopo il terminale: se la chiave dell'host è nuova la
-            # conferma prima ssh nel terminale e il pannello la trova già in known_hosts.
-            self._first_output = True
-            QTimer.singleShot(2500, self.ensure_files)
-
-    def _finished(self, code: int) -> None:
-        self.exit_code = code
-        self.feeder.disarm()
-        self.view.write_local("\n" + tr("[processo terminato con codice {code} — premi Invio per riaprire]").format(code=code) + "\n")
-        self.view.input_hooks.append(self._restart_on_enter)
-        self.finished.emit(code)
-
-    def _restart_on_enter(self, data: str) -> None:
-        if self.exit_code is not None and data in {"\r", "\n"}:
-            self.view.input_hooks.remove(self._restart_on_enter)
-            self.view.clear()
-            self.start()
-
-    @property
-    def running(self) -> bool:
-        return self.view.pty.running
-
-    def close_tab(self) -> None:
-        self.view.pty.stop()
-        if self.files is not None:
-            self.files.shutdown()
-            self.files.deleteLater()
 
 
 def _system_idle_seconds() -> Optional[float]:
@@ -307,17 +172,26 @@ class MainWindow(QMainWindow):
         self.act_new_session = self._action(tr("Nuova sessione"), self.new_session, "Ctrl+Shift+N", "fth-act-new")
         self.act_new_folder = self._action(tr("Nuova cartella"), self.new_folder, "", "fth-act-folder-new")
         self.act_local = self._action(tr("Nuovo terminale locale"), self.open_local_terminal, "Ctrl+Shift+T", "fth-tb-terminale")
+        self.act_split = self._action(tr("Terminale diviso"), self.open_split_terminal, "", "fth-tb-terminale")
+        self.act_multiexec = self._action(tr("MultiExec"), self.show_multiexec_dialog, "", "fth-tb-terminale")
+        self.act_panes = [
+            self._action(tr("Dividi in verticale (Ctrl+Shift+O)"), lambda: self.pane_action("split_v")),
+            self._action(tr("Dividi in orizzontale (Ctrl+Shift+E)"), lambda: self.pane_action("split_h")),
+            self._action(tr("Cambia layout (Ctrl+Shift+L)"), lambda: self.pane_action("cycle_layout")),
+            self._action(tr("Broadcast input on/off (Ctrl+Shift+P)"), lambda: self.pane_action("toggle_broadcast")),
+            self._action(tr("Chiudi riquadro (Ctrl+Shift+W)"), lambda: self.pane_action("close_pane")),
+        ]
         self.act_quick = self._action(tr("Quick connect"), self.focus_quick_connect, "Ctrl+L", "fth-act-connect")
         self.act_edit = self._action(tr("Modifica selezionata"), self.edit_selected, "F2", "fth-act-edit")
         self.act_duplicate = self._action(tr("Duplica selezionata"), self.duplicate_selected, "Ctrl+D", "fth-act-duplicate")
         self.act_move = self._action(tr("Sposta selezionata"), self.move_selected, "", "fth-act-move")
         self.act_delete = self._action(tr("Elimina selezionata"), self.delete_selected, "Delete", "fth-act-delete")
-        self.act_vault = self._action(tr("Password Manager"), self.open_vault_manager, "Ctrl+Shift+P", "fth-tb-password")
+        self.act_vault = self._action(tr("Password Manager"), self.open_vault_manager, "", "fth-tb-password")
         self.act_lock = self._action(tr("Blocca password"), self.lock_vault, "", "fth-rail-lock")
         self.act_settings = self._action(tr("Impostazioni"), self.open_settings, "Ctrl+,", "fth-tb-sistema")
         self.act_net_tools = self._action(tr("Strumenti di rete"), self.open_network_tools, "Ctrl+Shift+R", "fth-tb-rete")
         self.act_tunnels = self._action(tr("Tunneling SSH"), self.open_tunnels, "Ctrl+Shift+U", "fth-tb-rete")
-        self.act_files = self._action(tr("File remoti"), self.toggle_remote_files, "Ctrl+Shift+E", "fth-act-files",
+        self.act_files = self._action(tr("File remoti"), self.toggle_remote_files, "", "fth-act-files",
                                       tr("Mostra o nasconde i file remoti della sessione SSH"))
         self.act_import = self._action(tr("Importa sessioni nella cartella selezionata"), self.import_sessions)
         self.act_export = self._action(tr("Esporta la selezione"), self.export_selected)
@@ -358,6 +232,19 @@ class MainWindow(QMainWindow):
             act.toggled.connect(lambda on, k=key: self.set_part_visible(k, on))
             self.view_toggles[key] = act
         self.view_toggles["show_sidebar"].setShortcut(QKeySequence("Ctrl+Shift+B"))
+        # Tasti dei riquadri. Ctrl+Shift+E e Ctrl+Shift+P, come sulla versione Linux, nel terminale dividono e
+        # attivano il broadcast, fuori dal terminale aprono i file remoti e le password: per questo le due
+        # voci di menu non hanno una scorciatoia propria, e il tasto lo mostrano nel testo.
+        self.pane_key_fallbacks = {"split_h": self.act_files, "toggle_broadcast": self.act_vault}
+        self.pane_shortcuts = {}
+        for action, keys in termcore.PANE_KEYS.items():
+            shortcut = QShortcut(self)
+            shortcut.setKeys([QKeySequence(key) for key in keys])
+            shortcut.activated.connect(lambda a=action: self.pane_key(a))
+            self.pane_shortcuts[action] = shortcut
+        for act, key in ((self.act_files, "Ctrl+Shift+E"), (self.act_vault, "Ctrl+Shift+P")):
+            act.setText(f"{act.text()}\t{key}")
+        QApplication.instance().focusChanged.connect(self._focus_changed)
         self.network_pages = [
             (tr("Server locali"), "services", "fth-tb-rete"),
             (tr("Porte locali in ascolto"), "listeners", "fth-tb-rete"),
@@ -378,6 +265,10 @@ class MainWindow(QMainWindow):
         if category == "terminal":
             heading(tr("Terminale"))
             menu.addAction(self.act_local)
+            menu.addAction(self.act_split)
+            menu.addAction(self.act_multiexec)
+            panes = menu.addMenu(tr("Riquadri"))
+            panes.addActions(self.act_panes)
             menu.addAction(self.act_quick)
             menu.addAction(self.act_close_tab)
             if not headings:
@@ -796,7 +687,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             widget = self.tabs.widget(i)
             if isinstance(widget, TerminalTab):
-                widget.view.send_theme()
+                widget.send_theme()
 
     def _save_settings(self) -> None:
         try:
@@ -1241,12 +1132,14 @@ class MainWindow(QMainWindow):
         LogDialog(self).exec()
 
     def show_shortcuts(self) -> None:
-        actions = [self.act_new_session, self.act_quick, self.act_local, self.act_close_tab, self.act_files,
+        actions = [self.act_new_session, self.act_quick, self.act_local, self.act_close_tab,
                    self.view_toggles["show_sidebar"], self.act_edit, self.act_duplicate, self.act_delete,
-                   self.act_tunnels, self.act_net_tools, self.act_vault, self.act_settings, self.act_guide, self.act_quit]
+                   self.act_tunnels, self.act_net_tools, self.act_settings, self.act_guide, self.act_quit]
         rows = [(act.shortcut().toString(QKeySequence.SequenceFormat.NativeText), act.text().replace("&", ""))
                 for act in actions if not act.shortcut().isEmpty()]
         rows.insert(1, ("Ctrl+F", tr("Cerca sessioni")))
+        outside = tr("(con il fuoco fuori dal terminale)")
+        rows += [("Ctrl+Shift+E", f"{tr('File remoti')} {outside}"), ("Ctrl+Shift+P", f"{tr('Password Manager')} {outside}")]
         ShortcutsDialog(self, rows).exec()
 
     def export_vault(self) -> None:
@@ -1457,6 +1350,74 @@ class MainWindow(QMainWindow):
     def open_local_terminal(self) -> None:
         self.add_terminal_tab(connect.local_shell(self.settings), protocol="local")
 
+    def open_split_terminal(self) -> TerminalTab:
+        """Una scheda locale che nasce divisa in due riquadri affiancati."""
+        launch = connect.local_shell(self.settings)
+        launch.title = tr("Split")
+        tab = self.add_terminal_tab(launch, protocol="local")
+        tab.split_tab = True
+        tab.split("tall")
+        return tab
+
+    def pane_action(self, action: str) -> None:
+        """Una voce del menu Riquadri: agisce sulla scheda aperta."""
+        tab = self.tabs.currentWidget()
+        if isinstance(tab, TerminalTab):
+            tab.dispatch(action)
+        else:
+            self.set_status(tr("I riquadri ci sono nelle schede terminale."))
+
+    def pane_key(self, action: str) -> None:
+        """Un tasto dei riquadri (termcore.PANE_KEYS)."""
+        tab = self.tabs.currentWidget()
+        fallback = self.pane_key_fallbacks.get(action)
+        if isinstance(tab, TerminalTab) and (fallback is None or self._focused_pane() in tab.panes):
+            tab.dispatch(action)
+        elif fallback is not None:
+            fallback.trigger()
+
+    @staticmethod
+    def _focused_pane() -> Optional[TerminalPane]:
+        widget = QApplication.focusWidget()
+        while widget is not None and not isinstance(widget, TerminalPane):
+            widget = widget.parentWidget()
+        return widget
+
+    def _focus_changed(self, _old, _new) -> None:  # noqa: ANN001
+        pane = self._focused_pane()
+        if pane is not None:
+            pane.tab.set_active(pane)
+
+    def multiexec_targets(self) -> List[Tuple[object, str, str, bool]]:
+        """Le schede terminale con un programma aperto: (scheda, titolo, tipo, già spuntata)."""
+        targets = []
+        for index in range(self.tabs.count()):
+            tab = self.tabs.widget(index)
+            if isinstance(tab, TerminalTab) and tab.running:
+                kind, default = termcore.multiexec_target(tab.protocol, tab.split_tab)
+                targets.append((tab, self.tabs.tabText(index), kind, default))
+        return termcore.multiexec_defaults(targets)
+
+    def send_multiexec(self, command: str, tabs: List[TerminalTab]) -> int:
+        """Manda il comando a tutti i riquadri delle schede scelte; quanti terminali l'hanno ricevuto."""
+        line = termcore.multiexec_line(command, "\r")
+        sent = sum(tab.feed_all(line) for tab in tabs)
+        self.set_status(tr("MultiExec: comando inviato a {sent} terminali.").format(sent=sent))
+        return sent
+
+    def show_multiexec_dialog(self) -> None:
+        targets = self.multiexec_targets()
+        if not targets:
+            self.set_status(tr("Nessuna scheda terminale aperta per MultiExec."))
+            return
+        dialog = MultiExecDialog(self, targets)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Mentre il dialogo era aperto una scheda può essersi chiusa.
+            chosen = [tab for tab in dialog.selected_targets() if self.tabs.indexOf(tab) >= 0]
+            if dialog.command_text() and chosen:
+                self.send_multiexec(dialog.command_text(), chosen)
+        dialog.deleteLater()
+
     def quick_connect(self, text: str = "") -> None:
         """Connessione rapida dal campo in cima al pannello: utente@host[:porta], rdp:host o telnet:host."""
         text = (text or self.quick_entry.text()).strip()
@@ -1526,7 +1487,7 @@ class MainWindow(QMainWindow):
         if not binary:
             QMessageBox.warning(self, model.APP_NAME, tr("Programma non trovato: {name}").format(name=argv[0]))
             return
-        self.add_terminal_tab(connect.Launch(title, [binary] + argv[1:], {}, close_on_success=False), protocol="command")
+        self.add_terminal_tab(connect.Launch(title, [binary] + argv[1:], {}, close_on_success=False), protocol="tool")
 
     def create_session_for(self, host: str, protocol: str, port: int = 0) -> None:
         default = {"ssh": 22, "rdp": 3389, "vnc": 5900, "telnet": 23, "sftp": 22}.get(protocol, 0)
@@ -1556,15 +1517,16 @@ class MainWindow(QMainWindow):
 
     def add_terminal_tab(self, launch: connect.Launch, protocol: str = "",
                          files_target: Optional[Callable[[], SftpTarget]] = None) -> TerminalTab:
-        tab = TerminalTab(self.tabs, launch, self.settings, files_target=files_target)
+        tab = TerminalTab(self.tabs, launch, self.settings, files_target=files_target, protocol=protocol)
         tab.status.connect(self.set_status)
         tab.files_created.connect(lambda panel, t=tab: self._files_created(t, panel))
         tab.files_unavailable.connect(lambda t=tab: self._files_unavailable(t))
-        tab.view.input_hooks.append(self.mark_activity)
+        tab.activity.connect(self.mark_activity)
+        tab.close_requested.connect(lambda t=tab: self.close_tab(self.tabs.indexOf(t)))
         self._add_tab(tab, launch.title)
         tab.finished.connect(lambda code, t=tab: self._terminal_finished(t, code))
         self._update_welcome()
-        QTimer.singleShot(300, tab.view.focus_terminal)
+        QTimer.singleShot(300, tab.focus_active)
         return tab
 
     def _terminal_finished(self, tab: TerminalTab, code: int) -> None:

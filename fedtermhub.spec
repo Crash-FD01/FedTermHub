@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.12.0
+Version:        0.13.0
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -145,6 +145,11 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.13.0-1
+- Windows: terminale diviso come su Linux. Terminale › Terminale diviso apre una scheda locale con due riquadri; ogni scheda terminale si divide con Ctrl+Shift+O (affiancati) e Ctrl+Shift+E (sopra e sotto), Ctrl+Shift+Invio aggiunge un riquadro, Ctrl+Shift+[ e ] passano da uno all'altro, Ctrl+Shift+L cambia disposizione (stack, tall, fat, grid), Ctrl+Shift+P scrive in tutti i riquadri insieme, Ctrl+Shift+W chiude il riquadro. Le stesse azioni sono anche in Terminale › Riquadri
+- Windows: nel terminale Ctrl+Shift+E e Ctrl+Shift+P ora dividono e attivano il broadcast, come su Linux; con il fuoco fuori dal terminale restano File remoti e Password Manager
+- Windows: MultiExec come su Linux: scrivi un comando e scegli a quali schede mandarlo, le sessioni SSH sono già spuntate
+- Nucleo comune: termcore.py con disposizioni, tasti e broadcast dei riquadri e le regole di MultiExec, usato dalle due interfacce
 * Thu Nov 05 2026 Crash-FD01 - 1:0.12.0-1
 - Due interfacce, un nucleo comune: Linux resta con GTK e Windows con Qt, ognuna con quello che funziona meglio sul suo sistema, ma i comandi ssh e dei tunnel (commands.py), gli strumenti di rete (netcore.py), i colori, le icone e i colori del terminale (look.py) sono gli stessi per entrambe. tests/test_commands.py controlla che nessuna delle due ricostruisca questi pezzi per conto suo
 - Windows: la finestra ha la disposizione della versione Linux. Stessi menu (Terminale, Sessioni, Rete, Strumenti, Vista, Impostazioni, Aiuto), barra dei comandi con le tendine e il pulsante del tema, barra verticale, pannello con connessione rapida e schede Sessioni | File remoti, cartelle colorate, schede con il pallino di stato, barra di stato con la scheda aperta e la versione

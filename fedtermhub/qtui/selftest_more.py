@@ -88,6 +88,174 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
 
     check("Finestra come la versione Linux", layout)
 
+    # ------------------------------------------------------------------ terminale diviso
+    def seen(out: list, marker: str) -> bool:
+        return wait(app, lambda: marker in "".join(out), 30)
+
+    def press(key) -> bool:  # noqa: ANN001
+        """Un tasto vero, che passa dalle scorciatoie della finestra. Falso se la finestra non è attiva."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+
+        if app.activeWindow() is not window:
+            return False
+        QTest.keyClick(window.windowHandle(), key, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+        return True
+
+    def split() -> str:
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QSplitter
+
+        tab = window.open_split_terminal()
+        assert len(tab.panes) == 2 and tab.pane_layout == "tall" and tab.split_tab, (len(tab.panes), tab.pane_layout)
+        first, second = tab.panes
+        assert wait(app, lambda: first.view.ready and second.view.ready, 30), "xterm.js non si è caricato nei riquadri"
+        assert wait(app, lambda: first.running and second.running, 15), "un riquadro non è partito"
+        assert first.isVisible() and second.isVisible(), "riquadri non visibili"
+        root = tab._root
+        assert isinstance(root, QSplitter) and root.orientation() == Qt.Orientation.Horizontal, type(root)
+        out1, out2 = [], []
+        first.view.pty.output.connect(out1.append)
+        second.view.pty.output.connect(out2.append)
+        # il riquadro attivo cambia con i tasti, e ogni riquadro ha la sua shell
+        assert tab.active_pane is second
+        tab.dispatch("prev_pane")
+        assert tab.active_pane is first
+        tab.dispatch("next_pane")
+        assert tab.active_pane is second
+        first.view.on_input("echo FTH_UNO_$((6*7))\r")
+        assert seen(out1, "FTH_UNO_42"), "riquadro 1: " + "".join(out1)[-200:]
+        assert tab.active_pane is first, "scrivere in un riquadro lo rende attivo"
+        assert "FTH_UNO" not in "".join(out2), "il riquadro 2 ha ricevuto i tasti del riquadro 1"
+        # broadcast: il testo va ovunque, Ctrl+C e le risposte del terminale no
+        tab.dispatch("toggle_broadcast")
+        assert tab.broadcast and tab._toast.isVisible(), "broadcast senza avviso"
+        first.view.on_input("echo FTH_TUTTI_$((6*7))")  # come dalla tastiera: il testo, poi Invio
+        first.view.on_input("\r")
+        assert seen(out1, "FTH_TUTTI_42") and seen(out2, "FTH_TUTTI_42"), "broadcast: " + "".join(out2)[-200:]
+        before = len("".join(out2))
+        tab.pane_input(first, "\x1b[12;5R")  # senza scriverla nella shell del riquadro 1
+        wait(app, lambda: False, 0.5)
+        assert "12;5R" not in "".join(out2)[before:], "una risposta del terminale è finita nell'altro riquadro"
+        tab.dispatch("toggle_broadcast")
+        first.view.on_input("echo FTH_SOLO_$((6*7))\r")
+        assert seen(out1, "FTH_SOLO_42")
+        assert "FTH_SOLO" not in "".join(out2), "broadcast spento: il testo è arrivato all'altro riquadro"
+        # altre divisioni e disposizioni: i programmi restano vivi
+        tab.dispatch("split_h")
+        assert len(tab.panes) == 3 and tab.pane_layout == "fat" and tab._root.orientation() == Qt.Orientation.Vertical
+        layouts = []
+        for _ in range(4):
+            tab.dispatch("cycle_layout")
+            layouts.append(tab.pane_layout)
+            wait(app, lambda: False, 0.2)
+        assert layouts == ["grid", "stack", "tall", "fat"], layouts
+        tab.dispatch("cycle_layout")
+        tab.dispatch("cycle_layout")  # stack: si vede solo il riquadro attivo
+        assert tab.pane_layout == "stack" and tab.active_pane.isVisible()
+        assert sum(p.isVisible() for p in tab.panes) == 1, "stack: più di un riquadro visibile"
+        tab.dispatch("next_pane")
+        assert tab.active_pane.isVisible() and sum(p.isVisible() for p in tab.panes) == 1
+        tab.dispatch("cycle_layout")
+        assert all(p.isVisible() for p in tab.panes) and first.running and second.running
+        first.view.on_input("echo FTH_DOPO_$((6*7))\r")
+        assert seen(out1, "FTH_DOPO_42"), "il riquadro non risponde dopo i cambi di disposizione"
+        # exit chiude solo quel riquadro; Ctrl+Shift+W chiude il riquadro attivo e l'ultimo chiude la scheda
+        tab.panes[-1].view.on_input("exit\r")
+        assert wait(app, lambda: len(tab.panes) == 2, 20), "exit in un riquadro non lo chiude"
+        tab.active_pane = second
+        tab.dispatch("close_pane")
+        assert tab.panes == [first] and tab.active_pane is first
+        assert window.tabs.indexOf(tab) >= 0
+        tab.dispatch("close_pane")
+        assert window.tabs.indexOf(tab) < 0, "l'ultimo riquadro non chiude la scheda"
+        return "riquadri, disposizioni, broadcast, chiusura"
+
+    check("Terminale diviso", split)
+
+    def split_keys() -> str:
+        from PySide6.QtCore import Qt
+
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        tab = terminal_tab(model.Session(name="tasti", protocol="local"))
+        assert wait(app, lambda: tab.view.ready, 30), "xterm.js non si è caricato"
+        tab.focus_active()
+        if not wait(app, lambda: app.activeWindow() is window and window._focused_pane() is tab.active_pane, 5):
+            close(tab)
+            return "finestra non attiva su questo sistema: tasti non provati, azioni provate sopra"
+        out = collect(tab)
+        files_before = window.sidebar_tabs.currentIndex()
+        assert press(Qt.Key.Key_O) and len(tab.panes) == 2 and tab.pane_layout == "tall", "Ctrl+Shift+O"
+        assert wait(app, lambda: tab.active_pane.view.ready and window._focused_pane() is tab.active_pane, 30), \
+            "il fuoco non è passato al riquadro nuovo"
+        assert press(Qt.Key.Key_E) and len(tab.panes) == 3 and tab.pane_layout == "fat", "Ctrl+Shift+E nel terminale"
+        assert window.sidebar_tabs.currentIndex() == files_before, "Ctrl+Shift+E ha aperto i file remoti"
+        assert wait(app, lambda: tab.active_pane.view.ready and window._focused_pane() is tab.active_pane, 30)
+        assert press(Qt.Key.Key_P) and tab.broadcast, "Ctrl+Shift+P nel terminale"
+        assert press(Qt.Key.Key_P) and not tab.broadcast
+        assert press(Qt.Key.Key_L) and tab.pane_layout == "grid", "Ctrl+Shift+L"
+        assert press(Qt.Key.Key_W) and len(tab.panes) == 2, "Ctrl+Shift+W"
+        assert not any(ch in "".join(out) for ch in ("\x0f", "\x05")), "i tasti sono arrivati anche al programma"
+        # il fuoco sul riquadro passa con Qt: cambia il riquadro attivo
+        other = tab.panes[0] if tab.active_pane is not tab.panes[0] else tab.panes[1]
+        other.view.setFocus()
+        assert wait(app, lambda: tab.active_pane is other, 5), "il fuoco non cambia il riquadro attivo"
+        # fuori dal terminale Ctrl+Shift+E resta File remoti (qui non c'è SSH: solo il messaggio) e non divide
+        window.tree.setFocus()
+        wait(app, lambda: False, 0.2)
+        assert press(Qt.Key.Key_E) and len(tab.panes) == 2, "Ctrl+Shift+E fuori dal terminale ha diviso"
+        close(tab)
+        return "Ctrl+Shift+O, E, P, L, W con tasti veri; E fuori dal terminale"
+
+    check("Tasti dei riquadri", split_keys)
+
+    # ------------------------------------------------------------------ MultiExec
+    def multiexec() -> str:
+        from .chrome import MultiExecDialog
+        from . import connect as launch_for
+
+        for index in range(window.tabs.count() - 1, -1, -1):  # schede rimaste da una prova fallita
+            window.close_tab(index)
+        fake = launch_for.local_shell(window.settings)
+        fake.title, fake.close_on_success = "web01", False
+        ssh_tab = window.add_terminal_tab(fake, protocol="ssh")  # il comando è una shell: conta il tipo di scheda
+        local = window.add_terminal_tab(launch_for.local_shell(window.settings), protocol="local")
+        split_tab = window.open_split_terminal()
+        tabs = (ssh_tab, local, split_tab)
+        assert wait(app, lambda: all(p.view.ready and p.running for t in tabs for p in t.panes), 40), "terminali non pronti"
+        targets = {t[0]: t for t in window.multiexec_targets()}
+        assert targets[ssh_tab][3] and not targets[local][3] and not targets[split_tab][3], "spunte iniziali"
+        assert "SSH" in targets[ssh_tab][2]
+        dialog = MultiExecDialog(window, list(targets.values()))
+        assert not dialog.send_button.isEnabled(), "Invia attivo senza comando"
+        dialog.command.setText("echo FTH_MULTI_$((6*7))")
+        assert dialog.send_button.isEnabled() and "1" in dialog.send_button.text(), dialog.send_button.text()
+        assert dialog.selected_targets() == [ssh_tab]
+        for check_box, target in dialog.checks:
+            check_box.setChecked(target is not local)
+        chosen = dialog.selected_targets()
+        assert chosen == [ssh_tab, split_tab] and "2" in dialog.send_button.text(), dialog.send_button.text()
+        command = dialog.command_text()
+        dialog.deleteLater()
+        outputs = {id(p): collect_pane(p) for t in tabs for p in t.panes}
+        sent = window.send_multiexec(command, chosen)
+        assert sent == 3, f"inviato a {sent} terminali"
+        for pane in ssh_tab.panes + split_tab.panes:
+            assert seen(outputs[id(pane)], "FTH_MULTI_42"), "".join(outputs[id(pane)])[-200:]
+        assert "FTH_MULTI" not in "".join(outputs[id(local.panes[0])]), "la scheda non spuntata ha ricevuto il comando"
+        for tab in tabs:
+            window.close_tab(window.tabs.indexOf(tab))
+        return f"{sent} terminali su 4, nessuna scheda: " + str(not window.multiexec_targets())
+
+    def collect_pane(pane) -> list:  # noqa: ANN001
+        output: list = []
+        pane.view.pty.output.connect(output.append)
+        return output
+
+    check("MultiExec", multiexec)
+
     # ------------------------------------------------------------------ Telnet
     def telnet() -> str:
         server = selftest_servers.start_telnet()

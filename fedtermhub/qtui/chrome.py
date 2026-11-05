@@ -10,10 +10,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QColorDialog,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -21,6 +23,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -190,6 +193,12 @@ class ShortcutsDialog(QDialog):
                 (tr("Ctrl+Maiusc+V"), tr("Incolla")),
                 (tr("Clic destro"), tr("Copia la selezione, oppure incolla se non c'è selezione")),
                 (tr("Ctrl+C"), tr("Va al programma nel terminale (interrompe)")),
+                (tr("Ctrl+Maiusc+O / E"), tr("Dividi affiancato / sopra e sotto")),
+                (tr("Ctrl+Maiusc+Invio"), tr("Nuovo riquadro")),
+                (tr("Ctrl+Maiusc+W"), tr("Chiudi il riquadro (l'ultimo chiude la scheda)")),
+                (tr("Ctrl+Maiusc+[ / ]"), tr("Riquadro precedente / successivo")),
+                (tr("Ctrl+Maiusc+L"), tr("Cambia disposizione dei riquadri")),
+                (tr("Ctrl+Maiusc+P"), tr("Scrivi in tutti i riquadri insieme")),
             ]),
         ]
         for title, rows in sections:
@@ -207,6 +216,62 @@ class ShortcutsDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+
+class MultiExecDialog(QDialog):
+    """Invia un comando a più terminali, scelti uno per uno; le sessioni SSH sono già spuntate."""
+
+    def __init__(self, parent: QWidget, targets: List[Tuple[object, str, str, bool]]) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(tr("MultiExec"))
+        self.setMinimumWidth(560)
+        layout = QVBoxLayout(self)
+        caption = QLabel(tr("&Comando"))
+        layout.addWidget(caption)
+        self.command = QLineEdit()
+        self.command.setPlaceholderText(tr("Es. uptime  (viene inviato seguito da Invio)"))
+        caption.setBuddy(self.command)
+        layout.addWidget(self.command)
+        layout.addWidget(QLabel(tr("Invia a")))
+        box = QWidget()
+        rows = QVBoxLayout(box)
+        rows.setContentsMargins(0, 0, 0, 0)
+        rows.setSpacing(2)
+        self.checks: List[Tuple[QCheckBox, object]] = []
+        for target, title, kind, default in targets:
+            check = QCheckBox(f"{title}   ({kind})")
+            check.setChecked(default)
+            check.toggled.connect(self._update)
+            rows.addWidget(check)
+            self.checks.append((check, target))
+        rows.addStretch(1)
+        scroll = QScrollArea()
+        scroll.setWidget(box)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setMaximumHeight(260)
+        layout.addWidget(scroll, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("Annulla"))
+        self.send_button = buttons.addButton(tr("&Invia"), QDialogButtonBox.ButtonRole.AcceptRole)
+        self.send_button.setDefault(True)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.command.textChanged.connect(self._update)
+        self._update()
+        self.command.setFocus()
+
+    def _update(self, *_args) -> None:  # noqa: ANN002
+        count = len(self.selected_targets())
+        self.send_button.setEnabled(bool(self.command.text().strip()) and count > 0)
+        self.send_button.setText(tr("&Invia") if count == 0 else tr("&Invia a {count}").format(count=count))
+
+    def selected_targets(self) -> List[object]:
+        return [target for check, target in self.checks if check.isChecked()]
+
+    def command_text(self) -> str:
+        return self.command.text()
 
 
 def drop_target(store: model.SessionStore, target: str, where: str) -> Tuple[str, Optional[int]]:

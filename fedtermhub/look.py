@@ -157,3 +157,7 @@ HOME_SESSION_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="22" height=
 <path d="M2 8.2 11 1.4l9 6.8" fill="none" stroke="#dff4ff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="17.1" cy="4.5" r="2.2" fill="#77e2ff" stroke="#0f1e2b" stroke-width=".8"/>
 </svg>"""
+
+
+# Il piccolo avviso temporaneo sopra i riquadri del terminale (uguale nei due temi, come il terminale).
+TERMINAL_TOAST = {"background": "rgba(20,26,36,0.94)", "text": "#cfe1f5", "line": "#33415a"}
