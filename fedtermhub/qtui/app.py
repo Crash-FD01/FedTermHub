@@ -30,6 +30,25 @@ def _say(text: str) -> None:
         print(text, flush=True)
 
 
+def _hard_exit(code: int) -> None:
+    """Esce senza smontare nulla. Su Windows anche senza avvisare le DLL caricate (TerminateProcess): alla
+    chiusura del processo il componente RDP o Qt WebEngine a volte cadono, e Windows mostrerebbe un errore
+    dopo che il programma ha già salvato tutto."""
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:  # noqa: BLE001
+        pass
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        kernel32.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        kernel32.TerminateProcess(kernel32.GetCurrentProcess(), code & 0xFFFFFFFF)
+    os._exit(code)
+
+
 def _isolate_config() -> Path:
     """Configurazione temporanea per la prova: va decisa prima di importare model e i18n."""
     root = Path(tempfile.mkdtemp(prefix="fedtermhub-selftest-"))
@@ -288,9 +307,8 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
         try:
             code = self_test(target.resolve())
             # Il risultato è già scritto: si esce senza smontare Qt WebEngine e i componenti COM, che alla
-            # chiusura di Python a volte fanno cadere il processo (0xC0000409) e cambierebbero l'esito.
-            sys.stdout.flush()
-            os._exit(code)
+            # chiusura del processo a volte cadono (0xC0000005) e cambierebbero l'esito.
+            _hard_exit(code)
         except Exception:  # noqa: BLE001
             target.write_text(json.dumps({"ok": False, "error": traceback.format_exc()}), encoding="utf-8")
             _say(traceback.format_exc())
@@ -323,10 +341,8 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
     window = MainWindow()
     window.show()
     code = app.exec()
-    # Sessioni, impostazioni e tunnel sono già chiusi e salvati in MainWindow.closeEvent: si esce subito,
-    # senza lo smontaggio di Python che con WebEngine e COM su Windows può far cadere il processo.
-    sys.stdout.flush()
-    os._exit(code)
+    # Sessioni, impostazioni e tunnel sono già chiusi e salvati in MainWindow.closeEvent: si esce subito.
+    _hard_exit(code)
 
 
 if __name__ == "__main__":
