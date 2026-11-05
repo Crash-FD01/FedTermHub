@@ -244,9 +244,9 @@ def self_test(report_path: Path) -> int:
                 # QWidget.grab() non vede la finestra nativa del componente: si fotografa lo schermo.
                 app.primaryScreen().grabWindow(0).save(str(report_path.with_name("rdp-session.png")))
             version = str(tab.ax.Version or "")
-            tab.close_tab()
+            tab.disconnect_session()
             _wait(app, lambda: any(e.startswith("disconnected") for e in tab.events), 15)
-            window.tabs.removeTab(window.tabs.indexOf(tab))
+            window.close_tab(window.tabs.indexOf(tab))
             unset = f"; non accettate: {', '.join(tab.unset)}" if tab.unset else ""
             return f"versione {version}; eventi: {', '.join(tab.events)}; stato: {tab.state.text()}{unset}"
 
@@ -279,7 +279,11 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
         index = argv.index("--self-test")
         target = Path(argv[index + 1]) if index + 1 < len(argv) else Path("fedtermhub-selftest.json")
         try:
-            return self_test(target.resolve())
+            code = self_test(target.resolve())
+            # Il risultato è già scritto: si esce senza smontare Qt WebEngine e i componenti COM, che alla
+            # chiusura di Python a volte fanno cadere il processo (0xC0000409) e cambierebbero l'esito.
+            sys.stdout.flush()
+            os._exit(code)
         except Exception:  # noqa: BLE001
             target.write_text(json.dumps({"ok": False, "error": traceback.format_exc()}), encoding="utf-8")
             _say(traceback.format_exc())
@@ -311,7 +315,11 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
     theme.apply(app, settings.theme)
     window = MainWindow()
     window.show()
-    return app.exec()
+    code = app.exec()
+    # Sessioni, impostazioni e tunnel sono già chiusi e salvati in MainWindow.closeEvent: si esce subito,
+    # senza lo smontaggio di Python che con WebEngine e COM su Windows può far cadere il processo.
+    sys.stdout.flush()
+    os._exit(code)
 
 
 if __name__ == "__main__":
