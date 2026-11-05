@@ -124,6 +124,15 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
 
     # ------------------------------------------------------------------ finestre dei tunnel
     def tunnel_windows() -> str:
+        opened: list = []
+        try:
+            return check_tunnel_windows(opened)
+        finally:  # anche se la prova fallisce: una finestra rimasta aperta ruberebbe il fuoco alle prove dopo
+            for dialog in opened:
+                dialog.close()
+                dialog.deleteLater()
+
+    def check_tunnel_windows(opened: list) -> str:
         from .tunnels import TunnelEditDialog, TunnelsDialog
 
         store = window.tunnels.store
@@ -132,6 +141,8 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
                                      remote_host="10.20.0.5", remote_port="3389", server_alive_interval=45)
         store.upsert(tunnel)
         dialog = TunnelsDialog(window, window.tunnels, window.credential_labels, window)
+        opened.append(dialog)
+        dialog.resize(dialog.minimumSize())  # si parte dal minimo: lo schermo può essere piccolo (in CI 1024x768)
         dialog.show()
         wait(app, lambda: False, 0.2)
         assert dialog.table.columnCount() == 7 and dialog.selected() is not None
@@ -142,9 +153,9 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         # allargando si allarga la tabella, non le barre né il riepilogo
         heights = (dialog.b_start.height(), dialog.detail_summary.parentWidget().height())
         table_size = (dialog.table.width(), dialog.table.height())
-        dialog.resize(dialog.width() + 300, dialog.height() + 200)
+        dialog.resize(dialog.width() + 180, dialog.height() + 120)
         wait(app, lambda: False, 0.2)
-        assert dialog.table.width() >= table_size[0] + 250 and dialog.table.height() >= table_size[1] + 150, \
+        assert dialog.table.width() >= table_size[0] + 150 and dialog.table.height() >= table_size[1] + 100, \
             (table_size, dialog.table.size())
         assert (dialog.b_start.height(), dialog.detail_summary.parentWidget().height()) == heights, "barre allargate"
         widths = [dialog.table.columnWidth(c) for c in range(7)]
@@ -165,6 +176,8 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         dialog.refresh(tunnel.id)
         # Editor: tipi, percorso, anteprima e nessun campo perso nel salvataggio
         editor = TunnelEditDialog(dialog, tunnel, [], window.settings, window.tunnels.identity)
+        opened.insert(0, editor)
+        editor.resize(editor.minimumSize())
         editor.show()
         wait(app, lambda: False, 0.2)
         assert editor.current_type() == "local" and editor.flow_right.detail.text() == "10.20.0.5:3389"
@@ -177,16 +190,12 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         saved = editor.result_tunnel()
         assert saved.to_dict() == tunnel.to_dict(), "l'editor cambia i campi del tunnel"
         name_width, name_height = editor.name.width(), editor.ssh_host.height()
-        editor.resize(editor.width() + 300, editor.height() + 200)
+        editor.resize(editor.width() + 180, editor.height() + 120)
         wait(app, lambda: False, 0.2)
-        assert editor.name.width() >= name_width + 250 and editor.ssh_host.height() == name_height, "editor allargato male"
+        assert editor.name.width() >= name_width + 150 and editor.ssh_host.height() == name_height, "editor allargato male"
         editor.ssh_host.clear()
         editor._accept()
         assert editor.validation.isVisibleTo(editor) and editor.result() == 0, "salvato senza server SSH"
-        editor.reject()
-        editor.deleteLater()
-        dialog.reject()
-        dialog.deleteLater()
         store.remove(tunnel.id)
         assert [t.id for t in store.tunnels] == [t.id for t in before]
         return "elenco, stato, ridimensionamento, editor"
