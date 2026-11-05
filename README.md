@@ -9,7 +9,8 @@
 
 **Terminali, SSH, desktop remoto e file in un'unica finestra, per chi amministra sistemi.**
 FedTermHub riunisce terminali locali, sessioni SSH, desktop RDP e VNC, trasferimento file e un vault
-cifrato per le credenziali, con le sessioni organizzate in cartelle. Gratuito e open source, per Linux.
+cifrato per le credenziali, con le sessioni organizzate in cartelle. Gratuito e open source, per Linux
+e Windows.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/principale-scuro.png">
@@ -46,6 +47,13 @@ Poi lo trovi nel menu delle applicazioni. Gli aggiornamenti arrivano con quelli 
 
 Versioni supportate, installazione a mano, sistemi immutabili, Arch e compilazione dai sorgenti:
 [guida completa](docs/GUIDA.md#installazione).
+
+**Windows 10 (1809 o successivo) e 11** — scarica `FedTermHub-<versione>-Setup.exe` dall'[ultima
+release](https://github.com/Crash-FD01/FedTermHub/releases/latest) e aprilo: si installa per il tuo utente,
+senza permessi di amministratore. Il programma avvisa quando esce una versione nuova.
+La versione Windows contiene per ora sessioni in cartelle, terminale (PowerShell, SSH, Telnet, comandi),
+desktop remoto incorporato e Password Manager; le sessioni esportate da Linux (*Esporta tutte le sessioni*) si
+importano con *File › Importa sessioni…*. Dettagli nella [guida](docs/GUIDA.md#windows).
 
 ## Come si usa
 

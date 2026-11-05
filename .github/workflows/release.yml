@@ -11,8 +11,9 @@ name: Rilascio
 #      Mint, .rpm per RHEL/Alma/Rocky e openSUSE, con il motore RDP e la sua FreeRDP 3;
 #   3. firma i pacchetti con la chiave del progetto (secret FEDTERMHUB_GPG_PRIVATE_KEY, creato da
 #      packaging/github-setup.sh);
-#   4. pubblica la release con i pacchetti e SHA256SUMS firmato;
-#   5. aggiorna i repository (dnf per Fedora, dnf/zypper per RHEL e openSUSE, APT) e il sito su
+#   4. costruisce e prova il Setup.exe per Windows (windows.yml);
+#   5. pubblica la release con i pacchetti, il Setup.exe e SHA256SUMS firmato;
+#   6. aggiorna i repository (dnf per Fedora, dnf/zypper per RHEL e openSUSE, APT) e il sito su
 #      GitHub Pages.
 # Il tag deve corrispondere a Version dello spec, altrimenti il rilascio si ferma.
 on:
@@ -109,9 +110,15 @@ jobs:
       ref: ${{ inputs.tag || github.ref_name }}
       test: false
 
+  windows:
+    name: Windows
+    uses: ./.github/workflows/windows.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+
   publish:
     name: Pubblica release, repository e sito
-    needs: [build, universal]
+    needs: [build, universal, windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -130,6 +137,11 @@ jobs:
           pattern: '{fedora,universali}-*'
           path: pkgs
           merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-setup
+          path: win
 
       - name: Strumenti
         run: |
@@ -167,14 +179,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd pkgs
-          sha256sum -- *.rpm *.deb *.tar.gz > SHA256SUMS
+          find ../win -name 'FedTermHub-*-Setup.exe' -exec cp {} . \;
+          ls FedTermHub-*-Setup.exe
+          sha256sum -- *.rpm *.deb *.tar.gz *.exe > SHA256SUMS
           gpg --batch --yes --local-user "$GPG_KEY_ID" --armor --detach-sign SHA256SUMS
-          notes="Installa o aggiorna: $SITE_URL — un comando per Debian, Ubuntu, Mint, Fedora, RHEL/Alma/Rocky e openSUSE; con il repository aggiunto, gli aggiornamenti arrivano con apt, dnf o zypper."
+          notes="Linux: installa o aggiorna da $SITE_URL — un comando per Debian, Ubuntu, Mint, Fedora, RHEL/Alma/Rocky e openSUSE; con il repository aggiunto, gli aggiornamenti arrivano con apt, dnf o zypper. Windows 10/11: scarica FedTermHub-${TAG#v}-Setup.exe qui sotto (si installa senza permessi di amministratore; il programma avvisa quando esce una versione nuova)."
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$TAG" -R "$GITHUB_REPOSITORY" -- *.rpm *.deb *.tar.gz SHA256SUMS SHA256SUMS.asc --clobber
+            gh release upload "$TAG" -R "$GITHUB_REPOSITORY" -- *.rpm *.deb *.tar.gz *.exe SHA256SUMS SHA256SUMS.asc --clobber
           else
             gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag --latest --title "FedTermHub ${TAG#v}" \
-              --notes "$notes" --generate-notes -- *.rpm *.deb *.tar.gz SHA256SUMS SHA256SUMS.asc
+              --notes "$notes" --generate-notes -- *.rpm *.deb *.tar.gz *.exe SHA256SUMS SHA256SUMS.asc
           fi
 
       - uses: actions/configure-pages@v6
