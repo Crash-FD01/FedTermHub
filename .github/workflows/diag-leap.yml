@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-24.04
     container: opensuse/leap:16.0
     steps:
-      - run: zypper --non-interactive -q install tar gzip python3 python3-gobject python3-gobject-Gdk typelib-1_0-Gtk-3_0 xvfb-run xorg-x11-server-Xvfb > /dev/null; rpm -qa | grep -i "gobject\|gtk3\|python3[0-9]*-3" | sort
+      - run: zypper --non-interactive -q install tar gzip python3 python3-gobject python3-gobject-Gdk python3-gobject-cairo python3-cairo python3-cryptography typelib-1_0-Gtk-3_0 typelib-1_0-Vte-2_91 openssh-clients iproute2 adwaita-icon-theme xvfb-run xorg-x11-server-Xvfb > /dev/null; rpm -qa | grep -i "gobject\|gtk3\|python3[0-9]*-3" | sort
       - uses: actions/checkout@v7
       - run: xvfb-run -a python3 tests/diag_gi.py 2>&1
+      - run: |
+          export FEDTERMHUB_LANGUAGE=it PYTHONFAULTHANDLER=1
+          xvfb-run -a python3 -X dev tests/test_revisione.py 2>&1 | grep -v Gdk-WARNING | grep -v '^$' | tail -60
