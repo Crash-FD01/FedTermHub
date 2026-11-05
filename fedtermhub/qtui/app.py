@@ -52,6 +52,25 @@ def install_qt_translations(app) -> None:  # noqa: ANN001
         app.installTranslator(translator)
 
 
+def _no_dialogs(log: List[str]) -> None:
+    """Nella prova nessuna finestra deve fermare tutto aspettando un clic: si registra e si risponde «no»."""
+    from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+
+    def message(kind: str):  # noqa: ANN202
+        def show(_parent, title="", text="", *_args, **_kwargs):  # noqa: ANN001, ANN002, ANN003, ANN202
+            log.append(f"{kind}: {title}: {str(text)[:300]}")
+            return QMessageBox.StandardButton.No
+
+        return staticmethod(show)
+
+    for kind in ("question", "warning", "information", "critical"):
+        setattr(QMessageBox, kind, message(kind))
+    QInputDialog.getText = staticmethod(lambda _p, title="", label="", *a, **k: (log.append(f"input: {title}: {label}"), ("", False))[1])
+    QInputDialog.getItem = staticmethod(lambda _p, title="", label="", *a, **k: (log.append(f"input: {title}: {label}"), ("", False))[1])
+    QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: (log.append("cartella"), "")[1])
+    QFileDialog.getOpenFileNames = staticmethod(lambda *a, **k: (log.append("file"), ([], ""))[1])
+
+
 def _wait(app, condition: Callable[[], bool], seconds: float) -> bool:  # noqa: ANN001
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -76,16 +95,29 @@ def self_test(report_path: Path) -> int:
     install_qt_translations(app)
     theme.apply(app, "dark")
     results: List[Dict[str, object]] = []
+    dialogs: List[str] = []
+    _no_dialogs(dialogs)
+
+    def save(running: str = "") -> None:
+        # Il risultato si scrive dopo ogni prova: se una si blocca, chi lancia la prova vede dove.
+        report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": False, "running": running,
+                  "checks": results, "dialogs": dialogs}
+        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def check(name: str, func: Callable[[], object]) -> None:
         start = time.monotonic()
+        save(name)
+        seen = len(dialogs)
         try:
             detail = func()
+            if len(dialogs) > seen:
+                raise AssertionError("finestra inattesa: " + " | ".join(dialogs[seen:]))
             results.append({"name": name, "ok": True, "detail": "" if detail is None else str(detail),
                             "seconds": round(time.monotonic() - start, 2)})
         except Exception as exc:  # noqa: BLE001
             results.append({"name": name, "ok": False, "detail": f"{type(exc).__name__}: {exc}",
                             "trace": traceback.format_exc()[-2000:], "seconds": round(time.monotonic() - start, 2)})
+        save()
 
     window = MainWindow()
     window.showMaximized()  # lo schermo del runner è piccolo (1024x768)
@@ -223,7 +255,7 @@ def self_test(report_path: Path) -> int:
     window.grab().save(str(report_path.with_name("main-window.png")))
     window.close()
     ok = all(r["ok"] for r in results)
-    report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": ok, "checks": results}
+    report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": ok, "checks": results, "dialogs": dialogs}
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     for r in results:
         _say(("OK   " if r["ok"] else "FAIL ") + str(r["name"]) + (f" — {r['detail']}" if r["detail"] else ""))
