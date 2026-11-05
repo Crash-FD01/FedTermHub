@@ -230,7 +230,14 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         assert wait(app, lambda: first.view.ready and second.view.ready, 30), "xterm.js non si è caricato nei riquadri"
         assert wait(app, lambda: first.running and second.running, 15), "un riquadro non è partito"
         assert first.isVisible() and second.isVisible(), "riquadri non visibili"
-        wait(app, lambda: False, 1.5)  # le pagine appena pronte possono prendersi il fuoco un momento dopo
+        # Le risposte automatiche del terminale passano dallo stesso canale dei tasti, ma non sono l'utente:
+        # qui il riquadro 1 risponde a una domanda sulla posizione del cursore, come fanno le shell all'avvio.
+        replies = []
+        first.view.input_hooks.append(replies.append)
+        first.view.write_local("\x1b[6n")
+        assert wait(app, lambda: any(r.endswith("R") for r in replies), 10), f"nessuna risposta dal terminale: {replies}"
+        first.view.input_hooks.remove(replies.append)
+        wait(app, lambda: False, 1.5)
         assert tab.active_pane is second, "dopo la divisione il riquadro attivo non è quello nuovo"
         if app.activeWindow() is window:
             assert wait(app, lambda: window._focused_pane() is second, 5), "i tasti non andrebbero al riquadro nuovo"

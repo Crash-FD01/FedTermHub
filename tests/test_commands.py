@@ -222,6 +222,12 @@ def check_panes() -> None:
         assert termcore.broadcastable(data), repr(data)
     for data in ("", "\x03", "\x1b[A", "\x1b[12;5R", "\x1b[?1;2c", "\x1b[<0;3;4M", "a\x03"):
         assert not termcore.broadcastable(data), repr(data)
+    # le risposte automatiche del terminale non sono l'utente; i tasti, anche speciali, sì
+    for data in ("\x1b[12;5R", "\x1b[?1;2c", "\x1b[>0;276;0c", "\x1b[0n", "\x1b[I", "\x1b[O", "\x1b[<0;3;4M",
+                 "\x1b[M !!", "\x1b]11;rgb:0/0/0\x1b\\"):
+        assert termcore.is_terminal_reply(data), repr(data)
+    for data in ("a", "\r", "\x03", "\x1b", "\x1b[A", "\x1b[3~", "\x1b[1;5D", "\x1bOP", "\x1b[200~"):
+        assert not termcore.is_terminal_reply(data), repr(data)
     # MultiExec: spuntate le SSH; se non ce n'è nessuna, tutte
     assert termcore.multiexec_target("ssh") == ("SSH", True)
     assert termcore.multiexec_target("telnet") == ("TELNET", False)

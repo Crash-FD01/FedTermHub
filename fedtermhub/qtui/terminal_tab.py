@@ -300,6 +300,8 @@ class TerminalTab(QWidget):
         self.pane_ready()  # il clic arriva dalla pagina con un attimo di ritardo: se intanto il fuoco è uscito, resta fuori
 
     def pane_input(self, pane: TerminalPane, data: str) -> None:
+        if termcore.is_terminal_reply(data):
+            return  # la shell di un riquadro ha chiesto qualcosa al terminale: l'utente non c'entra
         self.set_active(pane)
         self.activity.emit()
         if self.broadcast and len(self.panes) > 1 and termcore.broadcastable(data):

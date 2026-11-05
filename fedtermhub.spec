@@ -146,7 +146,7 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 
 %changelog
 * Thu Nov 05 2026 Crash-FD01 - 1:0.13.2-1
-- Windows: dopo una divisione il fuoco poteva finire nel riquadro sbagliato, e i tasti con lui. Ora il riquadro attivo cambia solo con un clic o con i tasti dei riquadri; un passaggio di fuoco non chiesto torna indietro. Comprende le correzioni della 0.13.1, che non è stata pubblicata
+- Windows: con il terminale diviso il riquadro attivo poteva cambiare da solo: le risposte automatiche del terminale alla shell (posizione del cursore e simili) contavano come se l'utente avesse scritto in quel riquadro. Ora il riquadro attivo cambia solo con un clic, con i tasti e con le scorciatoie dei riquadri. Comprende le correzioni della 0.13.1, che non è stata pubblicata
 * Thu Nov 05 2026 Crash-FD01 - 1:0.13.1-1
 - Windows: un doppio clic su una sessione apriva due schede, per tutti i protocolli. Ora ne apre una sola
 - Windows: il gestore dei tunnel SSH ha la disposizione e le azioni di quello Linux: cerca, Duplica, Verifica SSH, Copia comando, Copia endpoint, Crea sessione, riepilogo, log che si apre a richiesta, Avvia tutti e Ferma tutti, menu col clic destro; doppio clic avvia o ferma. Anche l'editor è lo stesso: percorso della connessione, tre riquadri, affidabilità, opzioni avanzate e anteprima del comando. Allargando le finestre si allargano tabella e campi, non gli spazi

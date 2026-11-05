@@ -97,8 +97,8 @@
   <releases>
     <release version="0.13.2" date="2026-11-05">
       <description>
-        <p>Windows version: after a split, keys always go to the active pane.</p>
-        <p xml:lang="it">Versione Windows: dopo una divisione i tasti vanno sempre al riquadro attivo.</p>
+        <p>Windows version: in a split terminal the active pane no longer changes by itself.</p>
+        <p xml:lang="it">Versione Windows: nel terminale diviso il riquadro attivo non cambia più da solo.</p>
       </description>
     </release>
     <release version="0.13.1" date="2026-11-05">

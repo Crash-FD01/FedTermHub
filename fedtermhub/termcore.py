@@ -82,6 +82,16 @@ def broadcastable(data: str) -> bool:
     return bool(data) and all(ch >= " " and ch != "\x7f" for ch in data)
 
 
+def is_terminal_reply(data: str) -> bool:
+    """Se l'input è una risposta automatica del terminale (posizione del cursore, tipo di terminale, fuoco, mouse).
+
+    Arrivano dallo stesso canale dei tasti, ma non le ha scritte l'utente: non devono cambiare il riquadro attivo.
+    """
+    if data.startswith(("\x1b]", "\x1bP", "\x1b_")):
+        return True
+    return data.startswith("\x1b[") and (data[2:3] in {"<", "M", "?", ">"} or data[-1:] in {"R", "c", "n", "t", "y", "I", "O"})
+
+
 def multiexec_target(protocol: str, split: bool = False) -> Tuple[str, bool]:
     """Come una scheda compare in MultiExec: (tipo, già spuntata). Spuntate sono le sessioni SSH.
 
