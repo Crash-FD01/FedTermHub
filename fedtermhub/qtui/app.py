@@ -30,6 +30,25 @@ def _say(text: str) -> None:
         print(text, flush=True)
 
 
+def _log_unhandled_errors(log_file: Path) -> None:
+    """Gli errori non gestiti finiscono nel log dell'applicazione (Sistema › Log applicazione), come su Linux."""
+    previous = sys.excepthook
+
+    def hook(exc_type, exc, tb) -> None:  # noqa: ANN001
+        try:
+            import datetime
+
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with log_file.open("a", encoding="utf-8") as handle:
+                handle.write(f"\n--- FedTermHub {datetime.datetime.now():%Y-%m-%d %H:%M:%S} errore non gestito ---\n")
+                handle.write("".join(traceback.format_exception(exc_type, exc, tb)))
+        except Exception:  # noqa: BLE001
+            pass
+        previous(exc_type, exc, tb)
+
+    sys.excepthook = hook
+
+
 def _hard_exit(code: int) -> None:
     """Esce senza smontare nulla. Su Windows anche senza avvisare le DLL caricate (TerminateProcess): alla
     chiusura del processo il componente RDP o Qt WebEngine a volte cadono, e Windows mostrerebbe un errore
@@ -336,6 +355,7 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
     app.setApplicationVersion(model.APP_VERSION)
     app.setOrganizationName(model.APP_NAME)
     install_qt_translations(app)
+    _log_unhandled_errors(model.LOG_FILE)
     settings = model.AppSettings.load(model.SETTINGS_FILE)
     theme.apply(app, settings.theme)
     window = MainWindow()

@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.11.1
+Version:        0.12.0
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -132,6 +132,7 @@ xvfb-run -a /usr/bin/python3 tests/test_revisione.py
 xvfb-run -a /usr/bin/python3 tests/test_network_tools.py
 xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 /usr/bin/python3 tests/test_distro.py
+/usr/bin/python3 tests/test_commands.py
 
 %files
 %license LICENSE LICENSES/Apache-2.0.txt
@@ -144,6 +145,12 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.12.0-1
+- Due interfacce, un nucleo comune: Linux resta con GTK e Windows con Qt, ognuna con quello che funziona meglio sul suo sistema, ma i comandi ssh e dei tunnel (commands.py), gli strumenti di rete (netcore.py), i colori, le icone e i colori del terminale (look.py) sono gli stessi per entrambe. tests/test_commands.py controlla che nessuna delle due ricostruisca questi pezzi per conto suo
+- Windows: la finestra ha la disposizione della versione Linux. Stessi menu (Terminale, Sessioni, Rete, Strumenti, Vista, Impostazioni, Aiuto), barra dei comandi con le tendine e il pulsante del tema, barra verticale, pannello con connessione rapida e schede Sessioni | File remoti, cartelle colorate, schede con il pallino di stato, barra di stato con la scheda aperta e la versione
+- Windows: nuove voci come su Linux: Nuova SSH/RDP/VNC/Telnet/seriale, colore delle cartelle, trascinamento nell'albero, Esporta tutte le sessioni e Sostituisci tutte le sessioni, test rapidi (Ping, Traceroute, DNS lookup, Check porta TCP, Route, Socket aperti, Chiavi SSH, Known hosts, Info sistema), Vista › mostra/nascondi, Esporta e Importa impostazioni, Log applicazione, Scorciatoie da tastiera
+- Windows: il terminale ha i colori di quello della versione Linux, scuro anche nel tema chiaro
+- docs/PARITA.md: cosa c'è nella versione Linux e cosa in quella Windows, controllato dai test
 * Thu Nov 05 2026 Crash-FD01 - 1:0.11.1-1
 - Windows: l'avviso di una nuova versione arrivava solo il giorno dopo. La risposta di GitHub restava in memoria 24 ore dal primo avvio, quindi una versione uscita più tardi non si vedeva. Ora il controllo si fa a ogni avvio e poi ogni 6 ore
 - Windows: aggiornamento dal programma. Una finestra propone «Aggiorna ora»: scarica il Setup.exe della release, controlla l'impronta SHA-256 pubblicata in SHA256SUMS, chiude FedTermHub, installa e lo riapre. Il pulsante «Aggiorna a …» resta nella barra di stato e c'è Aiuto › Cerca aggiornamenti

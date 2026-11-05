@@ -89,10 +89,14 @@ try:
     from .i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
     from .i18n import detect_language as i18n_detect, original, tr, trn
     from . import distro
+    from . import commands
+    from . import look
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
     from i18n import detect_language as i18n_detect, original, tr, trn
     import distro  # type: ignore[no-redef]
+    import commands  # type: ignore[no-redef]
+    import look  # type: ignore[no-redef]
 
 # La versione sta in model.py (con fedtermhub.spec, install.sh e il metainfo: tests/test_versions.py
 # controlla che coincidano). Si importa in cima perche' il doctor la stampa anche quando GTK non si carica.
@@ -391,6 +395,7 @@ try:
     SESSION_PACKAGE_FORMAT,
     session_package,
     node_from_session_package,
+    as_home_session,
     SessionStore,
     TunnelSession,
     TunnelStore,
@@ -445,6 +450,7 @@ except ImportError:
     SESSION_PACKAGE_FORMAT,
     session_package,
     node_from_session_package,
+    as_home_session,
     SessionStore,
     TunnelSession,
     TunnelStore,
@@ -7579,28 +7585,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self._registered_app_icons = set()
             return
         dark = str(getattr(self.settings, "theme", "dark")).lower() != "light"
-        default_stroke = "#cbd5e1" if dark else "#3a4653"
-        # Colori di protocollo per tema: accesi sullo scuro, più saturi/scuri
-        # sul chiaro per restare leggibili su fondo bianco.
-        proto_colors = {
-            "fth-proto-ssh": "#22d3ee" if dark else "#0e7490",
-            "fth-proto-rdp": "#60a5fa" if dark else "#2563eb",
-            "fth-proto-vnc": "#c084fc" if dark else "#7c3aed",
-            "fth-proto-sftp": "#34d399" if dark else "#059669",
-            "fth-proto-serial": "#fbbf24" if dark else "#b45309",
-            "fth-proto-local": "#cbd5e1" if dark else "#475569",
-            "fth-proto-telnet": "#f472b6" if dark else "#be185d",
-            "fth-proto-ftp": "#fb923c" if dark else "#c2410c",
-            "fth-act-delete": "#f87171" if dark else "#dc2626",
-            "fth-tb-terminale": "#22d3ee" if dark else "#0e7490",
-            "fth-tb-sessioni": "#60a5fa" if dark else "#2563eb",
-            "fth-tb-rete": "#34d399" if dark else "#059669",
-            "fth-tb-strumenti": "#c084fc" if dark else "#7c3aed",
-            "fth-tb-password": "#fbbf24" if dark else "#b45309",
-            "fth-tb-vista": "#f472b6" if dark else "#be185d",
-            "fth-tb-sistema": "#9aa5b3" if dark else "#475569",
-            "fth-tb-lab": "#5eead4" if dark else "#0d9488",
-        }
+        # Colori di protocollo e dei pulsanti: gli stessi della versione Windows (look.py).
         registered = set()
         for svg_path in sorted(icons_dir.glob("*.svg")):
             name = svg_path.stem
@@ -7608,8 +7593,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 template = svg_path.read_text(encoding="utf-8")
             except Exception:
                 continue
-            stroke = proto_colors.get(name, default_stroke)
-            colored = template.replace("currentColor", stroke)
+            colored = look.colored_svg(template, name, dark)
             ok = False
             for size in (16, 24, 32):
                 try:
@@ -9374,70 +9358,14 @@ class AppWindow(Gtk.ApplicationWindow):
         lines.extend(log if log else [tr("Nessun evento registrato.")])
         return "\n".join(lines)
 
-    @staticmethod
-    def _valid_port(value: str) -> bool:
-        try:
-            port = int(str(value))
-            return 1 <= port <= 65535
-        except (TypeError, ValueError):
-            return False
-
     def validate_tunnel(self, tunnel: TunnelSession, check_local_bind: bool = False) -> List[str]:
-        errors: List[str] = []
-        if tunnel.tunnel_type not in {"local", "remote", "dynamic"}:
-            errors.append(tr("tipo di tunnel non valido"))
-        if not tunnel.ssh_host.strip():
-            errors.append(tr("host SSH mancante"))
-        if not self._valid_port(tunnel.ssh_port):
-            errors.append(tr("porta SSH non valida"))
-        if not tunnel.bind_address.strip():
-            errors.append(tr("indirizzo di bind mancante"))
-        if not self._valid_port(tunnel.local_port):
-            errors.append(tr("porta di inoltro non valida"))
-        if tunnel.tunnel_type != "dynamic":
-            if not tunnel.remote_host.strip():
-                errors.append(tr("host destinazione mancante"))
-            if not self._valid_port(tunnel.remote_port):
-                errors.append(tr("porta destinazione non valida"))
-        if tunnel.identity_file:
-            identity = Path(os.path.expanduser(tunnel.identity_file))
-            if not identity.is_file():
-                errors.append(tr("chiave privata non trovata"))
-        try:
-            shlex.split(tunnel.options)
-        except ValueError as exc:
-            errors.append(tr("opzioni SSH non valide: {exc}").format(exc=exc))
+        # Le regole sono in commands.py, le stesse della versione Windows.
+        errors = commands.tunnel_problems(tunnel)
         if check_local_bind and tunnel.tunnel_type in {"local", "dynamic"} and not errors:
-            bind_error = self._check_tunnel_bind_available(tunnel.bind_address, int(tunnel.local_port))
+            bind_error = commands.bind_problem(tunnel.bind_address, int(tunnel.local_port))
             if bind_error:
                 errors.append(bind_error)
         return errors
-
-    @staticmethod
-    def _check_tunnel_bind_available(address: str, port: int) -> str:
-        address = address.strip() or "127.0.0.1"
-        try:
-            infos = net_socket.getaddrinfo(
-                address,
-                port,
-                family=net_socket.AF_UNSPEC,
-                type=net_socket.SOCK_STREAM,
-                flags=net_socket.AI_PASSIVE,
-            )
-        except OSError as exc:
-            return tr("indirizzo di bind non valido: {exc}").format(exc=exc)
-        last_error: Optional[BaseException] = None
-        for family, socktype, proto, _canon, sockaddr in infos:
-            sock = net_socket.socket(family, socktype, proto)
-            try:
-                sock.setsockopt(net_socket.SOL_SOCKET, net_socket.SO_REUSEADDR, 1)
-                sock.bind(sockaddr)
-                return ""
-            except OSError as exc:
-                last_error = exc
-            finally:
-                sock.close()
-        return tr("porta {address}:{port} non disponibile: {v}").format(address=address, port=port, v=last_error or tr('errore sconosciuto'))
 
     def _resolve_tunnel_identity(
         self, tunnel: TunnelSession, allow_unlock: bool
@@ -9465,41 +9393,8 @@ class AppWindow(Gtk.ApplicationWindow):
         errors = self.validate_tunnel(tunnel, check_local_bind=False)
         if errors:
             raise ValueError("; ".join(errors))
-        ssh_binary = shutil.which("ssh") or "ssh"
-        argv = [ssh_binary, "-N", "-T"] + self.ssh_common_options()
-        argv += ["-o", tr("ControlMaster=no"), "-o", tr("NumberOfPasswordPrompts=1")]
-        if tunnel.exit_on_forward_failure:
-            argv += ["-o", tr("ExitOnForwardFailure=yes")]
-        if tunnel.server_alive_interval > 0:
-            argv += [
-                "-o", tr("ServerAliveInterval={server_alive_interval}").format(server_alive_interval=tunnel.server_alive_interval),
-                "-o", tr("ServerAliveCountMax={server_alive_count}").format(server_alive_count=tunnel.server_alive_count),
-            ]
-        if tunnel.compression and "-C" not in argv:
-            argv.append("-C")
-        if tunnel.address_family == "ipv4":
-            argv.append("-4")
-        elif tunnel.address_family == "ipv6":
-            argv.append("-6")
-        if tunnel.verbose_log:
-            argv.append("-v")
-        argv += ["-p", tunnel.ssh_port]
-        if tunnel.identity_file:
-            argv += ["-i", os.path.expanduser(tunnel.identity_file)]
-        listen = f"{tunnel.bind_address}:{tunnel.local_port}"
-        if tunnel.tunnel_type == "dynamic":
-            argv += ["-D", listen]
-        elif tunnel.tunnel_type == "remote":
-            argv += ["-R", f"{listen}:{tunnel.remote_host}:{tunnel.remote_port}"]
-        else:
-            argv += ["-L", f"{listen}:{tunnel.remote_host}:{tunnel.remote_port}"]
-        if tunnel.options:
-            argv += shlex.split(tunnel.options)
         user, password = self._resolve_tunnel_identity(tunnel, allow_unlock)
-        if not password:
-            argv += ["-o", tr("BatchMode=yes")]
-        target = f"{user}@{tunnel.ssh_host}" if user else tunnel.ssh_host
-        argv += ["--", target]
+        argv = commands.tunnel_argv(shutil.which("ssh") or "ssh", tunnel, self.settings, user, bool(password))
         env: Dict[str, str] = {}
         if password:
             sshpass = shutil.which("sshpass")
@@ -9516,27 +9411,8 @@ class AppWindow(Gtk.ApplicationWindow):
         errors = self.validate_tunnel(tunnel, check_local_bind=False)
         if errors:
             raise ValueError("; ".join(errors))
-        ssh_binary = shutil.which("ssh") or "ssh"
-        argv = [ssh_binary, "-T"] + self.ssh_common_options()
-        argv += [
-            "-o", tr("ControlMaster=no"),
-            "-o", tr("NumberOfPasswordPrompts=1"),
-            "-o", tr("ConnectTimeout={max}").format(max=max(3, self.settings.connection_timeout_seconds)),
-            "-p", tunnel.ssh_port,
-        ]
-        if tunnel.address_family == "ipv4":
-            argv.append("-4")
-        elif tunnel.address_family == "ipv6":
-            argv.append("-6")
-        if tunnel.identity_file:
-            argv += ["-i", os.path.expanduser(tunnel.identity_file)]
-        if tunnel.verbose_log:
-            argv.append("-v")
         user, password = self._resolve_tunnel_identity(tunnel, allow_unlock=True)
-        if not password:
-            argv += ["-o", tr("BatchMode=yes")]
-        target = f"{user}@{tunnel.ssh_host}" if user else tunnel.ssh_host
-        argv += ["--", target, tr("printf FEDTERMHUB_TUNNEL_OK")]
+        argv = commands.tunnel_probe_argv(shutil.which("ssh") or "ssh", tunnel, self.settings, user, bool(password))
         env: Dict[str, str] = {}
         if password:
             sshpass = shutil.which("sshpass")
@@ -10707,7 +10583,7 @@ class AppWindow(Gtk.ApplicationWindow):
         cached = self._folder_pixbuf_cache.get(color)
         if cached is not None:
             return cached  # type: ignore[return-value]
-        svg = tr("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"17\" viewBox=\"0 0 20 17\">\n<path d=\"M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"{color}\"/>\n<path d=\"M1.2 5.2h17.6v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"{color}\" opacity=\".92\"/>\n<path d=\"M2 5.2h16\" stroke=\"#ffffff\" stroke-opacity=\".28\"/>\n<path d=\"M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"none\" stroke=\"#000000\" stroke-opacity=\".32\"/>\n</svg>").format(color=color)
+        svg = look.folder_svg(color)
         try:
             loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
             loader.write(svg.encode("utf-8"))
@@ -10722,13 +10598,7 @@ class AppWindow(Gtk.ApplicationWindow):
         cached = self._folder_pixbuf_cache.get("__home_session__")
         if cached is not None:
             return cached  # type: ignore[return-value]
-        svg = tr("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="20" viewBox="0 0 22 20">
-<path d="M2 8.2 11 1.4l9 6.8v9.2c0 .8-.7 1.5-1.5 1.5H3.5C2.7 18.9 2 18.2 2 17.4z" fill="#4aa3df"/>
-<path d="M5.5 9.2v7.2h11V9.2L11 5.1z" fill="#1b75bb" opacity=".92"/>
-<path d="M8.2 18.9v-5.4c0-.6.5-1.1 1.1-1.1h3.4c.6 0 1.1.5 1.1 1.1v5.4" fill="#0f1e2b" opacity=".65"/>
-<path d="M2 8.2 11 1.4l9 6.8" fill="none" stroke="#dff4ff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="17.1" cy="4.5" r="2.2" fill="#77e2ff" stroke="#0f1e2b" stroke-width=".8"/>
-</svg>""")
+        svg = look.HOME_SESSION_SVG
         try:
             loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
             loader.write(svg.encode("utf-8"))
@@ -11421,11 +11291,7 @@ class AppWindow(Gtk.ApplicationWindow):
             src = self._choose_open_json(tr("Importa Home Session"))
             if src is None:
                 return
-            node = self._node_from_session_package(src)
-            if not isinstance(node, FolderNode):
-                node = FolderNode(name=HOME_SESSION_NAME, color=HOME_SESSION_COLOR, children=[node])
-            if node.name != HOME_SESSION_NAME:
-                node = FolderNode(name=HOME_SESSION_NAME, color=HOME_SESSION_COLOR, children=[node])
+            node = as_home_session(self._node_from_session_package(src))
             confirm = Gtk.MessageDialog(
                 transient_for=self,
                 flags=0,
@@ -11439,8 +11305,6 @@ class AppWindow(Gtk.ApplicationWindow):
             confirm.destroy()
             if response != Gtk.ResponseType.OK:
                 return
-            node.name = HOME_SESSION_NAME
-            node.color = HOME_SESSION_COLOR
             self.store.nodes = [node]
             self.store.save()
             self.refresh_sessions()
@@ -11743,19 +11607,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
     @staticmethod
     def proxy_jump_spec(sess: Session) -> str:
-        if getattr(sess, "routing_mode", "direct") != "proxy_jump":
-            return ""
-        host = str(getattr(sess, "jump_host", "") or "").strip()
-        if not host:
-            return ""
-        if ":" in host and not host.startswith("["):
-            host = f"[{host}]"
-        user = str(getattr(sess, "jump_user", "") or "").strip()
-        port = str(getattr(sess, "jump_port", "22") or "22").strip()
-        endpoint = f"{user}@{host}" if user else host
-        if port and port != "22":
-            endpoint += f":{port}"
-        return endpoint
+        return commands.proxy_jump_spec(sess)
 
     def gateway_identity(
         self, sess: Session, target_user: str, target_domain: str, target_password: Optional[str]
@@ -11854,19 +11706,8 @@ class AppWindow(Gtk.ApplicationWindow):
             self.report_session_error(tr("Errore apertura sessione"), str(exc), traceback.format_exc())
 
     def ssh_common_options(self) -> List[str]:
-        """Opzioni OpenSSH comuni a SSH, SFTP e tunnel."""
-        options: List[str] = ["-o", tr("ConnectTimeout={connection_timeout_seconds}").format(connection_timeout_seconds=self.settings.connection_timeout_seconds)]
-        if self.settings.ssh_keepalive_interval > 0:
-            options += [
-                "-o", tr("ServerAliveInterval={ssh_keepalive_interval}").format(ssh_keepalive_interval=self.settings.ssh_keepalive_interval),
-                "-o", tr("ServerAliveCountMax={ssh_keepalive_count}").format(ssh_keepalive_count=self.settings.ssh_keepalive_count),
-            ]
-        strict = self.settings.ssh_strict_host_key
-        if strict in {"accept-new", "yes", "no"}:
-            options += ["-o", tr("StrictHostKeyChecking={strict}").format(strict=strict)]
-        if self.settings.ssh_compression:
-            options.append("-C")
-        return options
+        """Opzioni OpenSSH comuni a SSH, SFTP e tunnel (commands.py, le stesse della versione Windows)."""
+        return commands.ssh_common_options(self.settings)
 
     def ssh_session_options(self) -> List[str]:
         """Opzioni SSH/SFTP interattive con multiplexing locale sicuro.
@@ -11882,9 +11723,9 @@ class AppWindow(Gtk.ApplicationWindow):
             os.chmod(control_dir, 0o700)
             control_path = str(control_dir / "%C")
             options += [
-                "-o", tr("ControlMaster=auto"),
-                "-o", tr("ControlPersist=600"),
-                "-o", tr("ControlPath={control_path}").format(control_path=control_path),
+                "-o", "ControlMaster=auto",
+                "-o", "ControlPersist=600",
+                "-o", f"ControlPath={control_path}",
             ]
         except OSError:
             # Il browser continua a funzionare con chiavi, agent o vault anche
@@ -11898,18 +11739,11 @@ class AppWindow(Gtk.ApplicationWindow):
             return
         user, _domain, password = self.effective_identity(sess)
         env: Dict[str, str] = {}
-        ssh_binary = "ssh"
-        argv = [ssh_binary] + self.ssh_session_options()
-        jump_spec = self.proxy_jump_spec(sess)
-        if getattr(sess, "routing_mode", "direct") == "proxy_jump" and not jump_spec:
-            self.report_session_error(
-                tr("Jump host incompleto"),
-                tr("Compila il server jump host nella sezione Instradamento avanzato."),
-                tr("Sessione: {name}").format(name=sess.name),
-            )
+        try:
+            argv = commands.ssh_session_argv("ssh", sess, user, self.ssh_session_options())
+        except commands.CommandError as exc:
+            self.report_session_error(exc.title, exc.hint, tr("Sessione: {name}").format(name=sess.name))
             return
-        if jump_spec:
-            argv += ["-J", jump_spec]
         if password:
             sshpass = shutil.which("sshpass")
             if sshpass:
@@ -11917,16 +11751,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 env["SSHPASS"] = password
             else:
                 self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: {command}").format(command=distro.install_command("sshpass")))
-        if sess.port:
-            argv += ["-p", sess.port]
-        target = sess.host
-        if user:
-            target = f"{user}@{sess.host}"
-        # "--": un host o un utente che comincia con "-" (per esempio da un file di sessioni
-        # importato) non deve diventare un'opzione di ssh come -oProxyCommand=...
-        argv += ["--", target]
-        if sess.command:
-            argv.append(sess.command)
+        target = commands.ssh_target(user, sess.host)
         self.add_terminal_tab(sess.name or target, argv, extra_env=env, session=sess, close_on_exit="on_success")
 
     def open_telnet(self, sess: Session) -> None:
@@ -12678,21 +12503,13 @@ class AppWindow(Gtk.ApplicationWindow):
                 env["SSHPASS"] = password
             else:
                 self.set_status(tr("Credenziale collegata, ma sshpass non è installato. Installa: {command}").format(command=distro.install_command("sshpass")))
-        target = sess.host if not user else f"{user}@{sess.host}"
-        argv = prefix + [sftp_binary] + self.ssh_session_options()
-        jump_spec = self.proxy_jump_spec(sess)
-        if getattr(sess, "routing_mode", "direct") == "proxy_jump" and not jump_spec:
-            self.report_session_error(
-                tr("Jump host incompleto"),
-                tr("Compila il server jump host nella sezione Instradamento avanzato."),
-                tr("Sessione: {name}").format(name=sess.name),
-            )
+        target = commands.ssh_target(user, sess.host)
+        try:
+            argv = prefix + commands.ssh_session_argv(sftp_binary, sess, user, self.ssh_session_options(),
+                                                      port_flag="-P", with_command=False)
+        except commands.CommandError as exc:
+            self.report_session_error(exc.title, exc.hint, tr("Sessione: {name}").format(name=sess.name))
             return
-        if jump_spec:
-            argv += ["-J", jump_spec]
-        if sess.port:
-            argv += ["-P", sess.port]
-        argv += ["--", target]
         self.add_terminal_tab(sess.name or tr("SFTP {target}").format(target=target), argv, extra_env=env, session=sess, close_on_exit="on_success")
 
     def add_terminal_tab(

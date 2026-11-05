@@ -46,8 +46,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 try:
     from .i18n import tr, trn
+    from . import look
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import tr, trn
+    import look  # type: ignore[no-redef]
 from urllib.parse import unquote, urlparse
 
 import gi
@@ -65,15 +67,10 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
 # leggibile, mentre il valore precedente (#1c2333) stava a 1.19:1 sullo sfondo
 # ed era di fatto invisibile. Stesso motivo per il colore 8 (grigio), passato
 # da 3.93:1 a 5.54:1. Tutti gli altri sono gia' sopra 4.5:1.
-TERMINAL_PALETTE = (
-    "#556380", "#ef4444", "#22c55e", "#eab308",
-    "#3b82f6", "#d946ef", "#06b6d4", "#cbd5e1",
-    "#7c8da6", "#f87171", "#4ade80", "#facc15",
-    "#60a5fa", "#e879f9", "#22d3ee", "#f8fafc",
-)
-
-_FOREGROUND = "#dbeafe"
-_BACKGROUND = "#0b1220"
+# Gli stessi colori del terminale della versione Windows (look.py).
+TERMINAL_PALETTE = look.TERMINAL_PALETTE
+_FOREGROUND = look.TERMINAL_FOREGROUND
+_BACKGROUND = look.TERMINAL_BACKGROUND
 
 # PCRE2 flags usati da Vte.Regex.
 _PCRE2_MULTILINE = 0x00000400

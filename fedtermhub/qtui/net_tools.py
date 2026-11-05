@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..i18n import tr
-from . import net_core
+from .. import netcore as net_core
 
 
 class _Relay(QObject):
@@ -334,7 +334,11 @@ class WakePage(QWidget):
         self.port.setValue(9)
         form.addRow(tr("Indirizzo MAC"), self.mac)
         form.addRow(tr("Broadcast"), self.broadcast)
+        self.repeat = QSpinBox()
+        self.repeat.setRange(1, 10)
+        self.repeat.setValue(3)
         form.addRow(tr("Porta UDP"), self.port)
+        form.addRow(tr("Invii"), self.repeat)
         layout.addLayout(form)
         send = QPushButton(tr("Invia"))
         send.clicked.connect(self.send)
@@ -345,7 +349,8 @@ class WakePage(QWidget):
 
     def send(self) -> None:
         try:
-            net_core.wake_on_lan(self.mac.text(), self.broadcast.text().strip() or "255.255.255.255", self.port.value())
+            net_core.wake_on_lan(self.mac.text(), self.broadcast.text().strip() or "255.255.255.255", self.port.value(),
+                                 self.repeat.value())
             self.status.setText(tr("Magic packet inviato a {mac}.").format(mac=self.mac.text().strip()))
         except (ValueError, OSError) as exc:
             self.status.setText(tr("Errore: {error}").format(error=exc))
@@ -524,15 +529,24 @@ class NetworkToolsDialog(QDialog):
         self.tabs.addTab(self.network, tr("Scansione rete"))
         self.tabs.addTab(self.ports, tr("Scansione porte"))
         self.tabs.addTab(self.listening, tr("Porte in ascolto"))
-        self.tabs.addTab(WakePage(), "Wake-on-LAN")
+        self.wake = WakePage()
+        self.ping = PingPage(self)
+        self.tabs.addTab(self.wake, "Wake-on-LAN")
         self.tabs.addTab(self.servers, tr("Server temporanei"))
-        self.tabs.addTab(PingPage(self), tr("Ping e traceroute"))
+        self.tabs.addTab(self.ping, tr("Ping e traceroute"))
         self.tabs.currentChanged.connect(self._tab_changed)
         layout.addWidget(self.tabs)
 
     def _tab_changed(self, index: int) -> None:
         if self.tabs.widget(index) is self.listening and not self.listening.loaded:
             self.listening.refresh()
+
+    def show_page(self, name: str) -> None:
+        """Apre la pagina chiesta dai menu (gli stessi nomi della versione Linux)."""
+        page = {"network-scan": self.network, "port-scan": self.ports, "listeners": self.listening,
+                "wol": self.wake, "services": self.servers, "shares": self.servers, "ping": self.ping}.get(name)
+        if page is not None:
+            self.tabs.setCurrentWidget(page)
 
     def scan_ports_of(self, host: str) -> None:
         self.ports.host.setText(host)

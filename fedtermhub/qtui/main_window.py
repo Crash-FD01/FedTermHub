@@ -1,6 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Crash
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Finestra principale dell'interfaccia Qt: sessioni in cartelle a sinistra, schede a destra."""
+"""Finestra principale dell'interfaccia Qt, con la disposizione della versione Linux.
+
+Dall'alto: menu, barra dei comandi (pulsanti con tendina e cambio tema), poi la barra verticale a sinistra,
+il pannello laterale (connessione rapida, Sessioni | File remoti) e le schede; in fondo la barra di stato.
+"""
 from __future__ import annotations
 
 import json
@@ -18,6 +22,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -27,17 +32,20 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressDialog,
     QPushButton,
+    QSizePolicy,
     QSplitter,
+    QStackedWidget,
     QTabWidget,
     QToolBar,
-    QTreeView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from .. import model
 from ..i18n import tr, trn
-from . import connect, theme, updates
+from . import connect, quick_tools, theme, updates
+from .chrome import KIND_ROLE, PATH_ROLE, FolderDialog, LogDialog, SessionTree, ShortcutsDialog, add_heading, drop_target
 from .rdp_tab import RdpTab
 from .session_dialog import AVAILABLE, SessionDialog
 from .tunnels import TunnelManager, TunnelsDialog
@@ -50,8 +58,6 @@ from .sftp_client import SftpTarget
 from .vault_dialogs import MasterPasswordDialog, VaultManagerDialog
 
 ICONS = Path(__file__).resolve().parent.parent / "icons"
-PATH_ROLE = Qt.ItemDataRole.UserRole + 1
-KIND_ROLE = Qt.ItemDataRole.UserRole + 2
 PROTOCOL_ICONS = {
     "ssh": "fth-proto-ssh", "rdp": "fth-proto-rdp", "vnc": "fth-proto-vnc", "sftp": "fth-proto-sftp",
     "telnet": "fth-proto-telnet", "serial": "fth-proto-serial", "local": "fth-proto-local",
@@ -80,12 +86,15 @@ def app_icon() -> QIcon:
 class TerminalTab(QWidget):
     """Una scheda con un programma in un terminale (SSH, Telnet, PowerShell…).
 
-    Per le sessioni SSH può mostrare accanto il pannello dei file remoti (SFTP), che segue la cartella
-    della shell quando la shell la dichiara (OSC 7).
+    Per le sessioni SSH ha il suo pannello dei file remoti (SFTP), che la finestra mostra nella scheda
+    «File remoti» del pannello laterale, come la versione Linux, e che segue la cartella della shell
+    quando la shell la dichiara (OSC 7).
     """
 
     finished = Signal(int)
     status = Signal(str)
+    files_created = Signal(object)
+    files_unavailable = Signal()
 
     def __init__(self, parent: QWidget, launch: connect.Launch, settings: model.AppSettings,
                  files_target: Optional[Callable[[], "SftpTarget"]] = None) -> None:
@@ -98,12 +107,10 @@ class TerminalTab(QWidget):
         self.view = TerminalView(self, font_size=font_px, scrollback=settings.terminal_scrollback_lines,
                                  blink=settings.terminal_cursor_blink,
                                  process=launch.factory() if launch.factory else None)
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.addWidget(self.view)
-        self.splitter.setChildrenCollapsible(False)
-        layout.addWidget(self.splitter)
+        layout.addWidget(self.view)
         self.files_target = files_target
         self.files: Optional[FilesPanel] = None
+        self.files_missing = False
         self._osc7_sent = False
         self._first_output = False
         self.view.cwd_changed.connect(self._cwd_changed)
@@ -116,28 +123,24 @@ class TerminalTab(QWidget):
     # ------------------------------------------------------------------ file remoti
     @property
     def has_files(self) -> bool:
-        return self.files_target is not None
+        return self.files_target is not None and not self.files_missing
 
-    def toggle_files(self, show: Optional[bool] = None) -> None:
-        if self.files_target is None:
-            return
+    def ensure_files(self) -> Optional[FilesPanel]:
+        """Crea e collega il pannello dei file remoti, se non c'è ancora (la finestra lo mette nel pannello laterale)."""
+        if not self.has_files:
+            return None
         if self.files is None:
-            if show is False:
-                return
-            self.files = FilesPanel(self.files_target(), self, follow_terminal=self.settings.follow_remote_directory,
+            self.files = FilesPanel(self.files_target(), None, follow_terminal=self.settings.follow_remote_directory,
                                     compact=True, ask_password=False)
             self.files.status.connect(self.status)
             self.files.connected_changed.connect(self._files_connected)
             self.files.sftp_missing.connect(self._sftp_missing)
             self.files.follow_button.toggled.connect(self._follow_toggled)
-            self.splitter.addWidget(self.files)
-            width = max(600, self.width())
-            self.splitter.setSizes([int(width * 0.68), int(width * 0.32)])
             if self.view.last_cwd:
                 self.files.pending_follow = self.view.last_cwd
+            self.files_created.emit(self.files)
             self.files.connect_server()
-            return
-        self.files.setVisible(not self.files.isVisible() if show is None else show)
+        return self.files
 
     def _follow_toggled(self, active: bool) -> None:
         self.settings.follow_remote_directory = active
@@ -149,8 +152,8 @@ class TerminalTab(QWidget):
             self._schedule_osc7()
 
     def _sftp_missing(self, message: str) -> None:
-        if self.files is not None:
-            self.files.hide()
+        self.files_missing = True
+        self.files_unavailable.emit()
         self.status.emit(tr("{message} Pannello dei file chiuso.").format(message=message))
 
     def _schedule_osc7(self) -> None:
@@ -191,7 +194,7 @@ class TerminalTab(QWidget):
             # Il pannello dei file si collega poco dopo il terminale: se la chiave dell'host è nuova la
             # conferma prima ssh nel terminale e il pannello la trova già in known_hosts.
             self._first_output = True
-            QTimer.singleShot(2500, lambda: self.toggle_files(True) if self.files is None else None)
+            QTimer.singleShot(2500, self.ensure_files)
 
     def _finished(self, code: int) -> None:
         self.exit_code = code
@@ -214,6 +217,7 @@ class TerminalTab(QWidget):
         self.view.pty.stop()
         if self.files is not None:
             self.files.shutdown()
+            self.files.deleteLater()
 
 
 def _system_idle_seconds() -> Optional[float]:
@@ -250,6 +254,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{model.APP_NAME} {model.APP_VERSION}")
         self.setWindowIcon(app_icon())
         self.resize(self.settings.window_width, self.settings.window_height)
+        self._icon_bindings: List[Tuple[Callable[[QIcon], None], str]] = []
         self._build_actions()
         self._build_ui()
         self.refresh_tree()
@@ -276,7 +281,9 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ interfaccia
     def _action(self, text: str, slot, shortcut: str = "", icon_name: str = "", tip: str = "") -> QAction:  # noqa: ANN001
-        act = QAction(icon(icon_name) if icon_name else QIcon(), text, self)
+        act = QAction(text, self)
+        if icon_name:
+            self._bind_icon(act.setIcon, icon_name)
         if shortcut:
             act.setShortcut(QKeySequence(shortcut))
         if tip:
@@ -284,24 +291,38 @@ class MainWindow(QMainWindow):
         act.triggered.connect(lambda *_: slot())
         return act
 
+    def _bind_icon(self, setter: Callable[[QIcon], None], name: str) -> None:
+        """Imposta un'icona e la ricorda: al cambio di tema si ridisegna nel colore giusto."""
+        self._icon_bindings.append((setter, name))
+        setter(icon(name))
+
+    def _refresh_icons(self) -> None:
+        for setter, name in list(self._icon_bindings):
+            try:
+                setter(icon(name))
+            except RuntimeError:  # widget già distrutto
+                self._icon_bindings.remove((setter, name))
+
     def _build_actions(self) -> None:
         self.act_new_session = self._action(tr("Nuova sessione"), self.new_session, "Ctrl+Shift+N", "fth-act-new")
         self.act_new_folder = self._action(tr("Nuova cartella"), self.new_folder, "", "fth-act-folder-new")
-        self.act_local = self._action(tr("Terminale locale"), self.open_local_terminal, "Ctrl+Shift+T", "fth-tb-terminale")
-        self.act_quick = self._action(tr("Connessione rapida"), self.quick_connect, "Ctrl+L", "fth-tb-rete")
-        self.act_edit = self._action(tr("Modifica"), self.edit_selected, "F2", "fth-act-edit")
-        self.act_duplicate = self._action(tr("Duplica"), self.duplicate_selected, "Ctrl+D", "fth-act-duplicate")
-        self.act_move = self._action(tr("Sposta in cartella…"), self.move_selected)
-        self.act_delete = self._action(tr("Elimina"), self.delete_selected, "Delete", "fth-act-delete")
+        self.act_local = self._action(tr("Nuovo terminale locale"), self.open_local_terminal, "Ctrl+Shift+T", "fth-tb-terminale")
+        self.act_quick = self._action(tr("Quick connect"), self.focus_quick_connect, "Ctrl+L", "fth-act-connect")
+        self.act_edit = self._action(tr("Modifica selezionata"), self.edit_selected, "F2", "fth-act-edit")
+        self.act_duplicate = self._action(tr("Duplica selezionata"), self.duplicate_selected, "Ctrl+D", "fth-act-duplicate")
+        self.act_move = self._action(tr("Sposta selezionata"), self.move_selected, "", "fth-act-move")
+        self.act_delete = self._action(tr("Elimina selezionata"), self.delete_selected, "Delete", "fth-act-delete")
         self.act_vault = self._action(tr("Password Manager"), self.open_vault_manager, "Ctrl+Shift+P", "fth-tb-password")
-        self.act_lock = self._action(tr("Blocca password"), self.lock_vault)
+        self.act_lock = self._action(tr("Blocca password"), self.lock_vault, "", "fth-rail-lock")
         self.act_settings = self._action(tr("Impostazioni"), self.open_settings, "Ctrl+,", "fth-tb-sistema")
         self.act_net_tools = self._action(tr("Strumenti di rete"), self.open_network_tools, "Ctrl+Shift+R", "fth-tb-rete")
-        self.act_tunnels = self._action(tr("Tunnel SSH"), self.open_tunnels, "Ctrl+Shift+U", "fth-tb-rete")
+        self.act_tunnels = self._action(tr("Tunneling SSH"), self.open_tunnels, "Ctrl+Shift+U", "fth-tb-rete")
         self.act_files = self._action(tr("File remoti"), self.toggle_remote_files, "Ctrl+Shift+E", "fth-act-files",
-                                      tr("Mostra o nasconde i file remoti accanto al terminale SSH"))
-        self.act_import = self._action(tr("Importa sessioni…"), self.import_sessions)
-        self.act_export = self._action(tr("Esporta selezione…"), self.export_selected)
+                                      tr("Mostra o nasconde i file remoti della sessione SSH"))
+        self.act_import = self._action(tr("Importa sessioni nella cartella selezionata"), self.import_sessions)
+        self.act_export = self._action(tr("Esporta la selezione"), self.export_selected)
+        self.act_export_all = self._action(tr("Esporta tutte le sessioni"), self.export_all)
+        self.act_replace_all = self._action(tr("Sostituisci tutte le sessioni con un file"), self.replace_all_sessions)
         self.act_export_vault = self._action(tr("Esporta backup cifrato delle password"), self.export_vault)
         self.act_import_vault = self._action(tr("Importa backup cifrato delle password"), self.import_vault)
         self.act_close_tab = self._action(tr("Chiudi la scheda"), self.close_current_tab, "Ctrl+W")
@@ -309,85 +330,384 @@ class MainWindow(QMainWindow):
         self.act_about = self._action(tr("Informazioni"), self.about)
         self.act_updates = self._action(tr("Cerca aggiornamenti"), lambda: self._check_updates(manual=True))
         self.act_guide = self._action(tr("Guida"), lambda: QDesktopServices.openUrl(
-            QUrl("https://github.com/Crash-FD01/FedTermHub/blob/main/docs/GUIDA.md")))
+            QUrl("https://github.com/Crash-FD01/FedTermHub/blob/main/docs/GUIDA.md")), "F1")
+        self.act_shortcuts = self._action(tr("Scorciatoie da tastiera"), self.show_shortcuts)
+        self.act_log = self._action(tr("Log applicazione"), self.open_log, "", "fth-rail-log")
+        self.act_export_settings = self._action(tr("Esporta impostazioni"), self.export_settings)
+        self.act_import_settings = self._action(tr("Importa impostazioni"), self.import_settings)
+        self.act_expand = self._action(tr("Espandi cartelle"), lambda: self.tree.expandAll(), "", "fth-act-expand")
+        self.act_collapse = self._action(tr("Comprimi cartelle"), self._collapse_folders, "", "fth-act-collapse")
+        self.new_by_protocol = [
+            self._action(tr("Nuova SSH"), lambda: self.new_session("ssh"), "", "fth-proto-ssh"),
+            self._action(tr("Nuova RDP"), lambda: self.new_session("rdp"), "", "fth-proto-rdp"),
+            self._action(tr("Nuova VNC"), lambda: self.new_session("vnc"), "", "fth-proto-vnc"),
+            self._action(tr("Nuova Telnet"), lambda: self.new_session("telnet"), "", "fth-proto-telnet"),
+            self._action(tr("Nuova seriale"), lambda: self.new_session("serial"), "", "fth-proto-serial"),
+        ]
+        # Mostra/nascondi le parti della finestra: (testo, impostazione)
+        self.view_toggles = {}
+        for key, text in (("show_menubar", tr("Mostra/nascondi menu")),
+                          ("show_ribbon", tr("Mostra/nascondi barra comandi")),
+                          ("show_sidebar", tr("Mostra/nascondi pannello sessioni")),
+                          ("show_left_rail", tr("Mostra/nascondi barra verticale")),
+                          ("show_statusbar", tr("Mostra/nascondi barra di stato")),
+                          ("show_workspace_hint", tr("Mostra/nascondi suggerimento area lavoro"))):
+            act = QAction(text, self)
+            act.setCheckable(True)
+            act.setChecked(bool(getattr(self.settings, key)))
+            act.toggled.connect(lambda on, k=key: self.set_part_visible(k, on))
+            self.view_toggles[key] = act
+        self.view_toggles["show_sidebar"].setShortcut(QKeySequence("Ctrl+Shift+B"))
+        self.network_pages = [
+            (tr("Server locali"), "services", "fth-tb-rete"),
+            (tr("Porte locali in ascolto"), "listeners", "fth-tb-rete"),
+            ("Wake-on-LAN", "wol", "fth-tb-rete"),
+            (tr("Network scanner"), "network-scan", "fth-act-search"),
+            (tr("Port scanner"), "port-scan", "fth-act-search"),
+        ]
+
+    def _quick_tool_action(self, name: str) -> QAction:
+        return self._action(tr(name), lambda n=name: self.run_quick_tool(n), "", "fth-tb-terminale")
+
+    def _fill_menu(self, menu: QMenu, category: str, headings: bool) -> None:
+        """Il contenuto delle tendine: lo stesso nei menu in alto e nei pulsanti della barra dei comandi."""
+        def heading(text: str) -> None:
+            if headings:
+                add_heading(menu, text)
+
+        if category == "terminal":
+            heading(tr("Terminale"))
+            menu.addAction(self.act_local)
+            menu.addAction(self.act_quick)
+            menu.addAction(self.act_close_tab)
+            if not headings:
+                menu.addSeparator()
+                menu.addAction(self.act_quit)
+        elif category == "sessions":
+            heading(tr("Crea sessione"))
+            menu.addAction(self.act_new_session)
+            for act in self.new_by_protocol:
+                menu.addAction(act)
+            menu.addAction(self.act_new_folder)
+            menu.addSeparator()
+            heading(tr("Organizza"))
+            for act in (self.act_edit, self.act_duplicate, self.act_move, self.act_delete):
+                menu.addAction(act)
+            if not headings:
+                menu.addSeparator()
+                for act in (self.act_export_all, self.act_export, self.act_import, self.act_replace_all):
+                    menu.addAction(act)
+        elif category == "network":
+            heading(tr("Server e servizi"))
+            for text, page, icon_name in self.network_pages[:2]:
+                menu.addAction(self._action(text, lambda p=page: self.open_network_tools(p), "", icon_name))
+            menu.addSeparator()
+            heading(tr("Analisi rete"))
+            for text, page, icon_name in self.network_pages[2:]:
+                menu.addAction(self._action(text, lambda p=page: self.open_network_tools(p), "", icon_name))
+            menu.addAction(self.act_net_tools)
+            menu.addSeparator()
+            heading(tr("Test rapidi"))
+            for name in quick_tools.NETWORK:
+                menu.addAction(self._quick_tool_action(name))
+            menu.addAction(self._action(tr("Connessione Telnet"), self.quick_telnet, "", "fth-proto-telnet"))
+        elif category == "tools":
+            heading(tr("Strumenti"))
+            menu.addAction(self.act_tunnels)
+            if not headings:
+                for act in (self.act_vault, self.act_export_vault, self.act_import_vault, self.act_lock):
+                    menu.addAction(act)
+                menu.addSeparator()
+            for name in quick_tools.TOOLS:
+                menu.addAction(self._quick_tool_action(name))
+            if not headings:
+                menu.addAction(self.act_log)
+        elif category == "view":
+            heading(tr("Vista"))
+            for key in (("show_menubar", "show_ribbon") if not headings else ()) + (
+                    "show_sidebar", "show_left_rail", "show_statusbar", "show_workspace_hint"):
+                menu.addAction(self.view_toggles[key])
+            menu.addAction(self.act_files)
+            menu.addSeparator()
+            menu.addAction(self.act_expand)
+            menu.addAction(self.act_collapse)
+        elif category == "system":
+            heading(tr("Sicurezza"))
+            menu.addAction(self.act_vault)
+            menu.addAction(self.act_lock)
+            menu.addSeparator()
+            heading(tr("Sistema"))
+            for act in (self.act_settings, self.act_log, self.act_guide, self.act_shortcuts):
+                menu.addAction(act)
+            if updates.enabled():
+                menu.addAction(self.act_updates)
+            menu.addAction(self.act_about)
 
     def _build_ui(self) -> None:
+        # --- menu, con le stesse voci della versione Linux (quelle che ci sono anche su Windows)
         menubar = self.menuBar()
-        file_menu = menubar.addMenu(tr("File"))
-        for act in (self.act_import, self.act_export, None, self.act_export_vault, self.act_import_vault, None, self.act_quit):
-            file_menu.addSeparator() if act is None else file_menu.addAction(act)
-        sessions_menu = menubar.addMenu(tr("Sessioni"))
-        for act in (self.act_new_session, self.act_new_folder, self.act_quick, self.act_local, self.act_files, None, self.act_edit,
-                    self.act_duplicate, self.act_move, self.act_delete, None, self.act_close_tab):
-            sessions_menu.addSeparator() if act is None else sessions_menu.addAction(act)
-        tools_menu = menubar.addMenu(tr("Strumenti"))
-        for act in (self.act_net_tools, self.act_tunnels, None, self.act_vault, self.act_lock, None, self.act_settings):
-            tools_menu.addSeparator() if act is None else tools_menu.addAction(act)
+        menubar.setObjectName("menubar")
+        for title, category in ((tr("Terminale"), "terminal"), (tr("Sessioni"), "sessions"), (tr("Rete"), "network"),
+                                (tr("Strumenti"), "tools"), (tr("Vista"), "view")):
+            self._fill_menu(menubar.addMenu(title), category, headings=False)
+        settings_menu = menubar.addMenu(tr("Impostazioni"))
+        settings_menu.addAction(self._action(tr("Apri impostazioni"), self.open_settings))
+        settings_menu.addAction(self.act_export_settings)
+        settings_menu.addAction(self.act_import_settings)
         help_menu = menubar.addMenu(tr("Aiuto"))
-        help_menu.addAction(self.act_guide)
+        for act in (self.act_guide, self.act_shortcuts):
+            help_menu.addAction(act)
         if updates.enabled():
             help_menu.addAction(self.act_updates)
         help_menu.addAction(self.act_about)
 
-        toolbar = QToolBar(tr("Comandi"))
-        toolbar.setMovable(False)
-        toolbar.setIconSize(QSize(20, 20))
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        for act in (self.act_new_session, self.act_local, self.act_quick, self.act_files, self.act_vault, self.act_settings):
-            toolbar.addAction(act)
-        self.addToolBar(toolbar)
+        # --- barra dei comandi: pochi pulsanti, ognuno con la sua tendina, e il cambio tema a destra
+        self.ribbon = QToolBar(tr("Barra comandi"))
+        self.ribbon.setObjectName("ribbon")
+        self.ribbon.setMovable(False)
+        self.ribbon.setFloatable(False)
+        self.ribbon.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
+        size = self.settings.toolbar_icon_size
+        self.ribbon.setIconSize(QSize(size, size))
+        self.ribbon.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.ribbon_buttons = {}
+        for text, icon_name, category in ((tr("Terminale"), "fth-tb-terminale", "terminal"),
+                                          (tr("Sessioni"), "fth-tb-sessioni", "sessions"),
+                                          (tr("Rete"), "fth-tb-rete", "network"),
+                                          (tr("Strumenti"), "fth-tb-strumenti", "tools"),
+                                          (tr("Password"), "fth-tb-password", ""),
+                                          (tr("Vista"), "fth-tb-vista", "view"),
+                                          (tr("Sistema"), "fth-tb-sistema", "system")):
+            button = QToolButton()
+            button.setText(text)
+            button.setToolTip(text)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            self._bind_icon(button.setIcon, icon_name)
+            if category:
+                menu = QMenu(button)
+                self._fill_menu(menu, category, headings=True)
+                button.setMenu(menu)
+                button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            else:
+                button.clicked.connect(self.open_vault_manager)
+            self.ribbon.addWidget(button)
+            self.ribbon_buttons[category or "password"] = button
+        self.ribbon.addSeparator()
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.ribbon.addWidget(spacer)
+        self.theme_button = QToolButton()
+        self.theme_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.theme_button.clicked.connect(self.toggle_theme)
+        self.ribbon.addWidget(self.theme_button)
+        self._update_theme_button()
+        self.addToolBar(self.ribbon)
 
-        splitter = QSplitter()
-        left = QWidget()
-        left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(6, 6, 0, 6)
+        # --- corpo: barra verticale | pannello laterale | area delle schede
+        body = QWidget()
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
+        self.rail = QFrame()
+        self.rail.setObjectName("rail")
+        rail_layout = QVBoxLayout(self.rail)
+        rail_layout.setContentsMargins(4, 6, 4, 6)
+        rail_layout.setSpacing(6)
+        for tip, icon_name, slot in ((tr("Pannello sessioni"), "fth-rail-sessions", self.show_sessions_panel),
+                                     (tr("Nascondi/mostra pannello"), "fth-rail-sidebar",
+                                      lambda: self.view_toggles["show_sidebar"].toggle()),
+                                     (tr("Log applicazione"), "fth-rail-log", self.open_log),
+                                     (None, None, None),
+                                     (tr("Blocca password"), "fth-rail-lock", self.lock_vault)):
+            if tip is None:
+                rail_layout.addStretch(1)
+                continue
+            button = QToolButton()
+            button.setToolTip(tip)
+            button.setIconSize(QSize(20, 20))
+            self._bind_icon(button.setIcon, icon_name)
+            button.clicked.connect(lambda *_, s=slot: s())
+            rail_layout.addWidget(button)
+        body_layout.addWidget(self.rail)
+
+        self.splitter = QSplitter()
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setHandleWidth(1)
+        self.sidebar = self._build_sidebar()
+        self.splitter.addWidget(self.sidebar)
+        self.splitter.addWidget(self._build_workspace())
+        self.splitter.setSizes([max(190, self.settings.sidebar_width), 1000])
+        self.splitter.setStretchFactor(1, 1)
+        body_layout.addWidget(self.splitter, 1)
+        self.setCentralWidget(body)
+        self._update_welcome()
+
+        # --- barra di stato: la scheda aperta a sinistra, versione a destra
+        self.open_label = QLabel(tr("Pronto."))
+        self.statusBar().addWidget(self.open_label, 1)
+        self.tunnel_status = QLabel("")
+        self.statusBar().addPermanentWidget(self.tunnel_status)
+        platform = "Windows" if sys.platform == "win32" else "Qt"
+        self.version_label = QLabel(f"{model.APP_NAME} {model.APP_VERSION} • {platform} workstation tools")
+        self.version_label.setObjectName("versionLabel")
+        self.statusBar().addPermanentWidget(self.version_label)
+        self.statusBar().setSizeGripEnabled(False)
+        QShortcut(QKeySequence("Ctrl+F"), self, activated=self.show_sessions_panel)
+        for key, act in self.view_toggles.items():
+            self.set_part_visible(key, act.isChecked(), save=False)
+
+    def _build_sidebar(self) -> QWidget:
+        sidebar = QWidget()
+        sidebar.setObjectName("sidebar")
+        sidebar.setMinimumWidth(190)
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        quick = QFrame()
+        quick.setObjectName("quickBox")
+        quick_layout = QHBoxLayout(quick)
+        quick_layout.setContentsMargins(4, 4, 4, 4)
+        quick_layout.setSpacing(4)
+        self.quick_entry = QLineEdit()
+        self.quick_entry.setPlaceholderText(tr("Quick connect…"))
+        self.quick_entry.setToolTip(tr("utente@host[:porta] per SSH, rdp:host per il desktop remoto, telnet:host"))
+        self.quick_entry.returnPressed.connect(self.quick_connect)
+        quick_layout.addWidget(self.quick_entry, 1)
+        go = QToolButton()
+        go.setProperty("role", "flat")
+        go.setToolTip(tr("Connetti"))
+        self._bind_icon(go.setIcon, "fth-act-connect")
+        go.clicked.connect(self.quick_connect)
+        quick_layout.addWidget(go)
+        layout.addWidget(quick)
+
+        self.sidebar_tabs = QTabWidget()
+        self.sidebar_tabs.setObjectName("sidebarPages")
+        self.sidebar_tabs.setDocumentMode(True)
+
+        sessions = QWidget()
+        s_layout = QVBoxLayout(sessions)
+        s_layout.setContentsMargins(4, 4, 4, 4)
+        s_layout.setSpacing(4)
+        titlebar = QFrame()
+        titlebar.setObjectName("sideTitlebar")
+        t_layout = QHBoxLayout(titlebar)
+        t_layout.setContentsMargins(4, 2, 0, 2)
+        title = QLabel(tr("Sessioni"))
+        title.setObjectName("sideTitle")
+        t_layout.addWidget(title, 1)
+        hide = QToolButton()
+        hide.setProperty("role", "flat")
+        hide.setToolTip(tr("Nascondi pannello sessioni"))
+        self._bind_icon(hide.setIcon, "fth-act-hide")
+        hide.clicked.connect(lambda: self.view_toggles["show_sidebar"].setChecked(False))
+        t_layout.addWidget(hide)
+        s_layout.addWidget(titlebar)
         self.search = QLineEdit()
         self.search.setPlaceholderText(tr("Cerca sessioni…"))
         self.search.setClearButtonEnabled(True)
+        search_icon = self.search.addAction(QIcon(), QLineEdit.ActionPosition.LeadingPosition)
+        self._bind_icon(search_icon.setIcon, "fth-act-search")
         self.search.textChanged.connect(self.refresh_tree)
-        left_layout.addWidget(self.search)
+        s_layout.addWidget(self.search)
+        toolbar = QFrame()
+        toolbar.setObjectName("sessionToolbar")
+        tb_layout = QHBoxLayout(toolbar)
+        tb_layout.setContentsMargins(0, 0, 0, 0)
+        tb_layout.setSpacing(3)
+        for act, text in ((self.act_new_session, tr("Nuova sessione")), (self.act_new_folder, tr("Nuova cartella")),
+                          (self.act_edit, tr("Modifica")), (self.act_duplicate, tr("Duplica")),
+                          (self.act_move, tr("Sposta")), (self.act_delete, tr("Elimina"))):
+            button = QToolButton()
+            button.setProperty("role", "mini")
+            button.setDefaultAction(act)
+            button.setToolTip(text)
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            tb_layout.addWidget(button)
+        s_layout.addWidget(toolbar)
         self.tree_model = QStandardItemModel(self)
-        self.tree = QTreeView()
+        self.tree = SessionTree(self.drop_node)
         self.tree.setModel(self.tree_model)
-        self.tree.setHeaderHidden(True)
-        self.tree.setEditTriggers(QTreeView.EditTrigger.NoEditTriggers)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._tree_menu)
         self.tree.doubleClicked.connect(lambda index: self.open_path(index.data(PATH_ROLE)))
         self.tree.activated.connect(lambda index: self.open_path(index.data(PATH_ROLE)))
         self.tree.pressed.connect(self.mark_activity)
-        left_layout.addWidget(self.tree, 1)
-        hint = QLabel(tr("Doppio clic per aprire una sessione"))
-        hint.setProperty("role", "muted")
-        left_layout.addWidget(hint)
-        splitter.addWidget(left)
+        s_layout.addWidget(self.tree, 1)
+        footer = QFrame()
+        footer.setObjectName("sideFooter")
+        f_layout = QHBoxLayout(footer)
+        f_layout.setContentsMargins(0, 0, 0, 0)
+        f_layout.setSpacing(4)
+        for act in (self.act_expand, self.act_collapse):
+            button = QToolButton()
+            button.setProperty("role", "mini")
+            button.setDefaultAction(act)
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            f_layout.addWidget(button)
+        s_layout.addWidget(footer)
+        self.sidebar_tabs.addTab(sessions, tr("Sessioni"))
 
+        # File remoti della scheda SSH aperta: ogni scheda ha il suo pannello, qui se ne mostra uno.
+        self.files_stack = QStackedWidget()
+        placeholder = QWidget()
+        p_layout = QVBoxLayout(placeholder)
+        p_layout.addStretch(1)
+        p_label = QLabel(tr("I file remoti si vedono qui quando la scheda aperta è una sessione SSH."))
+        p_label.setWordWrap(True)
+        p_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        p_label.setProperty("role", "muted")
+        p_layout.addWidget(p_label)
+        p_button = QPushButton(tr("Mostra i file della sessione"))
+        p_button.clicked.connect(self._ensure_current_files)
+        p_layout.addWidget(p_button, 0, Qt.AlignmentFlag.AlignCenter)
+        p_layout.addStretch(2)
+        self.files_placeholder = placeholder
+        self.files_stack.addWidget(placeholder)
+        self.sidebar_tabs.addTab(self.files_stack, tr("File remoti"))
+        self.sidebar_tabs.currentChanged.connect(self._sidebar_page_changed)
+        layout.addWidget(self.sidebar_tabs, 1)
+        self._sync_sidebar_files()
+        return sidebar
+
+    def _build_workspace(self) -> QWidget:
+        workspace = QWidget()
+        workspace.setObjectName("workspace")
+        layout = QVBoxLayout(workspace)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.workspace_hint = QLabel("<span style='color:%s'>▸</span> %s" % (
+            theme.colors()["ok"], tr("Doppio clic per aprire una sessione")))
+        self.workspace_hint.setObjectName("workspaceHint")
+        layout.addWidget(self.workspace_hint)
         self.tabs = QTabWidget()
+        self.tabs.setObjectName("workTabs")
         self.tabs.setTabsClosable(True)
         self.tabs.setMovable(True)
         self.tabs.setDocumentMode(True)
+        self.tabs.setIconSize(QSize(10, 10))
+        self.tabs.tabBar().setDrawBase(False)
         self.tabs.tabCloseRequested.connect(self.close_tab)
+        self.tabs.currentChanged.connect(self._current_tab_changed)
         self.welcome = self._welcome_page()
-        right = QWidget()
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.addWidget(self.welcome)
-        right_layout.addWidget(self.tabs)
-        splitter.addWidget(right)
-        splitter.setSizes([max(200, self.settings.sidebar_width), 1000])
-        splitter.setStretchFactor(1, 1)
-        self.setCentralWidget(splitter)
-        self._update_welcome()
-        self.tunnel_status = QLabel("")
-        self.tunnel_status.setProperty("role", "muted")
-        self.statusBar().addPermanentWidget(self.tunnel_status)
-        self.statusBar().showMessage(tr("Pronto."))
-        QShortcut(QKeySequence("Ctrl+F"), self, activated=self.search.setFocus)
+        layout.addWidget(self.welcome, 1)
+        layout.addWidget(self.tabs, 1)
+        self._tab_dots: dict = {}
+        self.dot_timer = QTimer(self)
+        self.dot_timer.setInterval(1000)
+        self.dot_timer.timeout.connect(self._refresh_tab_dots)
+        self.dot_timer.start()
+        return workspace
 
     def _welcome_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.addStretch(1)
+        logo = QLabel()
+        logo.setPixmap(app_icon().pixmap(72, 72))
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(logo)
         title = QLabel(f"{model.APP_NAME}")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 26px; font-weight: 600;")
@@ -398,8 +718,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(sub)
         row = QHBoxLayout()
         row.addStretch(1)
-        for text, slot in ((tr("Nuova sessione"), self.new_session), (tr("Terminale locale"), self.open_local_terminal),
-                           (tr("Connessione rapida"), self.quick_connect), (tr("Importa sessioni…"), self.import_sessions)):
+        for text, slot in ((tr("Nuova sessione"), self.new_session), (tr("Nuovo terminale locale"), self.open_local_terminal),
+                           (tr("Quick connect"), self.focus_quick_connect),
+                           (tr("Importa sessioni nella cartella selezionata"), self.import_sessions)):
             button = QPushButton(text)
             button.clicked.connect(lambda *_, s=slot: s())
             row.addWidget(button)
@@ -412,6 +733,155 @@ class MainWindow(QMainWindow):
         empty = self.tabs.count() == 0
         self.welcome.setVisible(empty)
         self.tabs.setVisible(not empty)
+        if empty:
+            if hasattr(self, "open_label"):
+                self.open_label.setText(tr("Pronto."))
+            self._sync_sidebar_files()
+
+    # ------------------------------------------------------------------ parti della finestra, tema
+    def set_part_visible(self, key: str, visible: bool, save: bool = True) -> None:
+        widgets = {"show_menubar": lambda: self.menuBar(), "show_ribbon": lambda: self.ribbon,
+                   "show_sidebar": lambda: self.sidebar, "show_left_rail": lambda: self.rail,
+                   "show_statusbar": lambda: self.statusBar(), "show_workspace_hint": lambda: self.workspace_hint}
+        other = {"show_menubar": "show_ribbon", "show_ribbon": "show_menubar"}.get(key)
+        if not visible and other and not getattr(self.settings, other):
+            # Senza menu e senza barra dei comandi non si potrebbe più tornare indietro.
+            self.view_toggles[key].setChecked(True)
+            self.set_status(tr("Il menu e la barra dei comandi non si possono nascondere insieme."))
+            return
+        widgets[key]().setVisible(visible)
+        setattr(self.settings, key, visible)
+        if self.view_toggles[key].isChecked() != visible:
+            self.view_toggles[key].setChecked(visible)
+        if save:
+            self._save_settings()
+
+    def show_sessions_panel(self) -> None:
+        self.view_toggles["show_sidebar"].setChecked(True)
+        self.sidebar_tabs.setCurrentIndex(0)
+        self.search.setFocus()
+        self.search.selectAll()
+
+    def focus_quick_connect(self) -> None:
+        self.view_toggles["show_sidebar"].setChecked(True)
+        self.quick_entry.setFocus()
+        self.quick_entry.selectAll()
+
+    def _collapse_folders(self) -> None:
+        self.tree.collapseAll()
+        if self.tree_model.rowCount():
+            self.tree.expand(self.tree_model.index(0, 0))  # Home Session resta aperta
+
+    def _update_theme_button(self) -> None:
+        # Mostra il tema che si attiva con il clic, come nella versione Linux.
+        dark = theme.is_dark()
+        self.theme_button.setText(tr("Chiaro") if dark else tr("Scuro"))
+        self.theme_button.setToolTip(tr("Passa al tema chiaro") if dark else tr("Passa al tema scuro"))
+        self.theme_button.setIcon(icon("fth-theme-light" if dark else "fth-theme-dark"))
+
+    def toggle_theme(self) -> None:
+        self.settings.theme = "light" if theme.is_dark() else "dark"
+        self._save_settings()
+        self.apply_theme()
+
+    def apply_theme(self) -> None:
+        theme.apply(QApplication.instance(), self.settings.theme)
+        self._refresh_icons()
+        self._update_theme_button()
+        self.workspace_hint.setText("<span style='color:%s'>▸</span> %s" % (
+            theme.colors()["ok"], tr("Doppio clic per aprire una sessione")))
+        self._tab_dots.clear()
+        self._refresh_tab_dots()
+        self.refresh_tree()
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if isinstance(widget, TerminalTab):
+                widget.view.send_theme()
+
+    def _save_settings(self) -> None:
+        try:
+            self.settings.save(model.SETTINGS_FILE)
+        except OSError:
+            pass
+
+    # ------------------------------------------------------------------ schede: pallino di stato e file remoti
+    def _add_tab(self, widget: QWidget, title: str) -> int:
+        """Una scheda nuova, con il pallino di stato a sinistra e la sua × per chiuderla."""
+        index = self.tabs.addTab(widget, title)
+        close = QToolButton()
+        close.setProperty("role", "tabclose")
+        close.setText("✕")
+        close.setToolTip(tr("Chiudi la scheda"))
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.clicked.connect(lambda *_, w=widget: self.close_tab(self.tabs.indexOf(w)))
+        self.tabs.tabBar().setTabButton(index, self.tabs.tabBar().ButtonPosition.RightSide, close)
+        self.tabs.setCurrentIndex(index)
+        self._refresh_tab_dots()
+        return index
+
+    def _tab_state(self, widget: QWidget) -> str:
+        if isinstance(widget, TerminalTab):
+            if widget.running:
+                return "ok"
+            return "off" if widget.exit_code in (0, None) else "error"
+        if isinstance(widget, (RdpTab, VncTab)):
+            return "ok" if widget.connected else "pending"
+        if isinstance(widget, FilesPanel):
+            return "ok" if widget.connected else "pending"
+        return "off"
+
+    def _refresh_tab_dots(self) -> None:
+        colors = theme.colors()
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            state = self._tab_state(widget)
+            if self._tab_dots.get(id(widget)) != state:
+                self._tab_dots[id(widget)] = state
+                self.tabs.setTabIcon(i, theme.dot_icon(colors[state]))
+
+    def _current_tab_changed(self, _index: int) -> None:
+        widget = self.tabs.currentWidget()
+        if widget is not None:
+            self.open_label.setText(tr("Aperto: {name}").format(name=self.tabs.tabText(self.tabs.currentIndex())))
+        self._sync_sidebar_files()
+
+    def _sync_sidebar_files(self) -> None:
+        """La scheda «File remoti» del pannello laterale c'è solo quando la scheda aperta è una sessione SSH."""
+        if not hasattr(self, "tabs"):
+            return
+        tab = self.tabs.currentWidget()
+        ssh = isinstance(tab, TerminalTab) and tab.has_files
+        self.sidebar_tabs.setTabVisible(1, ssh)
+        self.sidebar_tabs.tabBar().setVisible(ssh)
+        if not ssh:
+            if self.sidebar_tabs.currentIndex() == 1:
+                self.sidebar_tabs.setCurrentIndex(0)
+            return
+        panel = tab.files
+        if panel is not None and self.files_stack.indexOf(panel) >= 0:
+            self.files_stack.setCurrentWidget(panel)
+        else:
+            self.files_stack.setCurrentWidget(self.files_placeholder)
+
+    def _sidebar_page_changed(self, index: int) -> None:
+        if index == 1:
+            self._ensure_current_files()
+
+    def _ensure_current_files(self) -> None:
+        tab = self.tabs.currentWidget()
+        if isinstance(tab, TerminalTab):
+            tab.ensure_files()
+        self._sync_sidebar_files()
+
+    def _files_created(self, tab: "TerminalTab", panel: FilesPanel) -> None:
+        self.files_stack.addWidget(panel)
+        if self.tabs.currentWidget() is tab:
+            self._sync_sidebar_files()
+
+    def _files_unavailable(self, tab: "TerminalTab") -> None:
+        if tab.files is not None:
+            self.files_stack.removeWidget(tab.files)
+        self._sync_sidebar_files()
 
     def set_status(self, text: str, ms: int = 6000) -> None:
         self.statusBar().showMessage(text, ms)
@@ -424,6 +894,13 @@ class MainWindow(QMainWindow):
         self.tree_model.clear()
         root_item = self.tree_model.invisibleRootItem()
         to_select = None
+        home_icon = theme.home_icon()
+        folder_cache: dict = {}
+
+        def folder_icons(color: str) -> QIcon:
+            if color not in folder_cache:
+                folder_cache[color] = theme.folder_icon(color)
+            return folder_cache[color]
 
         def matches(node: model.Node) -> bool:
             if not query:
@@ -439,14 +916,20 @@ class MainWindow(QMainWindow):
                 if not matches(node):
                     continue
                 if isinstance(node, model.FolderNode):
-                    item = QStandardItem(icon("fth-folder") if not icon("fth-folder").isNull() else
-                                         self.style().standardIcon(self.style().StandardPixmap.SP_DirIcon), node.name)
+                    home = path == self.store.home_path() and node.name == model.HOME_SESSION_NAME
+                    item = QStandardItem(home_icon if home else folder_icons(node.color), node.name)
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
                     item.setData("folder", KIND_ROLE)
+                    if home:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
                 else:
                     detail = node.host or node.command or ""
                     item = QStandardItem(icon(PROTOCOL_ICONS.get(node.protocol, "")), node.name)
                     item.setToolTip(f"{node.protocol.upper()}  {detail}".strip())
                     item.setData("session", KIND_ROLE)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
                 item.setData(path, PATH_ROLE)
                 parent.appendRow(item)
                 if path == current:
@@ -529,10 +1012,13 @@ class MainWindow(QMainWindow):
     def credential_labels(self) -> List[Tuple[str, str]]:
         return self.vault.labels() if self.vault.unlocked else []
 
-    def new_session(self) -> None:
+    def new_session(self, protocol: str = "") -> None:
         if self.vault.exists() and not self.vault.unlocked:
             self.ensure_vault_unlocked(create_if_missing=False, quiet=True)
-        dialog = SessionDialog(self, None, self.credential_labels(), not self.vault.unlocked, self.tunnel_labels())
+        preset = model.Session(name="", protocol=protocol) if protocol else None
+        dialog = SessionDialog(self, preset, self.credential_labels(), not self.vault.unlocked, self.tunnel_labels())
+        if preset is not None:
+            dialog.setWindowTitle(tr("Nuova sessione"))
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         sess = dialog.result_session()
@@ -542,10 +1028,11 @@ class MainWindow(QMainWindow):
         self.set_status(tr("Sessione creata: {name}").format(name=sess.name))
 
     def new_folder(self) -> None:
-        name, ok = QInputDialog.getText(self, tr("Nuova cartella"), tr("Nome cartella"))
-        if not ok or not name.strip():
+        dialog = FolderDialog(self, tr("Nuova cartella"))
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        folder = model.FolderNode(name=name.strip())
+        name, color = dialog.value()
+        folder = model.FolderNode(name=name, color=color)
         self.store.add_node(self.target_folder(), folder)
         self.refresh_tree(select=self.store.find_node_path(folder))
 
@@ -559,9 +1046,9 @@ class MainWindow(QMainWindow):
             if self.store.is_home_path(path):
                 self.set_status(tr("Home Session è la cartella principale e non può essere rinominata."))
                 return
-            name, ok = QInputDialog.getText(self, tr("Modifica cartella"), tr("Nome cartella"), text=node.name)
-            if ok and name.strip():
-                node.name = name.strip()
+            dialog = FolderDialog(self, tr("Modifica cartella"), node.name, node.color)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                node.name, node.color = dialog.value()
                 self.store.save()
                 self.refresh_tree(select=path)
             return
@@ -601,6 +1088,18 @@ class MainWindow(QMainWindow):
         target = folders[labels.index(choice)][0]
         try:
             new_path = self.store.move_node(path, target)
+        except Exception as exc:  # noqa: BLE001
+            self.set_status(tr("Errore spostamento: {exc}").format(exc=exc))
+            return
+        self.refresh_tree(select=new_path)
+
+    def drop_node(self, source: str, target: str, where: str) -> None:
+        """Una voce trascinata nell'albero: dentro una cartella, oppure prima o dopo un'altra voce."""
+        if self.store.is_home_path(source):
+            return
+        try:
+            folder, index = drop_target(self.store, target, where)
+            new_path = self.store.move_node(source, folder, index)
         except Exception as exc:  # noqa: BLE001
             self.set_status(tr("Errore spostamento: {exc}").format(exc=exc))
             return
@@ -669,6 +1168,86 @@ class MainWindow(QMainWindow):
         self.refresh_tree(select=self.store.find_node_path(node))
         self.set_status(tr("Importato '{name}' in {folder_label}").format(name=node.name, folder_label=target or model.HOME_SESSION_NAME))
         return node
+
+    def export_all(self) -> None:
+        home = self.store.home_node()
+        dest, _ = QFileDialog.getSaveFileName(self, tr("Esporta tutte le sessioni"),
+                                              str(Path.home() / "fedtermhub-home-session.json"), "JSON (*.json)")
+        if not dest:
+            return
+        try:
+            model.atomic_write_text(Path(dest), json.dumps(model.session_package(home, "home-session"), indent=2,
+                                                           ensure_ascii=False), mode=0o600)
+            self.set_status(tr("Home Session esportata in {name}").format(name=Path(dest).name))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, model.APP_NAME, tr("Errore export Home Session: {exc}").format(exc=exc))
+
+    def replace_all_sessions(self) -> None:
+        src, _ = QFileDialog.getOpenFileName(self, tr("Sostituisci tutte le sessioni con un file"), str(Path.home()),
+                                             "JSON (*.json)")
+        if not src:
+            return
+        try:
+            node = model.as_home_session(model.node_from_session_package(
+                json.loads(Path(src).read_text(encoding="utf-8")), Path(src).stem))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, model.APP_NAME, tr("Errore import Home Session: {exc}").format(exc=exc))
+            return
+        answer = QMessageBox.warning(
+            self, tr("Sostituire l'attuale Home Session?"),
+            tr("Le sessioni attuali verranno sostituite dalla Home Session importata. Le password salvate non vengono modificate."),
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        if answer != QMessageBox.StandardButton.Ok:
+            return
+        self.store.nodes = [node]
+        self.store.save()
+        self.refresh_tree()
+        self.tree.expandAll()
+        self.set_status(tr("Home Session importata da {name}").format(name=Path(src).name))
+
+    def export_settings(self) -> None:
+        dest, _ = QFileDialog.getSaveFileName(self, tr("Esporta impostazioni FedTermHub"),
+                                              str(Path.home() / "fedtermhub-settings.json"), "JSON (*.json)")
+        if not dest:
+            return
+        try:
+            model.atomic_write_text(Path(dest), json.dumps(self.settings.to_dict(), indent=2, ensure_ascii=False), mode=0o600)
+            self.set_status(tr("Impostazioni esportate in {dest}").format(dest=dest))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, model.APP_NAME, tr("Errore esportazione impostazioni: {exc}").format(exc=exc))
+
+    def import_settings(self) -> None:
+        src, _ = QFileDialog.getOpenFileName(self, tr("Importa impostazioni FedTermHub"), str(Path.home()), "JSON (*.json)")
+        if not src:
+            return
+        try:
+            raw = json.loads(Path(src).read_text(encoding="utf-8"))
+            if not isinstance(raw, dict) or not ({"theme", "icon_theme", "terminal_font_family"} & set(raw.keys())):
+                raise ValueError(tr("Il file non contiene impostazioni FedTermHub riconoscibili."))
+            # Le stesse impostazioni della versione Linux: quelle che qui non servono restano nel file.
+            imported = model.AppSettings.load(Path(src))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, model.APP_NAME, tr("Errore importazione impostazioni: {exc}").format(exc=exc))
+            return
+        for key, value in vars(imported).items():
+            setattr(self.settings, key, value)
+        self._save_settings()
+        self.apply_theme()
+        for key, act in self.view_toggles.items():
+            self.set_part_visible(key, bool(getattr(self.settings, key)), save=False)
+        self.set_status(tr("Impostazioni importate da {name}").format(name=Path(src).name))
+
+    def open_log(self) -> None:
+        LogDialog(self).exec()
+
+    def show_shortcuts(self) -> None:
+        actions = [self.act_new_session, self.act_quick, self.act_local, self.act_close_tab, self.act_files,
+                   self.view_toggles["show_sidebar"], self.act_edit, self.act_duplicate, self.act_delete,
+                   self.act_tunnels, self.act_net_tools, self.act_vault, self.act_settings, self.act_guide, self.act_quit]
+        rows = [(act.shortcut().toString(QKeySequence.SequenceFormat.NativeText), act.text().replace("&", ""))
+                for act in actions if not act.shortcut().isEmpty()]
+        rows.insert(1, ("Ctrl+F", tr("Cerca sessioni")))
+        ShortcutsDialog(self, rows).exec()
 
     def export_vault(self) -> None:
         if not self.ensure_vault_unlocked(create_if_missing=False):
@@ -878,13 +1457,14 @@ class MainWindow(QMainWindow):
     def open_local_terminal(self) -> None:
         self.add_terminal_tab(connect.local_shell(self.settings), protocol="local")
 
-    def quick_connect(self) -> None:
-        text, ok = QInputDialog.getText(
-            self, tr("Connessione rapida"),
-            tr("Scrivi utente@host[:porta] per SSH, rdp:host per il desktop remoto o telnet:host."))
-        text = text.strip()
-        if not ok or not text:
+    def quick_connect(self, text: str = "") -> None:
+        """Connessione rapida dal campo in cima al pannello: utente@host[:porta], rdp:host o telnet:host."""
+        text = (text or self.quick_entry.text()).strip()
+        if not text:
+            self.focus_quick_connect()
+            self.set_status(tr("Scrivi utente@host[:porta] per SSH, rdp:host per il desktop remoto o telnet:host."))
             return
+        self.quick_entry.clear()
         proto = "ssh"
         lowered = text.lower()
         for prefix in ("rdp:", "telnet:", "ssh:"):
@@ -913,8 +1493,7 @@ class MainWindow(QMainWindow):
         user, _domain, password = self.identity(sess)
         panel = FilesPanel(self.sftp_target(sess, user, password), self.tabs)
         panel.status.connect(self.set_status)
-        index = self.tabs.addTab(panel, icon("fth-proto-sftp"), sess.name or sess.host)
-        self.tabs.setCurrentIndex(index)
+        self._add_tab(panel, sess.name or sess.host)
         self._update_welcome()
         panel.connect_server()
 
@@ -922,13 +1501,22 @@ class MainWindow(QMainWindow):
         user, _domain, password = self.identity(sess)
         tab = VncTab(self.tabs, sess, user, password)
         tab.status.connect(self.set_status)
-        index = self.tabs.addTab(tab, icon("fth-proto-vnc"), sess.name or sess.host)
-        self.tabs.setCurrentIndex(index)
+        self._add_tab(tab, sess.name or sess.host)
         self._update_welcome()
 
-    def open_network_tools(self) -> None:
+    def quick_telnet(self) -> None:
+        text, ok = QInputDialog.getText(self, tr("Connessione Telnet"), tr("Host[:porta]"))
+        if ok and text.strip():
+            self.quick_connect("telnet:" + text.strip())
+
+    def run_quick_tool(self, name: str) -> None:
+        self.open_command_tab(tr(name), quick_tools.argv(name))
+
+    def open_network_tools(self, page: str = "") -> None:
         if getattr(self, "_net_tools", None) is None:
             self._net_tools = NetworkToolsDialog(self, self.open_command_tab, self.create_session_for)
+        if page:
+            self._net_tools.show_page(page)
         self._net_tools.show()
         self._net_tools.raise_()
         self._net_tools.activateWindow()
@@ -954,19 +1542,26 @@ class MainWindow(QMainWindow):
             self.set_status(tr("Sessione creata: {name}").format(name=node.name))
 
     def toggle_remote_files(self) -> None:
+        """File remoti della scheda SSH aperta, nel pannello laterale (e ritorno alle sessioni)."""
         tab = self.tabs.currentWidget()
-        if isinstance(tab, TerminalTab) and tab.has_files:
-            tab.toggle_files()
-        else:
+        if not (isinstance(tab, TerminalTab) and tab.has_files):
             self.set_status(tr("Il pannello dei file remoti c'è nelle schede SSH."))
+            return
+        if self.sidebar.isVisible() and self.sidebar_tabs.currentIndex() == 1:
+            self.sidebar_tabs.setCurrentIndex(0)
+            return
+        self.view_toggles["show_sidebar"].setChecked(True)
+        self._sync_sidebar_files()
+        self.sidebar_tabs.setCurrentIndex(1)
 
     def add_terminal_tab(self, launch: connect.Launch, protocol: str = "",
                          files_target: Optional[Callable[[], SftpTarget]] = None) -> TerminalTab:
         tab = TerminalTab(self.tabs, launch, self.settings, files_target=files_target)
         tab.status.connect(self.set_status)
+        tab.files_created.connect(lambda panel, t=tab: self._files_created(t, panel))
+        tab.files_unavailable.connect(lambda t=tab: self._files_unavailable(t))
         tab.view.input_hooks.append(self.mark_activity)
-        index = self.tabs.addTab(tab, icon(PROTOCOL_ICONS.get(protocol, "")), launch.title)
-        self.tabs.setCurrentIndex(index)
+        self._add_tab(tab, launch.title)
         tab.finished.connect(lambda code, t=tab: self._terminal_finished(t, code))
         self._update_welcome()
         QTimer.singleShot(300, tab.view.focus_terminal)
@@ -982,18 +1577,20 @@ class MainWindow(QMainWindow):
         user, domain, password = self.identity(sess)
         tab = RdpTab(self.tabs, sess, user, domain, password)
         tab.status.connect(self.set_status)
-        index = self.tabs.addTab(tab, icon("fth-proto-rdp"), sess.name or sess.host)
-        self.tabs.setCurrentIndex(index)
+        self._add_tab(tab, sess.name or sess.host)
         self._update_welcome()
 
     def close_tab(self, index: int) -> None:
         widget = self.tabs.widget(index)
         if widget is None:
             return
+        if isinstance(widget, TerminalTab) and widget.files is not None:
+            self.files_stack.removeWidget(widget.files)
         close = getattr(widget, "close_tab", None)
         if close:
             close()
         self.tabs.removeTab(index)
+        self._tab_dots.pop(id(widget), None)
         widget.deleteLater()
         self._update_welcome()
 
@@ -1025,10 +1622,9 @@ class MainWindow(QMainWindow):
         self.tunnels.stop_all()
         if not self.isMaximized():
             self.settings.window_width, self.settings.window_height = self.width(), self.height()
-            try:
-                self.settings.save(model.SETTINGS_FILE)
-            except OSError:
-                pass
+        if self.sidebar.isVisible():
+            self.settings.sidebar_width = max(190, min(520, self.splitter.sizes()[0]))
+        self._save_settings()
         self.vault.lock()
         event.accept()
         if self._pending_setup is not None:
@@ -1042,12 +1638,8 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self, self.settings)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             dialog.apply()
-            self.settings.save(model.SETTINGS_FILE)
-            theme.apply(QApplication.instance(), self.settings.theme)
-            for i in range(self.tabs.count()):
-                widget = self.tabs.widget(i)
-                if isinstance(widget, TerminalTab):
-                    widget.view.send_theme()
+            self._save_settings()
+            self.apply_theme()
             self.set_status(tr("Impostazioni applicate"))
 
     def _check_updates(self, manual: bool = False) -> None:

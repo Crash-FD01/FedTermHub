@@ -16,6 +16,12 @@ on:
     paths:
       - 'fedtermhub/qtui/**'
       - 'fedtermhub/model.py'
+      - 'fedtermhub/commands.py'
+      - 'fedtermhub/netcore.py'
+      - 'fedtermhub/look.py'
+      - 'fedtermhub/icons/**'
+      - 'docs/PARITA.md'
+      - 'tests/test_commands.py'
       - 'fedtermhub/i18n.py'
       - 'fedtermhub/locale/**'
       - 'packaging/windows/**'
@@ -52,7 +58,9 @@ jobs:
         shell: bash
         env:
           FEDTERMHUB_LANGUAGE: it
-        run: .github/scripts/annotate.sh "Prova dei sorgenti su Windows" python tests/test_qtui.py
+        run: |
+          .github/scripts/annotate.sh "Nucleo comune su Windows" python tests/test_commands.py
+          .github/scripts/annotate.sh "Prova dei sorgenti su Windows" python tests/test_qtui.py
 
       - name: Costruzione di FedTermHub.exe e del Setup.exe
         shell: pwsh

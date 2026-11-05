@@ -47,7 +47,7 @@ except Exception:  # pragma: no cover - dipendenza runtime
 # controlla che coincidano.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.11.1"
+APP_VERSION = "0.12.0"
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -1009,6 +1009,15 @@ SESSION_PACKAGE_FORMAT = "FedTermHub session package"
 def session_package(node: Node, scope: str) -> Dict[str, object]:
     """Il contenuto di un file di sessioni esportato (stesso formato su Linux e Windows)."""
     return {"version": APP_VERSION, "format": SESSION_PACKAGE_FORMAT, "scope": scope, "root": node_to_dict(node)}
+
+
+def as_home_session(node: Node) -> "FolderNode":
+    """Un file importato con «Sostituisci tutte le sessioni»: diventa la nuova Home Session (entrambe le interfacce)."""
+    if not isinstance(node, FolderNode) or node.name != HOME_SESSION_NAME:
+        node = FolderNode(name=HOME_SESSION_NAME, color=HOME_SESSION_COLOR, children=[node])
+    node.name = HOME_SESSION_NAME
+    node.color = HOME_SESSION_COLOR
+    return node
 
 
 def node_from_session_package(raw: object, stem: str) -> Node:
