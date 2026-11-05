@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.9.13
+Version:        0.10.0
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -144,6 +144,11 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.10.0-1
+- Versione nativa per Windows 10 (1809+) e 11: FedTermHub-0.10.0-Setup.exe nella release, si installa per l'utente senza permessi di amministratore e avvisa delle versioni nuove. Contiene sessioni in cartelle, terminale (PowerShell, SSH con il client OpenSSH di Windows, Telnet, comandi), desktop remoto incorporato con il componente RDP di Windows, Password Manager; importa le sessioni e il backup cifrato delle password esportati da Linux
+- Interfaccia Qt (PySide6) in fedtermhub/qtui, per ora usata solo su Windows: i pacchetti Linux restano con l'interfaccia GTK e non la includono
+- Nucleo senza interfaccia in fedtermhub/model.py, condiviso dalle due interfacce (stesso formato dei file di sessioni, password e impostazioni)
+- CI Windows: costruisce il Setup.exe, lo installa in modo silenzioso e prova il programma installato, compreso un desktop remoto vero sul runner
 * Fri Oct 30 2026 Crash-FD01 - 1:0.9.13-1
 - openSUSE: setup.sh si fermava con «Installation has completed with error». zypper (il download in parallelo di libzypp su Tumbleweed e Leap 16) ignora l'indirizzo xml:base dei metadati e cercava i pacchetti accanto al repository, ricevendo 404. Il repository per RHEL e openSUSE ora ha i pacchetti accanto ai metadati sul sito
 - CI: le prove sulle distribuzioni installano con setup.sh da un sito di prova con repository firmati da una chiave usa e getta, come un utente: un problema dei repository si vede sulla pull request e non dopo il rilascio
