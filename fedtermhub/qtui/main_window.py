@@ -9,7 +9,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QCursor, QDesktopServices, QIcon, QKeySequence, QShortcut, QStandardItem, QStandardItemModel
@@ -38,8 +38,13 @@ from ..i18n import tr, trn
 from . import connect, theme, updates
 from .rdp_tab import RdpTab
 from .session_dialog import AVAILABLE, SessionDialog
+from .tunnels import TunnelManager, TunnelsDialog
+from .net_tools import NetworkToolsDialog
+from .vnc_tab import VncTab
 from .settings_dialog import SettingsDialog
 from .terminal_view import TerminalView
+from .files_panel import FilesPanel
+from .sftp_client import SftpTarget
 from .vault_dialogs import MasterPasswordDialog, VaultManagerDialog
 
 ICONS = Path(__file__).resolve().parent.parent / "icons"
@@ -53,10 +58,11 @@ PROTOCOL_ICONS = {
 
 
 def icon(name: str) -> QIcon:
-    for candidate in (ICONS / f"{name}.svg", ICONS / f"{name}.png"):
-        if candidate.is_file():
-            return QIcon(str(candidate))
-    return QIcon()
+    svg = ICONS / f"{name}.svg"
+    if svg.is_file():
+        return theme.themed_icon(svg)
+    png = ICONS / f"{name}.png"
+    return QIcon(str(png)) if png.is_file() else QIcon()
 
 
 def app_icon() -> QIcon:
@@ -70,24 +76,99 @@ def app_icon() -> QIcon:
 
 
 class TerminalTab(QWidget):
-    """Una scheda con un programma in un terminale (SSH, Telnet, PowerShell…)."""
+    """Una scheda con un programma in un terminale (SSH, Telnet, PowerShell…).
+
+    Per le sessioni SSH può mostrare accanto il pannello dei file remoti (SFTP), che segue la cartella
+    della shell quando la shell la dichiara (OSC 7).
+    """
 
     finished = Signal(int)
+    status = Signal(str)
 
-    def __init__(self, parent: QWidget, launch: connect.Launch, settings: model.AppSettings) -> None:
+    def __init__(self, parent: QWidget, launch: connect.Launch, settings: model.AppSettings,
+                 files_target: Optional[Callable[[], "SftpTarget"]] = None) -> None:
         super().__init__(parent)
         self.launch = launch
+        self.settings = settings
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         font_px = max(9, round(settings.terminal_font_size * 1.33))
         self.view = TerminalView(self, font_size=font_px, scrollback=settings.terminal_scrollback_lines,
-                                 blink=settings.terminal_cursor_blink)
-        layout.addWidget(self.view)
+                                 blink=settings.terminal_cursor_blink,
+                                 process=launch.factory() if launch.factory else None)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.addWidget(self.view)
+        self.splitter.setChildrenCollapsible(False)
+        layout.addWidget(self.splitter)
+        self.files_target = files_target
+        self.files: Optional[FilesPanel] = None
+        self._osc7_sent = False
+        self._first_output = False
+        self.view.cwd_changed.connect(self._cwd_changed)
         self.feeder = connect.PasswordFeeder(launch.password)
         self.view.pty.output.connect(self._output)
         self.view.pty.finished.connect(self._finished)
         self.exit_code: Optional[int] = None
         self.start()
+
+    # ------------------------------------------------------------------ file remoti
+    @property
+    def has_files(self) -> bool:
+        return self.files_target is not None
+
+    def toggle_files(self, show: Optional[bool] = None) -> None:
+        if self.files_target is None:
+            return
+        if self.files is None:
+            if show is False:
+                return
+            self.files = FilesPanel(self.files_target(), self, follow_terminal=self.settings.follow_remote_directory,
+                                    compact=True, ask_password=False)
+            self.files.status.connect(self.status)
+            self.files.connected_changed.connect(self._files_connected)
+            self.files.sftp_missing.connect(self._sftp_missing)
+            self.files.follow_button.toggled.connect(self._follow_toggled)
+            self.splitter.addWidget(self.files)
+            width = max(600, self.width())
+            self.splitter.setSizes([int(width * 0.68), int(width * 0.32)])
+            if self.view.last_cwd:
+                self.files.pending_follow = self.view.last_cwd
+            self.files.connect_server()
+            return
+        self.files.setVisible(not self.files.isVisible() if show is None else show)
+
+    def _follow_toggled(self, active: bool) -> None:
+        self.settings.follow_remote_directory = active
+        if active:
+            self._schedule_osc7()
+
+    def _files_connected(self, ok: bool) -> None:
+        if ok:
+            self._schedule_osc7()
+
+    def _sftp_missing(self, message: str) -> None:
+        if self.files is not None:
+            self.files.hide()
+        self.status.emit(tr("{message} Pannello dei file chiuso.").format(message=message))
+
+    def _schedule_osc7(self) -> None:
+        # Solo se il server ha SFTP (quindi una shell Unix, non un apparato) e la shell non dichiara già la
+        # cartella da sola: la riga si scrive nella shell remota, come fa la versione Linux.
+        if self._osc7_sent or self.view.last_cwd or not self.settings.follow_remote_directory:
+            return
+        if self.files is not None and re.match(r"^/?[A-Za-z]:", self.files.home or ""):
+            return  # server Windows (OpenSSH di Windows): la shell è cmd o PowerShell, niente riga per bash
+        QTimer.singleShot(1800, self._send_osc7)
+
+    def _send_osc7(self) -> None:
+        if self._osc7_sent or self.view.last_cwd or not self.running:
+            return
+        self._osc7_sent = True
+        self.view.pty.write(connect.OSC7_BOOTSTRAP)
+
+    def _cwd_changed(self, path: str) -> None:
+        if self.files is not None:
+            self.files.follow_directory(path)
 
     def start(self) -> None:
         self.exit_code = None
@@ -104,6 +185,11 @@ class TerminalTab(QWidget):
         answer = self.feeder.feed(text)
         if answer:
             self.view.pty.write(answer)
+        if not self._first_output and self.files_target is not None and self.settings.show_remote_files:
+            # Il pannello dei file si collega poco dopo il terminale: se la chiave dell'host è nuova la
+            # conferma prima ssh nel terminale e il pannello la trova già in known_hosts.
+            self._first_output = True
+            QTimer.singleShot(2500, lambda: self.toggle_files(True) if self.files is None else None)
 
     def _finished(self, code: int) -> None:
         self.exit_code = code
@@ -124,6 +210,8 @@ class TerminalTab(QWidget):
 
     def close_tab(self) -> None:
         self.view.pty.stop()
+        if self.files is not None:
+            self.files.shutdown()
 
 
 def _system_idle_seconds() -> Optional[float]:
@@ -154,6 +242,8 @@ class MainWindow(QMainWindow):
         self.settings = model.AppSettings.load(model.SETTINGS_FILE)
         self.store = model.SessionStore(model.SESSIONS_FILE)
         self.vault = model.PasswordVault(model.VAULT_FILE)
+        self.tunnels = TunnelManager(self.settings, self.tunnel_identity, self)
+        self.tunnels.changed.connect(self._tunnels_changed)
         self.last_activity = time.monotonic()
         self.setWindowTitle(f"{model.APP_NAME} {model.APP_VERSION}")
         self.setWindowIcon(app_icon())
@@ -170,6 +260,8 @@ class MainWindow(QMainWindow):
         self.lock_timer.start()
         if load_warning := getattr(self.store, "load_warning", ""):
             QTimer.singleShot(300, lambda: QMessageBox.warning(self, tr("Sessioni non leggibili"), load_warning))
+        if any(t.auto_start for t in self.tunnels.store.tunnels):
+            QTimer.singleShot(1500, self.tunnels.start_auto)
         if self.settings.check_updates and updates.enabled():
             QTimer.singleShot(4000, self._check_updates)
 
@@ -195,6 +287,10 @@ class MainWindow(QMainWindow):
         self.act_vault = self._action(tr("Password Manager"), self.open_vault_manager, "Ctrl+Shift+P", "fth-tb-password")
         self.act_lock = self._action(tr("Blocca password"), self.lock_vault)
         self.act_settings = self._action(tr("Impostazioni"), self.open_settings, "Ctrl+,", "fth-tb-sistema")
+        self.act_net_tools = self._action(tr("Strumenti di rete"), self.open_network_tools, "Ctrl+Shift+R", "fth-tb-rete")
+        self.act_tunnels = self._action(tr("Tunnel SSH"), self.open_tunnels, "Ctrl+Shift+U", "fth-tb-rete")
+        self.act_files = self._action(tr("File remoti"), self.toggle_remote_files, "Ctrl+Shift+E", "fth-act-files",
+                                      tr("Mostra o nasconde i file remoti accanto al terminale SSH"))
         self.act_import = self._action(tr("Importa sessioni…"), self.import_sessions)
         self.act_export = self._action(tr("Esporta selezione…"), self.export_selected)
         self.act_export_vault = self._action(tr("Esporta backup cifrato delle password"), self.export_vault)
@@ -211,11 +307,11 @@ class MainWindow(QMainWindow):
         for act in (self.act_import, self.act_export, None, self.act_export_vault, self.act_import_vault, None, self.act_quit):
             file_menu.addSeparator() if act is None else file_menu.addAction(act)
         sessions_menu = menubar.addMenu(tr("Sessioni"))
-        for act in (self.act_new_session, self.act_new_folder, self.act_quick, self.act_local, None, self.act_edit,
+        for act in (self.act_new_session, self.act_new_folder, self.act_quick, self.act_local, self.act_files, None, self.act_edit,
                     self.act_duplicate, self.act_move, self.act_delete, None, self.act_close_tab):
             sessions_menu.addSeparator() if act is None else sessions_menu.addAction(act)
         tools_menu = menubar.addMenu(tr("Strumenti"))
-        for act in (self.act_vault, self.act_lock, None, self.act_settings):
+        for act in (self.act_net_tools, self.act_tunnels, None, self.act_vault, self.act_lock, None, self.act_settings):
             tools_menu.addSeparator() if act is None else tools_menu.addAction(act)
         help_menu = menubar.addMenu(tr("Aiuto"))
         help_menu.addAction(self.act_guide)
@@ -225,7 +321,7 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(20, 20))
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        for act in (self.act_new_session, self.act_local, self.act_quick, self.act_vault, self.act_settings):
+        for act in (self.act_new_session, self.act_local, self.act_quick, self.act_files, self.act_vault, self.act_settings):
             toolbar.addAction(act)
         self.addToolBar(toolbar)
 
@@ -270,6 +366,9 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 1)
         self.setCentralWidget(splitter)
         self._update_welcome()
+        self.tunnel_status = QLabel("")
+        self.tunnel_status.setProperty("role", "muted")
+        self.statusBar().addPermanentWidget(self.tunnel_status)
         self.statusBar().showMessage(tr("Pronto."))
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self.search.setFocus)
 
@@ -421,7 +520,7 @@ class MainWindow(QMainWindow):
     def new_session(self) -> None:
         if self.vault.exists() and not self.vault.unlocked:
             self.ensure_vault_unlocked(create_if_missing=False, quiet=True)
-        dialog = SessionDialog(self, None, self.credential_labels(), not self.vault.unlocked)
+        dialog = SessionDialog(self, None, self.credential_labels(), not self.vault.unlocked, self.tunnel_labels())
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         sess = dialog.result_session()
@@ -456,7 +555,7 @@ class MainWindow(QMainWindow):
             return
         if node.credential_id and self.vault.exists() and not self.vault.unlocked:
             self.ensure_vault_unlocked(create_if_missing=False, quiet=True)
-        dialog = SessionDialog(self, node, self.credential_labels(), not self.vault.unlocked)
+        dialog = SessionDialog(self, node, self.credential_labels(), not self.vault.unlocked, self.tunnel_labels())
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.store.replace_node(path, dialog.result_session())
             self.refresh_tree(select=path)
@@ -672,6 +771,26 @@ class MainWindow(QMainWindow):
                     password = cred.password if sess.use_credential_password else None
         return user, domain, password
 
+    def tunnel_identity(self, tunnel: model.TunnelSession) -> Tuple[str, Optional[str]]:
+        user, password = tunnel.ssh_user, None
+        if tunnel.credential_id and model.CRYPTO_AVAILABLE and self.vault.exists():
+            if self.vault.unlocked or self.ensure_vault_unlocked(create_if_missing=False):
+                cred = self.vault.get(tunnel.credential_id)
+                if cred is not None:
+                    user = cred.username or user
+                    password = cred.password if tunnel.use_credential_password else None
+        return user, password
+
+    def tunnel_labels(self) -> List[Tuple[str, str]]:
+        return [(t.id, t.name) for t in self.tunnels.store.tunnels]
+
+    def open_tunnels(self) -> None:
+        TunnelsDialog(self, self.tunnels, self.credential_labels, lambda: None).exec()
+
+    def _tunnels_changed(self) -> None:
+        active = self.tunnels.active()
+        self.tunnel_status.setText(trn("{n} tunnel attivo", "{n} tunnel attivi", active).format(n=active) if active else "")
+
     # ------------------------------------------------------------------ apertura delle sessioni
     def open_path(self, path: Optional[str]) -> None:
         if path is None:
@@ -683,7 +802,7 @@ class MainWindow(QMainWindow):
         if isinstance(node, model.Session):
             self.open_session(node)
 
-    def open_session(self, sess: model.Session) -> None:
+    def open_session(self, sess: model.Session, _tunnel_ready: bool = False) -> None:
         problem = model.session_problem(sess)
         if problem:
             QMessageBox.warning(self, tr("Sessione non valida"),
@@ -693,6 +812,26 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, model.APP_NAME, tr("Le sessioni {protocol} si aprono per ora solo nella versione Linux "
                                                              "di FedTermHub.").format(protocol=sess.protocol.upper()))
             return
+        if sess.routing_mode == "saved_tunnel" and sess.required_tunnel_id and not _tunnel_ready:
+            tunnel = self.tunnels.store.get(sess.required_tunnel_id)
+            if tunnel is None:
+                QMessageBox.warning(self, tr("Tunnel richiesto non trovato"),
+                                    tr("La sessione «{name}» è collegata a un tunnel che non esiste più.").format(name=sess.name))
+                return
+            if self.tunnels.state(tunnel.id) != "running":
+                self.set_status(tr("Avvio del tunnel «{name}»…").format(name=tunnel.name), 0)
+
+                def ready(ok: bool, log: str, s=sess, t=tunnel) -> None:
+                    if ok:
+                        self.set_status(tr("Tunnel pronto: {name}").format(name=t.name))
+                        self.open_session(s, _tunnel_ready=True)
+                    else:
+                        QMessageBox.warning(self, tr("Impossibile avviare il tunnel"),
+                                            tr("La sessione «{name}» non è stata aperta perché il tunnel «{tunnel}» non è "
+                                               "pronto.\n\n{log}").format(name=s.name, tunnel=t.name, log=log))
+
+                self.tunnels.when_ready(tunnel.id, ready)
+                return
         try:
             if sess.protocol == "rdp":
                 self.open_rdp(sess)
@@ -703,8 +842,19 @@ class MainWindow(QMainWindow):
             elif sess.protocol == "ssh":
                 user, _domain, password = self.identity(sess)
                 launch = connect.ssh(sess, self.settings, user, password)
+                target = lambda s=sess, u=user, p=password: self.sftp_target(s, u, p)  # noqa: E731
+                self.add_terminal_tab(launch, protocol="ssh", files_target=target)
+                return
+            elif sess.protocol == "sftp":
+                self.open_sftp(sess)
+                return
+            elif sess.protocol == "vnc":
+                self.open_vnc(sess)
+                return
             elif sess.protocol == "telnet":
-                launch = connect.telnet(sess)
+                launch = connect.telnet(sess, self.settings)
+            elif sess.protocol == "serial":
+                launch = connect.serial(sess)
             else:
                 launch = connect.command(sess, self.settings)
             self.add_terminal_tab(launch, protocol=sess.protocol)
@@ -736,8 +886,72 @@ class MainWindow(QMainWindow):
         sess = model.Session(name=text, protocol=proto, host=host, port=port, user=user)
         self.open_session(sess)
 
-    def add_terminal_tab(self, launch: connect.Launch, protocol: str = "") -> TerminalTab:
-        tab = TerminalTab(self.tabs, launch, self.settings)
+    def sftp_target(self, sess: model.Session, user: str, password: Optional[str]) -> SftpTarget:
+        host, port = model.split_host_port(sess.host, sess.port or "22")
+        jump = sess.routing_mode == "proxy_jump" and bool(sess.jump_host)
+        return SftpTarget(
+            host=host, port=int(port or 22), user=user, password=password,
+            jump_host=sess.jump_host if jump else "", jump_port=int(sess.jump_port or 22) if jump else 22,
+            jump_user=sess.jump_user if jump else "",
+            timeout=float(max(3, self.settings.connection_timeout_seconds)),
+            strict=self.settings.ssh_strict_host_key if self.settings.ssh_strict_host_key in {"ask", "accept-new", "yes", "no"} else "ask",
+        )
+
+    def open_sftp(self, sess: model.Session) -> None:
+        user, _domain, password = self.identity(sess)
+        panel = FilesPanel(self.sftp_target(sess, user, password), self.tabs)
+        panel.status.connect(self.set_status)
+        index = self.tabs.addTab(panel, icon("fth-proto-sftp"), sess.name or sess.host)
+        self.tabs.setCurrentIndex(index)
+        self._update_welcome()
+        panel.connect_server()
+
+    def open_vnc(self, sess: model.Session) -> None:
+        user, _domain, password = self.identity(sess)
+        tab = VncTab(self.tabs, sess, user, password)
+        tab.status.connect(self.set_status)
+        index = self.tabs.addTab(tab, icon("fth-proto-vnc"), sess.name or sess.host)
+        self.tabs.setCurrentIndex(index)
+        self._update_welcome()
+
+    def open_network_tools(self) -> None:
+        if getattr(self, "_net_tools", None) is None:
+            self._net_tools = NetworkToolsDialog(self, self.open_command_tab, self.create_session_for)
+        self._net_tools.show()
+        self._net_tools.raise_()
+        self._net_tools.activateWindow()
+
+    def open_command_tab(self, title: str, argv: List[str]) -> None:
+        binary = connect.find_program(argv[0])
+        if not binary:
+            QMessageBox.warning(self, model.APP_NAME, tr("Programma non trovato: {name}").format(name=argv[0]))
+            return
+        self.add_terminal_tab(connect.Launch(title, [binary] + argv[1:], {}, close_on_success=False), protocol="command")
+
+    def create_session_for(self, host: str, protocol: str, port: int = 0) -> None:
+        default = {"ssh": 22, "rdp": 3389, "vnc": 5900, "telnet": 23, "sftp": 22}.get(protocol, 0)
+        sess = model.Session(name=host, protocol=protocol or "ssh", host=host,
+                             port=str(port) if port and port != default else "")
+        dialog = SessionDialog(self, sess, self.credential_labels(), not self.vault.unlocked, self.tunnel_labels())
+        dialog.setWindowTitle(tr("Nuova sessione"))
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            node = dialog.result_session()
+            target = self.target_folder()
+            self.store.add_node(target, node)
+            self.refresh_tree(select=self.store.find_node_path(node))
+            self.set_status(tr("Sessione creata: {name}").format(name=node.name))
+
+    def toggle_remote_files(self) -> None:
+        tab = self.tabs.currentWidget()
+        if isinstance(tab, TerminalTab) and tab.has_files:
+            tab.toggle_files()
+        else:
+            self.set_status(tr("Il pannello dei file remoti c'è nelle schede SSH."))
+
+    def add_terminal_tab(self, launch: connect.Launch, protocol: str = "",
+                         files_target: Optional[Callable[[], SftpTarget]] = None) -> TerminalTab:
+        tab = TerminalTab(self.tabs, launch, self.settings, files_target=files_target)
+        tab.status.connect(self.set_status)
         tab.view.input_hooks.append(self.mark_activity)
         index = self.tabs.addTab(tab, icon(PROTOCOL_ICONS.get(protocol, "")), launch.title)
         self.tabs.setCurrentIndex(index)
@@ -781,12 +995,12 @@ class MainWindow(QMainWindow):
             widget = self.tabs.widget(i)
             if isinstance(widget, TerminalTab) and widget.running:
                 count += 1
-            elif isinstance(widget, RdpTab) and widget.connected:
+            elif isinstance(widget, (RdpTab, VncTab)) and widget.connected:
                 count += 1
         return count
 
     def closeEvent(self, event) -> None:  # noqa: ANN001, N802
-        active = self.active_sessions()
+        active = self.active_sessions() + self.tunnels.active()
         if active and self.settings.confirm_close_active_sessions:
             answer = QMessageBox.question(
                 self, tr("Chiudere FedTermHub?"),
@@ -796,6 +1010,7 @@ class MainWindow(QMainWindow):
                 return
         for i in range(self.tabs.count() - 1, -1, -1):
             self.close_tab(i)
+        self.tunnels.stop_all()
         if not self.isMaximized():
             self.settings.window_width, self.settings.window_height = self.width(), self.height()
             try:

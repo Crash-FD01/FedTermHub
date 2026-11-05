@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.10.1
+Version:        0.11.0
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -144,6 +144,13 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.11.0-1
+- Windows, seconda fase: file remoti SFTP accanto al terminale SSH e in una scheda propria (paramiko: password salvata, chiavi, agente, jump host, known_hosts condiviso con ssh.exe; trascinamento, apertura con il programma di Windows, segue il cd della shell con OSC 7 come su Linux)
+- Windows: tunnel SSH locali, remoti e SOCKS (gli stessi di tunnels.json), con stato e log, riavvio automatico e avvio prima della sessione che li richiede
+- Windows: VNC nella scheda con noVNC 1.7.0 (MPL-2.0) e un ponte WebSocket locale; password dalla credenziale, appunti nei due sensi, Ctrl+Alt+Canc, schermo intero
+- Windows: Telnet integrato (non serve più il Client Telnet di Windows; NAWS, eco, tipo di terminale) e console seriale sulle porte COM con pyserial
+- Windows: strumenti di rete senza programmi esterni: scansione della rete (ICMP di Windows, ARP) e delle porte con le risposte dei servizi, porte in ascolto con il programma, Wake-on-LAN, server HTTP e TFTP temporanei, ping e traceroute in una scheda
+- Prova del programma installato su Windows estesa: Telnet, seriale, VNC (colori dello schermo e tastiera), strumenti di rete e, con il server OpenSSH del runner, SSH con password, file remoti e tunnel
 * Thu Nov 05 2026 Crash-FD01 - 1:0.10.1-1
 - openSUSE Leap 16 (PyGObject 3.52): un user_data None passato esplicitamente dopo un callback lo faceva scartare con «expected tuple for callback user_data». Il terminale non riceveva il PID del programma avviato e la lettura degli appunti non arrivava. Ora i callback di Vte.Terminal.spawn_async, Gtk.Clipboard.request_text e Gtk.ListBox.set_header_func sono passati senza user_data
 - Test: tests/test_revisione.py non dipende più da un tempo fisso fra Salva e Annulla, che su un runner carico poteva arrivare prima di Salva

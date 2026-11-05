@@ -99,6 +99,8 @@
     term.onData((data) => bridge.input(data));
     term.onBinary((data) => bridge.input(data));
     term.onTitleChange((title) => bridge.titleChanged(title));
+    // OSC 7: la shell dichiara la cartella corrente (file://host/percorso); la segue il pannello dei file.
+    term.parser.registerOscHandler(7, (data) => { bridge.cwdChanged(data); return true; });
     bridge.ready();
     doFit();
     term.focus();

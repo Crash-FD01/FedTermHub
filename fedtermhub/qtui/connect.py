@@ -17,7 +17,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from .. import model
 from ..i18n import tr
@@ -34,6 +34,9 @@ class Launch:
     env: Dict[str, str]
     password: Optional[str] = None  # da scrivere al prompt della password (PasswordFeeder)
     close_on_success: bool = True
+    # Connessione senza programma esterno (Telnet, seriale): crea l'oggetto con l'interfaccia di PtyProcess.
+    factory: Optional[Callable[[], object]] = None
+    protocol: str = ""
 
 
 class LaunchError(Exception):
@@ -57,6 +60,11 @@ def _windows_system_binary(name: str) -> Optional[str]:
             if candidate.is_file():
                 return str(candidate)
     return None
+
+
+def find_program(name: str) -> Optional[str]:
+    """Un programma da avviare in un terminale (ping, tracert...), cercato anche fra quelli di Windows."""
+    return _windows_system_binary(name) if IS_WINDOWS else shutil.which(name)
 
 
 def local_shell(settings: model.AppSettings) -> Launch:
@@ -153,18 +161,53 @@ def command(sess: model.Session, settings: model.AppSettings) -> Launch:
     return Launch(sess.name or tr("Comando"), [shell, "-lc", sess.command], {})
 
 
-def telnet(sess: model.Session) -> Launch:
-    binary = _windows_system_binary("telnet") if IS_WINDOWS else shutil.which("telnet")
-    if not binary:
-        if IS_WINDOWS:
-            raise LaunchError(
-                tr("Client Telnet non installato"),
-                tr("Da PowerShell come amministratore: Enable-WindowsOptionalFeature -Online -FeatureName TelnetClient"),
-            )
-        raise LaunchError(tr("Client Telnet non installato"))
-    # Il telnet di Windows non conosce "--": l'host è già controllato da session_problem().
-    argv = [binary, sess.host, sess.port or "23"] if IS_WINDOWS else [binary, "--", sess.host, sess.port or "23"]
-    return Launch(sess.name or tr("Telnet {host}").format(host=sess.host), argv, {})
+def telnet(sess: model.Session, settings: model.AppSettings) -> Launch:
+    """Telnet con il client integrato (stream_process.TelnetProcess): niente «Client Telnet» di Windows."""
+    if not sess.host:
+        raise LaunchError(tr("Host Telnet mancante."))
+    host, port = model.split_host_port(sess.host, sess.port or "23")
+    timeout = float(max(3, settings.connection_timeout_seconds))
+
+    def factory():  # noqa: ANN202
+        from .stream_process import TelnetProcess
+
+        return TelnetProcess(host, int(port or 23), timeout)
+
+    return Launch(sess.name or tr("Telnet {host}").format(host=sess.host), [], {}, factory=factory,
+                  close_on_success=False, protocol="telnet")
+
+
+def serial(sess: model.Session) -> Launch:
+    """Console seriale (COM3, /dev/ttyUSB0) con pyserial."""
+    try:
+        import serial as _pyserial  # noqa: F401
+    except ImportError as exc:
+        raise LaunchError(tr("Modulo pyserial non installato"), "pip install pyserial") from exc
+    port = (sess.host or "").strip()
+    if not port:
+        raise LaunchError(tr("Porta seriale mancante."))
+    baud = (sess.port or "115200").strip()
+
+    def factory():  # noqa: ANN202
+        from .stream_process import SerialProcess
+
+        return SerialProcess(port, int(baud), sess.serial_databits, sess.serial_parity, sess.serial_stopbits)
+
+    return Launch(sess.name or port, [], {}, factory=factory, close_on_success=False, protocol="serial")
+
+
+# Riga che fa emettere alla shell remota (bash o zsh) la cartella corrente con OSC 7 a ogni prompt, come
+# /etc/profile.d/vte.sh: la stessa della versione GTK. Lo spazio iniziale la tiene fuori dalla cronologia.
+OSC7_BOOTSTRAP = (
+    " __fth_osc7() { printf '\\033]7;file://%s%s\\033\\\\' "
+    "\"${HOSTNAME:-$(uname -n 2>/dev/null)}\" \"$PWD\"; }; "
+    "if [ -n \"$ZSH_VERSION\" ]; then "
+    "eval 'precmd_functions+=(__fth_osc7)'; "
+    "elif [ -n \"$BASH_VERSION\" ]; then "
+    "case \"$PROMPT_COMMAND\" in *__fth_osc7*) ;; "
+    "*) PROMPT_COMMAND=\"__fth_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}\";; esac; "
+    "fi; __fth_osc7\r"
+)
 
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")

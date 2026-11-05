@@ -59,6 +59,10 @@ class _Bridge(QObject):
     def titleChanged(self, title: str) -> None:  # noqa: N802
         self.view.title_changed.emit(title)
 
+    @Slot(str)
+    def cwdChanged(self, uri: str) -> None:  # noqa: N802
+        self.view._on_cwd(uri)
+
     @Slot()
     def ready(self) -> None:
         self.view._on_ready()
@@ -68,14 +72,20 @@ class TerminalView(QWebEngineView):
     """Mostra un PtyProcess. Segnali: output (testo dal programma), finished (codice di uscita)."""
 
     title_changed = Signal(str)
+    cwd_changed = Signal(str)  # cartella corrente dichiarata dalla shell (OSC 7)
 
-    def __init__(self, parent=None, font_size: int = 13, scrollback: int = 10000, blink: bool = True):
+    def __init__(self, parent=None, font_size: int = 13, scrollback: int = 10000, blink: bool = True, process=None):
         super().__init__(parent)
-        self.pty = PtyProcess(self)
+        # Il programma dietro al terminale: un PtyProcess, oppure una connessione con la stessa interfaccia
+        # (Telnet, porta seriale: stream_process.py).
+        if process is not None:
+            process.setParent(self)
+        self.pty = process if process is not None else PtyProcess(self)
         self._ready = False
         self._pending: List[str] = []
         self.font_size = font_size
         self.input_hooks: List[Callable[[str], None]] = []
+        self.last_cwd = ""
         page = QWebEnginePage(QWebEngineProfile.defaultProfile(), self)
         self.setPage(page)
         self.bridge = _Bridge(self)
@@ -103,6 +113,15 @@ class TerminalView(QWebEngineView):
     @property
     def ready(self) -> bool:
         return self._ready
+
+    def _on_cwd(self, uri: str) -> None:
+        from urllib.parse import unquote, urlparse
+
+        parsed = urlparse(uri)
+        path = unquote(parsed.path) if parsed.scheme == "file" else ""
+        if path:
+            self.last_cwd = path
+            self.cwd_changed.emit(path)
 
     def send_theme(self) -> None:
         self.page().setBackgroundColor(QColor(theme.colors()["term"]))

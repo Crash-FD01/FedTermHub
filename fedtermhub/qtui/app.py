@@ -175,6 +175,10 @@ def self_test(report_path: Path) -> int:
     if sys.platform == "win32" or connect.ssh_binary():
         check("comando SSH", ssh_command)
 
+    from .selftest_more import run_checks
+
+    run_checks(app, window, check, _wait, report_path)
+
     if sys.platform == "win32" and app.platformName() != "offscreen":
         def rdp() -> str:
             """Il componente RDP di Windows nella scheda.

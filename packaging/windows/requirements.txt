@@ -5,4 +5,6 @@ PySide6-Essentials==6.12.0
 PySide6-WebEngine==6.12.0.140
 pywinpty==3.1.2
 comtypes==1.4.17
+paramiko==5.1.0
+pyserial==3.5
 cryptography==50.0.2

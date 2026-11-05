@@ -175,7 +175,7 @@ msgstr "Destination"
 msgid "Host mancante"
 msgstr "Host missing"
 
-#: connection_diagnostics.py:471 connection_diagnostics.py:477
+#: connection_diagnostics.py:471 connection_diagnostics.py:477 qtui/net_tools.py:497
 msgid "Risoluzione DNS"
 msgstr "DNS resolution"
 
@@ -247,7 +247,7 @@ msgstr "Port {port} refused"
 msgid "Timeout sulla porta {port}"
 msgstr "Timeout on port {port}"
 
-#: connection_diagnostics.py:418 native_rdp.py:587 qtui/session_dialog.py:123
+#: connection_diagnostics.py:418 native_rdp.py:587 qtui/session_dialog.py:186
 msgid "Desktop remoto"
 msgstr "Remote Desktop"
 
@@ -650,7 +650,7 @@ msgstr "Tip: if the graphics glitch, start with: fedtermhub --safe-mode"
 msgid "Mostra la password"
 msgstr "Show the password"
 
-#: fedtermhub.py:4339 fedtermhub.py:10829 fedtermhub.py:12890 model.py:972
+#: fedtermhub.py:4339 fedtermhub.py:10829 fedtermhub.py:12890 model.py:976
 msgid "Cartella"
 msgstr "Folder"
 
@@ -861,7 +861,7 @@ msgstr "Copy password (Ctrl+C)"
 msgid "Password"
 msgstr "Password"
 
-#: fedtermhub.py:2125 fedtermhub.py:4673 qtui/session_dialog.py:161 qtui/vault_dialogs.py:188
+#: fedtermhub.py:2125 fedtermhub.py:4673 qtui/session_dialog.py:218 qtui/vault_dialogs.py:188
 msgid "Note"
 msgstr "Notes"
 
@@ -945,7 +945,7 @@ msgstr "No credential linked"
 msgid "Scegli una chiave privata"
 msgstr "Choose a private key"
 
-#: fedtermhub.py:2759 fedtermhub.py:2776 qtui/session_dialog.py:96 windows_sessions.py:249
+#: fedtermhub.py:2759 fedtermhub.py:2776 qtui/session_dialog.py:102 windows_sessions.py:249
 msgid "Host"
 msgstr "Host"
 
@@ -953,11 +953,11 @@ msgstr "Host"
 msgid "Porta"
 msgstr "Port"
 
-#: fedtermhub.py:2762 fedtermhub.py:4512 model.py:215 qtui/session_dialog.py:100
+#: fedtermhub.py:2762 fedtermhub.py:4512 model.py:215 qtui/session_dialog.py:108
 msgid "Credenziale"
 msgstr "Credential"
 
-#: fedtermhub.py:2764
+#: fedtermhub.py:2764 qtui/tunnels.py:404 qtui/tunnels.py:427
 msgid "Chiave privata"
 msgstr "Private key"
 
@@ -1017,7 +1017,7 @@ msgstr "Checking the SSH server…"
 msgid "Cerca tunnel…"
 msgstr "Search tunnels…"
 
-#: fedtermhub.py:3257 network_tools.py:589
+#: fedtermhub.py:3257 network_tools.py:589 qtui/net_tools.py:372 qtui/net_tools.py:386
 msgid "Avvia"
 msgstr "Start"
 
@@ -1041,7 +1041,7 @@ msgstr "Copy command"
 msgid "Copia endpoint"
 msgstr "Copy endpoint"
 
-#: fedtermhub.py:3263 fedtermhub.py:8800
+#: fedtermhub.py:3263 fedtermhub.py:8800 qtui/net_tools.py:542
 msgid "Crea sessione"
 msgstr "Create session"
 
@@ -1161,7 +1161,7 @@ msgstr "Interface elements"
 msgid "Menu"
 msgstr "Menu"
 
-#: fedtermhub.py:3860 qtui/main_window.py:212
+#: fedtermhub.py:3860 qtui/main_window.py:320
 msgid "Comandi"
 msgstr "Commands"
 
@@ -1233,7 +1233,7 @@ msgstr "Scrolling"
 msgid "Campanello"
 msgstr "Bell"
 
-#: fedtermhub.py:3894 fedtermhub.py:4425 fedtermhub.py:5154 model.py:1025
+#: fedtermhub.py:3894 fedtermhub.py:4425 fedtermhub.py:5154 model.py:1029
 msgid "Terminale locale"
 msgstr "Local terminal"
 
@@ -1301,7 +1301,7 @@ msgstr "0 turns keepalive packets off."
 msgid "Tentativi keepalive"
 msgstr "Keepalive attempts"
 
-#: fedtermhub.py:3927 fedtermhub.py:5041
+#: fedtermhub.py:3927 fedtermhub.py:5041 qtui/tunnels.py:387
 msgid "Compressione"
 msgstr "Compression"
 
@@ -1341,7 +1341,7 @@ msgstr "Clear passwords from the clipboard (s)"
 msgid "0 non modifica automaticamente gli appunti."
 msgstr "0 leaves the clipboard untouched."
 
-#: fedtermhub.py:3961 fedtermhub.py:5022 fedtermhub.py:8846 qtui/settings_dialog.py:96
+#: fedtermhub.py:3961 fedtermhub.py:5022 fedtermhub.py:8846 qtui/settings_dialog.py:102
 msgid "Sicurezza"
 msgstr "Security"
 
@@ -1389,11 +1389,11 @@ msgstr "New folder"
 msgid "Sposta"
 msgstr "Move"
 
-#: fedtermhub.py:4424 fedtermhub.py:5117 qtui/session_dialog.py:45
+#: fedtermhub.py:4424 fedtermhub.py:5117 qtui/session_dialog.py:43
 msgid "Seriale"
 msgstr "Serial"
 
-#: fedtermhub.py:4426 fedtermhub.py:5161 fedtermhub.py:11951 qtui/connect.py:150
+#: fedtermhub.py:4426 fedtermhub.py:5161 fedtermhub.py:11951 qtui/connect.py:158
 msgid "Comando"
 msgstr "Command"
 
@@ -1401,7 +1401,7 @@ msgstr "Command"
 msgid "Nome visibile nella lista sessioni"
 msgstr "Name shown in the session list"
 
-#: fedtermhub.py:4499 qtui/session_dialog.py:82
+#: fedtermhub.py:4499 qtui/session_dialog.py:88
 msgid "(nessuna credenziale collegata)"
 msgstr "(no credential linked)"
 
@@ -1413,7 +1413,7 @@ msgstr "Jump host, saved SSH tunnels and RD Gateway. Open only when needed."
 msgid "Seleziona un tunnel SSH"
 msgstr "Select an SSH tunnel"
 
-#: fedtermhub.py:4581 qtui/session_dialog.py:117
+#: fedtermhub.py:4581 qtui/session_dialog.py:173
 msgid "Jump host"
 msgstr "Jump host"
 
@@ -1425,7 +1425,7 @@ msgstr "SSH port"
 msgid "utente sul bastion"
 msgstr "user on the bastion"
 
-#: fedtermhub.py:4603 qtui/session_dialog.py:147
+#: fedtermhub.py:4603 qtui/session_dialog.py:171
 msgid "Server RD Gateway"
 msgstr "RD Gateway server"
 
@@ -1465,7 +1465,7 @@ msgstr "Remote shell in an integrated VTE tab."
 msgid "Host/IP"
 msgstr "Host/IP"
 
-#: fedtermhub.py:4773 qtui/session_dialog.py:71
+#: fedtermhub.py:4773 qtui/session_dialog.py:74
 msgid "es. 192.168.1.10 oppure server.dominio.local"
 msgstr "e.g. 192.168.1.10 or server.domain.local"
 
@@ -1493,7 +1493,7 @@ msgstr "192.168.1.20 or pc.domain.local"
 msgid "utente Windows"
 msgstr "Windows user"
 
-#: fedtermhub.py:4810 qtui/session_dialog.py:80
+#: fedtermhub.py:4810 qtui/session_dialog.py:86
 msgid "AZIENDA oppure vuoto"
 msgstr "COMPANY or empty"
 
@@ -1905,7 +1905,7 @@ msgstr "Quick connect…"
 msgid "Nascondi pannello sessioni"
 msgstr "Hide session panel"
 
-#: fedtermhub.py:8176 qtui/main_window.py:225
+#: fedtermhub.py:8176 qtui/main_window.py:333
 msgid "Cerca sessioni…"
 msgstr "Search sessions…"
 
@@ -1957,7 +1957,7 @@ msgstr "  fedtermhub --doctor"
 msgid "Cerca nel rapporto diagnostico…"
 msgstr "Search the diagnostic report…"
 
-#: fedtermhub.py:8469 native_rdp.py:409 network_tools.py:1491 remote_files.py:998
+#: fedtermhub.py:8469 native_rdp.py:409 network_tools.py:1491 qtui/files_panel.py:131
 msgid "Aggiorna"
 msgstr "Refresh"
 
@@ -2065,11 +2065,11 @@ msgstr ""
 msgid "host non impostato"
 msgstr "host not set"
 
-#: fedtermhub.py:10990 qtui/main_window.py:606
+#: fedtermhub.py:10990 qtui/main_window.py:717
 msgid "Password Manager creato e sbloccato."
 msgstr "Password Manager created and unlocked."
 
-#: fedtermhub.py:10990 qtui/main_window.py:619
+#: fedtermhub.py:10990 qtui/main_window.py:730
 msgid "Password Manager sbloccato."
 msgstr "Password Manager unlocked."
 
@@ -2077,7 +2077,7 @@ msgstr "Password Manager unlocked."
 msgid "Password bloccate: la master password verrà richiesta al prossimo uso."
 msgstr "Passwords locked: the master password will be asked next time."
 
-#: fedtermhub.py:11202 model.py:1391
+#: fedtermhub.py:11202 model.py:1395
 msgid "Locale"
 msgstr "Local"
 
@@ -2297,7 +2297,7 @@ msgstr "No session uses it. Deleting cannot be undone."
 msgid "Master password cambiata. Le credenziali sono state cifrate di nuovo."
 msgstr "Master password changed. The credentials have been encrypted again."
 
-#: fedtermhub.py:2615 fedtermhub.py:3055 fedtermhub.py:3156 model.py:1338
+#: fedtermhub.py:2615 fedtermhub.py:3055 fedtermhub.py:3156 model.py:1342
 msgid "Tunnel SSH"
 msgstr "SSH tunnel"
 
@@ -2389,11 +2389,11 @@ msgstr "Local and remote forwards and SOCKS proxies in one view."
 msgid "0 tunnel"
 msgstr "0 tunnels"
 
-#: fedtermhub.py:3201
+#: fedtermhub.py:3201 qtui/tunnels.py:507
 msgid "Nuovo"
 msgstr "New"
 
-#: fedtermhub.py:3231
+#: fedtermhub.py:3231 qtui/tunnels.py:396 qtui/tunnels.py:497
 msgid "Tipo"
 msgstr "Type"
 
@@ -2437,7 +2437,7 @@ msgstr "Start / Stop"
 msgid "Crea sessione collegata"
 msgstr "Create linked session"
 
-#: fedtermhub.py:3506 fedtermhub.py:11368 qtui/main_window.py:459
+#: fedtermhub.py:3506 fedtermhub.py:11368 qtui/main_window.py:570
 msgid "{name} copia"
 msgstr "{name} copy"
 
@@ -2597,7 +2597,7 @@ msgstr "Restore the default settings?"
 msgid "Impostazioni applicate. La nuova lingua sarà attiva dal prossimo avvio di FedTermHub."
 msgstr "Settings applied. The new language will be active from the next start of FedTermHub."
 
-#: fedtermhub.py:4139 qtui/main_window.py:807
+#: fedtermhub.py:4139 qtui/main_window.py:1034
 msgid "Impostazioni applicate"
 msgstr "Settings applied"
 
@@ -2645,7 +2645,7 @@ msgstr "System info"
 msgid "Il colore viene salvato insieme alla cartella."
 msgstr "The colour is saved with the folder."
 
-#: fedtermhub.py:4389 qtui/main_window.py:474
+#: fedtermhub.py:4389 qtui/main_window.py:585
 msgid "Sposta in cartella"
 msgstr "Move to folder"
 
@@ -2741,7 +2741,7 @@ msgstr "Open directly in full screen"
 msgid "La scelta viene usata anche premendo Schermo intero o F11. Se il monitor non è collegato, FedTermHub usa il monitor corrente o quello principale."
 msgstr "The choice is also used when you press Full screen or F11. If the monitor is not connected, FedTermHub uses the current or the primary monitor."
 
-#: fedtermhub.py:4967 qtui/session_dialog.py:151
+#: fedtermhub.py:4967 qtui/session_dialog.py:210
 msgid "Cartella condivisa"
 msgstr "Shared folder"
 
@@ -2765,7 +2765,7 @@ msgstr "Microphone"
 msgid "Stampante predefinita"
 msgstr "Default printer"
 
-#: fedtermhub.py:4990 qtui/session_dialog.py:133
+#: fedtermhub.py:4990 qtui/session_dialog.py:196
 msgid "Smart card"
 msgstr "Smart card"
 
@@ -3109,7 +3109,7 @@ msgstr "The server certificate was not accepted."
 msgid "Sessione RDP chiusa"
 msgstr "RDP session closed"
 
-#: fedtermhub.py:7115 qtui/rdp_tab.py:305
+#: fedtermhub.py:7115 qtui/rdp_tab.py:482
 msgid "Sessione chiusa"
 msgstr "Session closed"
 
@@ -3161,7 +3161,7 @@ msgstr "Command bar shown"
 msgid "Barra comandi nascosta"
 msgstr "Command bar hidden"
 
-#: fedtermhub.py:8005 fedtermhub.py:8057 fedtermhub.py:8832 qtui/main_window.py:205
+#: fedtermhub.py:8005 fedtermhub.py:8057 fedtermhub.py:8832 qtui/main_window.py:313
 msgid "Strumenti"
 msgstr "Tools"
 
@@ -3169,7 +3169,7 @@ msgstr "Tools"
 msgid "Vista"
 msgstr "View"
 
-#: fedtermhub.py:8035 qtui/main_window.py:208
+#: fedtermhub.py:8035 qtui/main_window.py:316
 msgid "Aiuto"
 msgstr "Help"
 
@@ -3189,7 +3189,7 @@ msgstr "Hide/show panel"
 msgid "Log applicazione"
 msgstr "Application log"
 
-#: fedtermhub.py:8010 fedtermhub.py:8098 fedtermhub.py:8848 qtui/main_window.py:184
+#: fedtermhub.py:8010 fedtermhub.py:8098 fedtermhub.py:8848 qtui/main_window.py:288
 msgid "Blocca password"
 msgstr "Lock passwords"
 
@@ -3197,11 +3197,11 @@ msgstr "Lock passwords"
 msgid "Nuova sessione"
 msgstr "New session"
 
-#: fedtermhub.py:8318 qtui/main_window.py:240
+#: fedtermhub.py:8318 qtui/main_window.py:348
 msgid "Doppio clic per aprire una sessione"
 msgstr "Double-click to open a session"
 
-#: fedtermhub.py:8334 qtui/main_window.py:261
+#: fedtermhub.py:8334 qtui/main_window.py:372
 msgid "Pronto."
 msgstr "Ready."
 
@@ -3497,7 +3497,7 @@ msgstr " (it will stay unlocked while the app is open)."
 msgid "Password Manager chiuso: resta sbloccato finché non lo blocchi o scade il tempo."
 msgstr "Password Manager closed: it stays unlocked until you lock it or the time runs out."
 
-#: fedtermhub.py:11013 qtui/main_window.py:630
+#: fedtermhub.py:11013 qtui/main_window.py:741
 msgid "Password bloccate."
 msgstr "Passwords locked."
 
@@ -3513,7 +3513,7 @@ msgstr "FedTermHub will create a credential that can be reused by other sessions
 msgid "Scrivi utente@host[:porta], rdp:host, vnc:host, telnet:host o serial:/dev/ttyUSB0@115200 e premi Invio."
 msgstr "Type user@host[:port], rdp:host, vnc:host, telnet:host or serial:/dev/ttyUSB0@115200 and press Enter."
 
-#: fedtermhub.py:11324 qtui/main_window.py:432
+#: fedtermhub.py:11324 qtui/main_window.py:543
 msgid "Seleziona una sessione o cartella da modificare."
 msgstr "Select a session or folder to edit."
 
@@ -3537,19 +3537,19 @@ msgstr "Import Home Session"
 msgid "Le sessioni attuali verranno sostituite dalla Home Session importata. Le password salvate non vengono modificate."
 msgstr "The current sessions will be replaced by the imported Home Session. Saved passwords are not changed."
 
-#: fedtermhub.py:11464 qtui/main_window.py:521
+#: fedtermhub.py:11464 qtui/main_window.py:632
 msgid "Esporta cartella o sessione"
 msgstr "Export folder or session"
 
-#: fedtermhub.py:11475 qtui/main_window.py:532
+#: fedtermhub.py:11475 qtui/main_window.py:643
 msgid "Importa in cartella selezionata"
 msgstr "Import into the selected folder"
 
-#: fedtermhub.py:8008 fedtermhub.py:11510 qtui/main_window.py:188 qtui/main_window.py:556
+#: fedtermhub.py:8008 fedtermhub.py:11510 qtui/main_window.py:296 qtui/main_window.py:667
 msgid "Esporta backup cifrato delle password"
 msgstr "Export encrypted password backup"
 
-#: fedtermhub.py:8009 fedtermhub.py:11528 qtui/main_window.py:189 qtui/main_window.py:566
+#: fedtermhub.py:8009 fedtermhub.py:11528 qtui/main_window.py:297 qtui/main_window.py:677
 msgid "Importa backup cifrato delle password"
 msgstr "Import encrypted password backup"
 
@@ -3577,7 +3577,7 @@ msgstr "Import FedTermHub settings"
 msgid "Seleziona una sessione o cartella da eliminare."
 msgstr "Select a session or folder to delete."
 
-#: fedtermhub.py:11641 model.py:1209
+#: fedtermhub.py:11641 model.py:1213
 msgid "Home Session non può essere eliminata."
 msgstr "Home Session cannot be deleted."
 
@@ -3585,11 +3585,11 @@ msgstr "Home Session cannot be deleted."
 msgid "Seleziona una sessione o cartella da spostare."
 msgstr "Select a session or folder to move."
 
-#: fedtermhub.py:11677 model.py:1241
+#: fedtermhub.py:11677 model.py:1245
 msgid "Home Session non può essere spostata."
 msgstr "Home Session cannot be moved."
 
-#: fedtermhub.py:11829 qtui/main_window.py:677
+#: fedtermhub.py:11829 qtui/main_window.py:808
 msgid "Sessione non valida"
 msgstr "Invalid session"
 
@@ -3601,19 +3601,19 @@ msgstr ""
 msgid "ControlPersist=600"
 msgstr ""
 
-#: fedtermhub.py:11897 qtui/connect.py:127
+#: fedtermhub.py:11897 qtui/connect.py:135
 msgid "Host SSH mancante."
 msgstr "SSH host missing."
 
-#: fedtermhub.py:11906 fedtermhub.py:12686 qtui/connect.py:131
+#: fedtermhub.py:11906 fedtermhub.py:12686 qtui/connect.py:139
 msgid "Jump host incompleto"
 msgstr "Incomplete jump host"
 
-#: fedtermhub.py:11907 fedtermhub.py:12687 qtui/connect.py:131
+#: fedtermhub.py:11907 fedtermhub.py:12687 qtui/connect.py:139
 msgid "Compila il server jump host nella sezione Instradamento avanzato."
 msgstr "Fill in the jump host server in the Advanced routing section."
 
-#: fedtermhub.py:11936 qtui/connect.py:161 qtui/connect.py:164
+#: fedtermhub.py:11936
 msgid "Client Telnet non installato"
 msgstr "Telnet client not installed"
 
@@ -3621,7 +3621,7 @@ msgstr "Telnet client not installed"
 msgid "Per le sessioni Telnet serve il client telnet."
 msgstr "Telnet sessions need the telnet client."
 
-#: fedtermhub.py:11947 qtui/connect.py:146
+#: fedtermhub.py:11947 qtui/connect.py:154
 msgid "Comando mancante."
 msgstr "Command missing."
 
@@ -3905,7 +3905,7 @@ msgstr "Remote clients reach the port opened on the SSH server; the traffic is b
 msgid "Il client locale si collega alla porta indicata e raggiunge il servizio di destinazione attraverso il server SSH."
 msgstr "The local client connects to the given port and reaches the destination service through the SSH server."
 
-#: fedtermhub.py:3116 qtui/session_dialog.py:212
+#: fedtermhub.py:3116 qtui/session_dialog.py:336 qtui/tunnels.py:473
 msgid "Correggi prima: "
 msgstr "Fix first: "
 
@@ -3943,7 +3943,7 @@ msgstr ""
 msgid "Strumenti rapidi di rete e sistema"
 msgstr "Quick network and system tools"
 
-#: fedtermhub.py:4352 qtui/main_window.py:422 qtui/main_window.py:439
+#: fedtermhub.py:4352 qtui/main_window.py:533 qtui/main_window.py:550
 msgid "Nome cartella"
 msgstr "Folder name"
 
@@ -3955,7 +3955,7 @@ msgstr "Icon colour"
 msgid "Nuova connessione"
 msgstr "New connection"
 
-#: fedtermhub.py:4482 network_tools.py:1503 network_tools.py:1812 qtui/session_dialog.py:95
+#: fedtermhub.py:4482 network_tools.py:1503 network_tools.py:1812 qtui/net_tools.py:298
 msgid "Protocollo"
 msgstr "Protocol"
 
@@ -4035,7 +4035,7 @@ msgstr "Full-screen monitor"
 msgid "Schermo"
 msgstr "Screen"
 
-#: fedtermhub.py:4949 qtui/session_dialog.py:179
+#: fedtermhub.py:4949 qtui/session_dialog.py:256
 msgid "Scegli la cartella da condividere nella sessione RDP"
 msgstr "Choose the folder to share in the RDP session"
 
@@ -4075,7 +4075,7 @@ msgstr "The separate window uses /args-from:fd so the password is not exposed in
 msgid "Avvia xfreerdp fullscreen sul monitor selezionato lasciando FedTermHub disponibile."
 msgstr "Start xfreerdp in full screen on the selected monitor, leaving FedTermHub available."
 
-#: fedtermhub.py:5140
+#: fedtermhub.py:5140 qtui/session_dialog.py:116
 msgid "Porta seriale"
 msgstr "Serial port"
 
@@ -4087,7 +4087,7 @@ msgstr "Baud rate"
 msgid "Data bits"
 msgstr "Data bits"
 
-#: fedtermhub.py:5147
+#: fedtermhub.py:5147 qtui/session_dialog.py:138
 msgid "Parità"
 msgstr "Parity"
 
@@ -4317,7 +4317,7 @@ msgstr "Closing RDP…"
 msgid "Richiesta chiusura inviata a FreeRDP.\n"
 msgstr "Close request sent to FreeRDP.\n"
 
-#: fedtermhub.py:8146
+#: fedtermhub.py:8146 qtui/main_window.py:292
 msgid "File remoti"
 msgstr "Remote files"
 
@@ -4521,7 +4521,7 @@ msgstr "Process ended with code {code}."
 msgid "SERIALE  {v} @ {v2} {serial_databits}{serial_parity}{serial_stopbits}"
 msgstr "SERIAL  {v} @ {v2} {serial_databits}{serial_parity}{serial_stopbits}"
 
-#: fedtermhub.py:10980 qtui/main_window.py:613
+#: fedtermhub.py:10980 qtui/main_window.py:724
 msgid "Password errata. Riprova."
 msgstr "Wrong password. Try again."
 
@@ -4529,7 +4529,7 @@ msgstr "Wrong password. Try again."
 msgid "Le password sono già bloccate."
 msgstr "The passwords are already locked."
 
-#: fedtermhub.py:11035 qtui/main_window.py:649
+#: fedtermhub.py:11035 qtui/main_window.py:760
 msgid "Password bloccate automaticamente per inattività"
 msgstr "Passwords locked automatically after inactivity"
 
@@ -4553,15 +4553,15 @@ msgstr "Error while saving the password"
 msgid "Sessione aggiunta in fondo all'elenco: {name} — trascinala in una cartella se vuoi."
 msgstr "Session added at the end of the list: {name} — drag it into a folder if you like."
 
-#: fedtermhub.py:11329 qtui/main_window.py:437
+#: fedtermhub.py:11329 qtui/main_window.py:548
 msgid "Home Session è la cartella principale e non può essere rinominata."
 msgstr "Home Session is the main folder and cannot be renamed."
 
-#: fedtermhub.py:11331 qtui/main_window.py:439
+#: fedtermhub.py:11331 qtui/main_window.py:550
 msgid "Modifica cartella"
 msgstr "Edit folder"
 
-#: fedtermhub.py:11375 qtui/main_window.py:464
+#: fedtermhub.py:11375 qtui/main_window.py:575
 msgid "Duplicato: {name}"
 msgstr "Duplicated: {name}"
 
@@ -4577,23 +4577,23 @@ msgstr "Invalid credentials file."
 msgid "Il file non contiene impostazioni FedTermHub riconoscibili."
 msgstr "The file contains no recognisable FedTermHub settings."
 
-#: fedtermhub.py:11651 qtui/main_window.py:493
+#: fedtermhub.py:11651 qtui/main_window.py:604
 msgid "Eliminare la cartella «{name}» con {join_parts}?"
 msgstr "Delete the folder «{name}» with {join_parts}?"
 
-#: fedtermhub.py:2484 fedtermhub.py:11653 qtui/main_window.py:496 qtui/vault_dialogs.py:445
+#: fedtermhub.py:2484 fedtermhub.py:11653 qtui/main_window.py:607 qtui/tunnels.py:600
 msgid "Eliminare «{name}»?"
 msgstr "Delete «{name}»?"
 
-#: fedtermhub.py:11668 qtui/main_window.py:501
+#: fedtermhub.py:11668 qtui/main_window.py:612
 msgid "Eliminato: {name}"
 msgstr "Deleted: {name}"
 
-#: fedtermhub.py:11786
+#: fedtermhub.py:11786 qtui/main_window.py:818
 msgid "Tunnel richiesto non trovato"
 msgstr "Requested tunnel not found"
 
-#: fedtermhub.py:11854 qtui/main_window.py:702
+#: fedtermhub.py:11854 qtui/main_window.py:864
 msgid "Errore apertura sessione"
 msgstr "Error while opening the session"
 
@@ -4625,7 +4625,7 @@ msgstr "Fill in the RD Gateway server in the Advanced routing section."
 msgid "Server RD Gateway mancante"
 msgstr "RD Gateway server missing"
 
-#: fedtermhub.py:12139 model.py:1047
+#: fedtermhub.py:12139 model.py:1051
 msgid "utente"
 msgstr "user"
 
@@ -4693,7 +4693,7 @@ msgstr "Preparing the embedded RDP session."
 msgid "Log VNC {name}"
 msgstr "VNC log {name}"
 
-#: fedtermhub.py:12768 qtui/rdp_tab.py:288
+#: fedtermhub.py:12768 qtui/rdp_tab.py:462
 msgid "Sessione attiva"
 msgstr "Session active"
 
@@ -4895,7 +4895,7 @@ msgstr ""
 msgid "[FedTermHub] Finestra RDP indipendente fullscreen sul monitor disponibile.\n"
 msgstr "[FedTermHub] Separate full-screen RDP window on the available monitor.\n"
 
-#: fedtermhub.py:7965 qtui/main_window.py:191
+#: fedtermhub.py:7965 qtui/main_window.py:299
 msgid "Esci"
 msgstr "Quit"
 
@@ -4951,11 +4951,11 @@ msgstr "Collapse folders"
 msgid "Apri impostazioni"
 msgstr "Open settings"
 
-#: fedtermhub.py:8036 fedtermhub.py:8854 qtui/main_window.py:193
+#: fedtermhub.py:8036 fedtermhub.py:8854 qtui/main_window.py:301
 msgid "Guida"
 msgstr "User guide"
 
-#: fedtermhub.py:8038 fedtermhub.py:8856 qtui/main_window.py:192
+#: fedtermhub.py:8038 fedtermhub.py:8856 qtui/main_window.py:300
 msgid "Informazioni"
 msgstr "About"
 
@@ -4971,7 +4971,7 @@ msgstr "NOT AVAILABLE"
 msgid "Rapporto diagnostico esportato."
 msgstr "Diagnostic report exported."
 
-#: fedtermhub.py:8592 qtui/main_window.py:822
+#: fedtermhub.py:8592 qtui/main_window.py:1049
 msgid "Informazioni su {APP_NAME}"
 msgstr "About {APP_NAME}"
 
@@ -4991,7 +4991,7 @@ msgstr ""
 msgid "Ctrl+L"
 msgstr ""
 
-#: fedtermhub.py:8643 qtui/main_window.py:178 qtui/main_window.py:279 qtui/main_window.py:709
+#: fedtermhub.py:8643 qtui/main_window.py:282 qtui/main_window.py:390 qtui/main_window.py:871
 msgid "Connessione rapida"
 msgstr "Quick connection"
 
@@ -5003,7 +5003,7 @@ msgstr ""
 msgid "Ctrl+W"
 msgstr ""
 
-#: fedtermhub.py:8645 native_rdp.py:553 qtui/main_window.py:190
+#: fedtermhub.py:8645 native_rdp.py:553 qtui/main_window.py:298
 msgid "Chiudi la scheda"
 msgstr "Close the tab"
 
@@ -5035,7 +5035,7 @@ msgstr ""
 msgid "Ctrl+,"
 msgstr ""
 
-#: fedtermhub.py:8651 native_rdp.py:402 qtui/rdp_tab.py:93
+#: fedtermhub.py:8651 native_rdp.py:402 qtui/rdp_tab.py:234 qtui/vnc_tab.py:109
 msgid "Schermo intero"
 msgstr "Full screen"
 
@@ -5201,7 +5201,7 @@ msgstr "{blocked} automatic tunnels are waiting for the Password Manager to be u
 msgid "Configurazione non valida: {message}"
 msgstr "Invalid configuration: {message}"
 
-#: fedtermhub.py:9665
+#: fedtermhub.py:9665 qtui/tunnels.py:167
 msgid "Avvio: {command}"
 msgstr "Starting: {command}"
 
@@ -5229,11 +5229,11 @@ msgstr "{label} is empty: nothing to copy."
 msgid "{label} copiato negli appunti"
 msgstr "{label} copied to the clipboard"
 
-#: fedtermhub.py:11094 qtui/session_dialog.py:153
+#: fedtermhub.py:11094 qtui/session_dialog.py:179
 msgid "Gateway"
 msgstr "Gateway"
 
-#: fedtermhub.py:11097
+#: fedtermhub.py:11097 qtui/session_dialog.py:177
 msgid "Tunnel"
 msgstr "Tunnel"
 
@@ -5249,7 +5249,7 @@ msgstr "RDP credential created by FedTermHub for {host}"
 msgid "Cartella creata in {folder_label}: {name}"
 msgstr "Folder created in {folder_label}: {name}"
 
-#: fedtermhub.py:11355 qtui/main_window.py:451
+#: fedtermhub.py:11355 qtui/main_window.py:562
 msgid "Sessione aggiornata: {name}"
 msgstr "Session updated: {name}"
 
@@ -5261,23 +5261,23 @@ msgstr "Home Session exported to {name}"
 msgid "Home Session importata da {name}"
 msgstr "Home Session imported from {name}"
 
-#: fedtermhub.py:11468 qtui/main_window.py:527
+#: fedtermhub.py:11468 qtui/main_window.py:638
 msgid "Esportato: {name} → {name2}"
 msgstr "Exported: {name} → {name2}"
 
-#: fedtermhub.py:11487 qtui/main_window.py:547
+#: fedtermhub.py:11487 qtui/main_window.py:658
 msgid "Importato '{name}' in {folder_label}"
 msgstr "Imported '{name}' into {folder_label}"
 
-#: fedtermhub.py:11518 qtui/main_window.py:562
+#: fedtermhub.py:11518 qtui/main_window.py:673
 msgid "Backup cifrato di {n_credentials} credenziali salvato in {name}"
 msgstr "Encrypted backup of {n_credentials} credentials saved in {name}"
 
-#: fedtermhub.py:11541 qtui/main_window.py:580
+#: fedtermhub.py:11541 qtui/main_window.py:691
 msgid "Password errata per questo backup. Riprova."
 msgstr "Wrong password for this backup. Try again."
 
-#: fedtermhub.py:11581 qtui/main_window.py:590
+#: fedtermhub.py:11581 qtui/main_window.py:701
 msgid "Importate {n_imported} credenziali da {name}"
 msgstr "Imported {n_imported} credentials from {name}"
 
@@ -5285,7 +5285,7 @@ msgstr "Imported {n_imported} credentials from {name}"
 msgid "Impostazioni importate da {name}"
 msgstr "Settings imported from {name}"
 
-#: fedtermhub.py:11648 qtui/main_window.py:494
+#: fedtermhub.py:11648 qtui/main_window.py:605
 msgid "1 sessione"
 msgstr "1 session"
 
@@ -5297,7 +5297,7 @@ msgstr "1 subfolder"
 msgid "Spostato '{name}' in {folder_label}"
 msgstr "Moved '{name}' to {folder_label}"
 
-#: fedtermhub.py:11830 qtui/main_window.py:678
+#: fedtermhub.py:11830 qtui/main_window.py:809
 msgid "«{name}»: {problem}. Correggila con Modifica sessione."
 msgstr "«{name}»: {problem}. Fix it with Edit session."
 
@@ -5325,7 +5325,7 @@ msgstr ""
 msgid "Sessione: {name}"
 msgstr "Session: {name}"
 
-#: fedtermhub.py:9303 fedtermhub.py:11235 fedtermhub.py:11943 qtui/connect.py:167
+#: fedtermhub.py:9303 fedtermhub.py:11235 fedtermhub.py:11943 qtui/connect.py:176
 msgid "Telnet {host}"
 msgstr ""
 
@@ -5485,7 +5485,7 @@ msgstr "[FedTermHub] Monitors cannot be enumerated: automatic full screen.\n"
 msgid "RDP a schermo intero su {requested_label}{fallback_note} — porta il mouse in alto oppure premi F11/Esc per uscire"
 msgstr "RDP in full screen on {requested_label}{fallback_note} — move the mouse to the top or press F11/Esc to leave"
 
-#: fedtermhub.py:13758 qtui/main_window.py:780
+#: fedtermhub.py:13758 qtui/main_window.py:1006
 msgid "Chiudere FedTermHub?"
 msgstr "Close FedTermHub?"
 
@@ -5509,7 +5509,7 @@ msgstr "Tunnel saved: {name}"
 msgid "Impossibile copiare il comando: {exc}"
 msgstr "Cannot copy the command: {exc}"
 
-#: fedtermhub.py:3656 qtui/main_window.py:419
+#: fedtermhub.py:3656 qtui/main_window.py:530 qtui/main_window.py:942
 msgid "Sessione creata: {name}"
 msgstr "Session created: {name}"
 
@@ -5521,7 +5521,7 @@ msgstr "Cannot open the folder: {exc}"
 msgid "_Invia a {count}"
 msgstr "_Send to {count}"
 
-#: fedtermhub.py:4460 qtui/session_dialog.py:57
+#: fedtermhub.py:4460 qtui/session_dialog.py:60
 msgid "Modifica: {name}"
 msgstr "Edit: {name}"
 
@@ -5717,11 +5717,11 @@ msgstr "Home Session export error: {exc}"
 msgid "Errore import Home Session: {exc}"
 msgstr "Home Session import error: {exc}"
 
-#: fedtermhub.py:11470 qtui/main_window.py:529
+#: fedtermhub.py:11470 qtui/main_window.py:640
 msgid "Errore export selezione: {exc}"
 msgstr "Selection export error: {exc}"
 
-#: fedtermhub.py:11489 qtui/main_window.py:538
+#: fedtermhub.py:11489 qtui/main_window.py:649
 msgid "Errore import in cartella: {exc}"
 msgstr "Error importing into the folder: {exc}"
 
@@ -5749,7 +5749,7 @@ msgstr "Settings export error: {exc}"
 msgid "Errore importazione impostazioni: {exc}"
 msgstr "Settings import error: {exc}"
 
-#: fedtermhub.py:11699 qtui/main_window.py:482
+#: fedtermhub.py:11699 qtui/main_window.py:593
 msgid "Errore spostamento: {exc}"
 msgstr "Error while moving: {exc}"
 
@@ -5881,7 +5881,7 @@ msgstr "Error while closing RDP: {exc}"
 msgid " Fallback monitor applicato.\n"
 msgstr " Monitor fallback applied.\n"
 
-#: fedtermhub.py:7517 qtui/main_window.py:160
+#: fedtermhub.py:7517 qtui/main_window.py:262
 msgid "Sessioni non leggibili"
 msgstr "Sessions cannot be read"
 
@@ -5913,11 +5913,11 @@ msgstr "Cannot create the password vault: {exc}"
 msgid "Impossibile aprire l'archivio delle password: {exc}"
 msgstr "Cannot open the password vault: {exc}"
 
-#: fedtermhub.py:11482 model.py:1017 qtui/main_window.py:544
+#: fedtermhub.py:11482 model.py:1021 qtui/main_window.py:655
 msgid "Import {stem}"
 msgstr ""
 
-#: fedtermhub.py:11543 qtui/main_window.py:572
+#: fedtermhub.py:11543 qtui/main_window.py:683
 msgid "Il file non è un backup valido: {exc}"
 msgstr "The file is not a valid backup: {exc}"
 
@@ -5925,7 +5925,7 @@ msgstr "The file is not a valid backup: {exc}"
 msgid "{name} (importata)"
 msgstr "{name} (imported)"
 
-#: fedtermhub.py:11648 qtui/main_window.py:494
+#: fedtermhub.py:11648 qtui/main_window.py:605
 msgid "{sessions} sessioni"
 msgstr "{sessions} sessions"
 
@@ -5933,7 +5933,7 @@ msgstr "{sessions} sessions"
 msgid "{folders} sottocartelle"
 msgstr "{folders} subfolders"
 
-#: fedtermhub.py:11806
+#: fedtermhub.py:11806 qtui/main_window.py:829
 msgid "Impossibile avviare il tunnel"
 msgstr "Cannot start the tunnel"
 
@@ -6045,7 +6045,7 @@ msgstr "[FedTermHub] Full screen requested on {label}."
 msgid "<span weight=\"bold\">{markup_escape_text}</span>"
 msgstr ""
 
-#: fedtermhub.py:11801
+#: fedtermhub.py:11801 qtui/main_window.py:826
 msgid "Tunnel pronto: {name}"
 msgstr "Tunnel ready: {name}"
 
@@ -6069,55 +6069,55 @@ msgstr ""
 msgid "Protocollo non gestito: {proto}"
 msgstr "Protocol not handled: {proto}"
 
-#: model.py:1299
+#: model.py:1303 qtui/tunnels.py:332
 msgid "Nuovo tunnel"
 msgstr "New tunnel"
 
-#: model.py:887 model.py:912
+#: model.py:891 model.py:916
 msgid "porta"
 msgstr "port"
 
-#: model.py:928
+#: model.py:932
 msgid "manca il comando da eseguire"
 msgstr "the command to run is missing"
 
-#: model.py:936
+#: model.py:940
 msgid "Giallo"
 msgstr "Yellow"
 
-#: model.py:937
+#: model.py:941
 msgid "Blu"
 msgstr "Blue"
 
-#: model.py:938
+#: model.py:942
 msgid "Azzurro"
 msgstr "Light blue"
 
-#: model.py:939
+#: model.py:943
 msgid "Verde"
 msgstr "Green"
 
-#: model.py:940
+#: model.py:944
 msgid "Arancione"
 msgstr "Orange"
 
-#: model.py:941
+#: model.py:945
 msgid "Rosso"
 msgstr "Red"
 
-#: model.py:942
+#: model.py:946
 msgid "Viola"
 msgstr "Purple"
 
-#: model.py:943
+#: model.py:947
 msgid "Rosa"
 msgstr "Pink"
 
-#: model.py:944
+#: model.py:948
 msgid "Grigio"
 msgstr "Grey"
 
-#: model.py:1018
+#: model.py:1022
 msgid "Il file non contiene una Home Session, cartella o sessione valida."
 msgstr "The file contains no valid Home Session, folder or session."
 
@@ -6129,19 +6129,19 @@ msgstr "The shared folder contains unsupported characters (comma or line break).
 msgid "Contiene credenziali cifrate. Serve la master password scelta in esportazione."
 msgstr "Contains encrypted credentials. It needs the master password chosen when exporting."
 
-#: model.py:907
+#: model.py:911
 msgid "manca l'host (nome o indirizzo del server)"
 msgstr "the host is missing (server name or address)"
 
-#: model.py:919
+#: model.py:923
 msgid "porta del jump host"
 msgstr "jump host port"
 
-#: model.py:924
+#: model.py:928
 msgid "manca la porta seriale (per esempio /dev/ttyUSB0)"
 msgstr "the serial port is missing (for example /dev/ttyUSB0)"
 
-#: model.py:1401
+#: model.py:1405
 msgid "Destinazione scelta dal client SOCKS"
 msgstr "Destination chosen by the SOCKS client"
 
@@ -6165,7 +6165,7 @@ msgstr "Good"
 msgid "Ottima"
 msgstr "Excellent"
 
-#: model.py:311 qtui/main_window.py:597
+#: model.py:311 qtui/main_window.py:708
 msgid "python3-cryptography non disponibile"
 msgstr "python3-cryptography not available"
 
@@ -6193,51 +6193,51 @@ msgstr "Invalid encrypted file."
 msgid "Payload credenziali non valido."
 msgstr "Invalid credential payload."
 
-#: model.py:892
+#: model.py:896
 msgid "{label} «{value}» non valida: serve un numero da 1 a 65535"
 msgstr "{label} «{value}» is not valid: it must be a number from 1 to 65535"
 
-#: model.py:912
+#: model.py:916
 msgid "display/porta"
 msgstr "display/port"
 
-#: model.py:1024
+#: model.py:1028
 msgid "Terminali"
 msgstr "Terminals"
 
-#: model.py:1028
+#: model.py:1032
 msgid "SSH / Linux"
 msgstr "SSH / Linux"
 
-#: model.py:1040
+#: model.py:1044
 msgid "RDP / Windows"
 msgstr "RDP / Windows"
 
-#: model.py:1053
+#: model.py:1057
 msgid "Seriale / Console"
 msgstr "Serial / Console"
 
-#: model.py:1172
+#: model.py:1176
 msgid "La radice non è un nodo."
 msgstr "The root is not a node."
 
-#: model.py:1185
+#: model.py:1189
 msgid "Il percorso destinazione non è una cartella."
 msgstr "The destination path is not a folder."
 
-#: model.py:1201
+#: model.py:1205
 msgid "Impossibile sostituire la radice."
 msgstr "The root cannot be replaced."
 
-#: model.py:1230
+#: model.py:1234
 msgid "Nodo non trovato dopo lo spostamento."
 msgstr "Node not found after moving."
 
-#: model.py:1246
+#: model.py:1250
 msgid "Una cartella non può essere spostata dentro sé stessa o una sua sottocartella."
 msgstr "A folder cannot be moved into itself or one of its subfolders."
 
-#: model.py:1413
+#: model.py:1417
 msgid "Locale {listen_endpoint} → {destination_endpoint} tramite {ssh_endpoint}"
 msgstr "Local {listen_endpoint} → {destination_endpoint} through {ssh_endpoint}"
 
@@ -6249,79 +6249,79 @@ msgstr "The shared folder does not exist: {expanded}"
 msgid "La cartella condivisa non è una cartella: {expanded}"
 msgstr "The shared folder is not a folder: {expanded}"
 
-#: model.py:909
+#: model.py:913
 msgid "host «{host}» non valido"
 msgstr "host «{host}» is not valid"
 
-#: model.py:911
+#: model.py:915
 msgid "utente «{user}» non valido"
 msgstr "user «{user}» is not valid"
 
-#: model.py:918
+#: model.py:922
 msgid "jump host «{jump}» non valido"
 msgstr "jump host «{jump}» is not valid"
 
-#: model.py:926
+#: model.py:930
 msgid "velocità «{port}» non valida: serve un numero, per esempio 115200"
 msgstr "speed «{port}» is not valid: it must be a number, for example 115200"
 
-#: model.py:1122
+#: model.py:1126
 msgid "Formato sessioni non valido: attesa una lista."
 msgstr "Invalid sessions format: a list was expected."
 
-#: model.py:1176
+#: model.py:1180
 msgid "Percorso non valido: nodo non cartella."
 msgstr "Invalid path: the node is not a folder."
 
-#: model.py:1392
+#: model.py:1396
 msgid "Remoto"
 msgstr "Remote"
 
-#: model.py:1410
+#: model.py:1414
 msgid "SOCKS {listen_endpoint} tramite {ssh_endpoint}"
 msgstr "SOCKS {listen_endpoint} through {ssh_endpoint}"
 
-#: model.py:1412
+#: model.py:1416
 msgid "Remoto {listen_endpoint} → {destination_endpoint} tramite {ssh_endpoint}"
 msgstr "Remote {listen_endpoint} → {destination_endpoint} through {ssh_endpoint}"
 
-#: model.py:1446
+#: model.py:1450
 msgid "Formato tunnel non valido"
 msgstr "Invalid tunnel format"
 
-#: model.py:1145
+#: model.py:1149
 msgid "Il file delle sessioni non era leggibile ({exc}). Ne ho conservato una copia in {backup} e sono ripartito dalle sessioni di esempio."
 msgstr "The sessions file could not be read ({exc}). A copy was kept in {backup} and the example sessions were loaded instead."
 
-#: model.py:1427
+#: model.py:1431
 msgid "Esempio tunnel locale RDP"
 msgstr "Example local RDP tunnel"
 
-#: model.py:1031
+#: model.py:1035
 msgid "Esempio SSH"
 msgstr "SSH example"
 
-#: model.py:1043
+#: model.py:1047
 msgid "Esempio RDP dominio"
 msgstr "Domain RDP example"
 
-#: model.py:1048
+#: model.py:1052
 msgid "DOMINIO"
 msgstr "DOMAIN"
 
-#: model.py:1056
+#: model.py:1060
 msgid "Console seriale USB 115200"
 msgstr "USB serial console 115200"
 
-#: model.py:1131
+#: model.py:1135
 msgid "Importate dalla 0.1"
 msgstr "Imported from 0.1"
 
-#: model.py:1147
+#: model.py:1151
 msgid "File sessioni corrotto, salvato come {backup}: {exc}"
 msgstr "Corrupted sessions file, saved as {backup}: {exc}"
 
-#: model.py:1456
+#: model.py:1460
 msgid "File tunnel corrotto, salvato come {backup}: {exc}"
 msgstr "Corrupted tunnels file, saved as {backup}: {exc}"
 
@@ -6659,7 +6659,7 @@ msgstr "Authorisation denied or cancelled."
 msgid "Condivisione"
 msgstr "Sharing"
 
-#: network_tools.py:2159
+#: network_tools.py:2159 qtui/net_tools.py:302 qtui/net_tools.py:524
 msgid "Porte in ascolto"
 msgstr "Listening ports"
 
@@ -6695,7 +6695,7 @@ msgstr "Start services, publish folders and check their status from a single scr
 msgid "Prepara"
 msgstr "Prepare"
 
-#: network_tools.py:616 qtui/main_window.py:392 remote_files.py:989
+#: network_tools.py:616 qtui/files_panel.py:458 qtui/main_window.py:503 remote_files.py:989
 msgid "Apri"
 msgstr "Open"
 
@@ -6863,7 +6863,7 @@ msgstr "Scanning…"
 msgid "Analizza le porte TCP di un host e identifica i servizi disponibili."
 msgstr "Analyses the TCP ports of a host and identifies the available services."
 
-#: network_tools.py:1792
+#: network_tools.py:1792 qtui/net_tools.py:200 qtui/net_tools.py:493
 msgid "IP o nome host"
 msgstr "IP or host name"
 
@@ -7143,7 +7143,7 @@ msgstr "Common ports"
 msgid "Top 100"
 msgstr "Top 100"
 
-#: network_tools.py:1794
+#: network_tools.py:1794 qtui/net_tools.py:204
 msgid "Intervallo personalizzato"
 msgstr "Custom range"
 
@@ -7159,7 +7159,7 @@ msgstr "Detect services and versions"
 msgid "Considera host attivo (-Pn)"
 msgstr "Treat host as up (-Pn)"
 
-#: network_tools.py:1812
+#: network_tools.py:1812 qtui/net_tools.py:225
 msgid "Servizio"
 msgstr "Service"
 
@@ -7215,7 +7215,7 @@ msgstr "No capture"
 msgid "Esegui prima una cattura pacchetti."
 msgstr "Run a packet capture first."
 
-#: network_tools.py:2180
+#: network_tools.py:2180 qtui/main_window.py:290 qtui/net_tools.py:514 qtui/net_tools.py:550
 msgid "Strumenti di rete"
 msgstr "Network tools"
 
@@ -7315,7 +7315,7 @@ msgstr "Listening"
 msgid "Client autorizzati"
 msgstr "Allowed clients"
 
-#: network_tools.py:965
+#: network_tools.py:965 qtui/files_panel.py:155
 msgid "Permessi"
 msgstr "Permissions"
 
@@ -7371,15 +7371,15 @@ msgstr "Port {port}/tcp opened in {tool}."
 msgid "Firewall VNC"
 msgstr "VNC firewall"
 
-#: network_tools.py:1595
+#: network_tools.py:1595 qtui/net_tools.py:335
 msgid "Indirizzo MAC"
 msgstr "MAC address"
 
-#: network_tools.py:1595
+#: network_tools.py:1595 qtui/net_tools.py:336
 msgid "Broadcast"
 msgstr "Broadcast"
 
-#: network_tools.py:1595
+#: network_tools.py:1595 qtui/net_tools.py:337
 msgid "Porta UDP"
 msgstr "UDP port"
 
@@ -7415,7 +7415,7 @@ msgstr "Nmap produced no results"
 msgid "Nessun host attivo. Verifica la subnet, oppure attiva l'ARP privilegiato."
 msgstr "No active host. Check the subnet or turn on privileged ARP."
 
-#: network_tools.py:1800
+#: network_tools.py:1800 qtui/net_tools.py:210
 msgid "Porte"
 msgstr "Ports"
 
@@ -7755,11 +7755,11 @@ msgstr "Refreshing the remote folder…"
 msgid "Percorso remoto copiato."
 msgstr "Remote path copied."
 
-#: remote_files.py:1018
+#: qtui/files_panel.py:139 remote_files.py:1018
 msgid "Scarica"
 msgstr "Download"
 
-#: remote_files.py:1058
+#: qtui/files_panel.py:138 remote_files.py:1058
 msgid "Carica"
 msgstr "Upload"
 
@@ -7971,131 +7971,131 @@ msgstr "Next match (Enter)"
 msgid "Chiudi ricerca (Esc)"
 msgstr "Close search (Esc)"
 
-#: terminal_panel.py:454
+#: terminal_panel.py:456
 msgid "[FedTermHub] Clipboard: copia richiesta senza selezione attiva."
 msgstr "[FedTermHub] Clipboard: copy requested with no active selection."
 
-#: terminal_panel.py:616
+#: terminal_panel.py:618
 msgid "clear; printf '=== FedTermHub: diagnostica terminale ===\\n'; printf 'griglia VTE   : %s righe, %s colonne\\n' {rows} {columns}; printf 'PTY (stty)    : %s\\n' \"$(stty size 2>/dev/null || echo n/d)\"; printf 'ncurses (tput): %s righe, %s colonne\\n' \"$(tput lines 2>/dev/null)\" \"$(tput cols 2>/dev/null)\"; printf 'TERM          : %s (%s colori)\\n' \"$TERM\" \"$(tput colors 2>/dev/null)\"; printf 'LINES/COLUMNS : [%s] [%s]  (devono essere vuote)\\n' \"$LINES\" \"$COLUMNS\"; printf 'schermo alt.  : %s\\n' \"$(infocmp -1 \\\"$TERM\\\" 2>/dev/null | grep -c smcup)\"; printf 'nano          : %s\\n' \"$(nano --version 2>/dev/null | head -1)\"; printf 'Le tre geometrie devono coincidere.\\n'\n"
 msgstr ""
 
-#: qtui/vault_dialogs.py:288 qtui/vault_dialogs.py:290 qtui/vault_dialogs.py:292 terminal_panel.py:854
+#: qtui/vault_dialogs.py:288 qtui/vault_dialogs.py:290 qtui/vault_dialogs.py:292 terminal_panel.py:856
 msgid "Copia"
 msgstr "Copy"
 
-#: terminal_panel.py:855
+#: terminal_panel.py:857
 msgid "Incolla"
 msgstr "Paste"
 
-#: terminal_panel.py:856
+#: terminal_panel.py:858
 msgid "Seleziona tutto"
 msgstr "Select all"
 
-#: terminal_panel.py:862
+#: terminal_panel.py:864
 msgid "Cerca nello scrollback (Ctrl+Shift+F)"
 msgstr "Search the scrollback (Ctrl+Shift+F)"
 
-#: terminal_panel.py:863
+#: terminal_panel.py:865
 msgid "Apri URL da tastiera — hints (Ctrl+Shift+H)"
 msgstr "Open URL from the keyboard — hints (Ctrl+Shift+H)"
 
-#: terminal_panel.py:864
+#: terminal_panel.py:866
 msgid "Dividi in verticale (Ctrl+Shift+O)"
 msgstr "Split vertically (Ctrl+Shift+O)"
 
-#: terminal_panel.py:865
+#: terminal_panel.py:867
 msgid "Dividi in orizzontale (Ctrl+Shift+E)"
 msgstr "Split horizontally (Ctrl+Shift+E)"
 
-#: terminal_panel.py:866
+#: terminal_panel.py:868
 msgid "Cambia layout (Ctrl+Shift+L)"
 msgstr "Change layout (Ctrl+Shift+L)"
 
-#: terminal_panel.py:867
+#: terminal_panel.py:869
 msgid "Broadcast input on/off (Ctrl+Shift+P)"
 msgstr "Broadcast input on/off (Ctrl+Shift+P)"
 
-#: terminal_panel.py:868
+#: terminal_panel.py:870
 msgid "Chiudi riquadro (Ctrl+Shift+W)"
 msgstr "Close pane (Ctrl+Shift+W)"
 
-#: terminal_panel.py:869
+#: terminal_panel.py:871
 msgid "Aumenta testo"
 msgstr "Larger text"
 
-#: terminal_panel.py:870
+#: terminal_panel.py:872
 msgid "Riduci testo"
 msgstr "Smaller text"
 
-#: terminal_panel.py:871
+#: terminal_panel.py:873
 msgid "Testo predefinito"
 msgstr "Default text size"
 
-#: terminal_panel.py:872
+#: terminal_panel.py:874
 msgid "Pulisci schermata"
 msgstr "Clear screen"
 
-#: terminal_panel.py:873
+#: terminal_panel.py:875
 msgid "Diagnostica terminale"
 msgstr "Terminal diagnostics"
 
-#: terminal_panel.py:874
+#: terminal_panel.py:876
 msgid "Schermo intero (F11)"
 msgstr "Full screen (F11)"
 
-#: terminal_panel.py:1317
+#: terminal_panel.py:1319
 msgid "Broadcast attivo: l'input va a tutti i riquadri"
 msgstr "Broadcast on: input goes to every pane"
 
-#: terminal_panel.py:1317
+#: terminal_panel.py:1319
 msgid "Broadcast disattivato"
 msgstr "Broadcast off"
 
-#: terminal_panel.py:1328
+#: terminal_panel.py:1330
 msgid "Nessun URL visibile per gli hints."
 msgstr "No URL visible for hints."
 
-#: terminal_panel.py:378
+#: terminal_panel.py:380
 msgid "Monospace 11"
 msgstr ""
 
-#: terminal_panel.py:444
+#: terminal_panel.py:446
 msgid "[FedTermHub] Clipboard: {action} fallita: {exc!r}"
 msgstr "[FedTermHub] Clipboard: {action} failed: {exc!r}"
 
-#: terminal_panel.py:463
+#: terminal_panel.py:465
 msgid "copy_clipboard (fallback)"
 msgstr ""
 
-#: terminal_panel.py:1173
+#: terminal_panel.py:1175
 msgid "Layout: {layout}"
 msgstr ""
 
-#: terminal_panel.py:1336
+#: terminal_panel.py:1338
 msgid "Hints: premi la lettera per aprire ({n_uris} URL) · Esc annulla"
 msgstr "Hints: press the letter to open ({n_uris} URLs) · Esc cancels"
 
-#: terminal_panel.py:1372
+#: terminal_panel.py:1374
 msgid "<span background='#facc15' foreground='#111111'> {markup_escape_text} </span>  <span foreground='#dbeafe'>{markup_escape_text2}</span>"
 msgstr ""
 
-#: terminal_panel.py:484
+#: terminal_panel.py:486
 msgid "paste fallback via Gtk.Clipboard"
 msgstr ""
 
-#: terminal_panel.py:859
+#: terminal_panel.py:861
 msgid "Apri link: {v}"
 msgstr "Open link: {v}"
 
-#: terminal_panel.py:480
+#: terminal_panel.py:482
 msgid "[FedTermHub] Clipboard: nessun testo disponibile negli appunti."
 msgstr "[FedTermHub] Clipboard: no text available on the clipboard."
 
-#: qtui/main_window.py:88 terminal_panel.py:339
+#: qtui/main_window.py:181 terminal_panel.py:341
 msgid "Errore avvio processo: {error}"
 msgstr "Process start-up error: {error}"
 
-#: terminal_panel.py:478
+#: terminal_panel.py:480
 msgid "feed_child fallback"
 msgstr ""
 
@@ -8155,7 +8155,7 @@ msgstr "Log off?"
 msgid "Reset forzato della sessione?"
 msgstr "Force a reset of the session?"
 
-#: windows_sessions.py:525
+#: qtui/net_tools.py:339 windows_sessions.py:525
 msgid "Invia"
 msgstr "Send"
 
@@ -8291,223 +8291,699 @@ msgstr ""
 msgid "{command}: exit code {status_code}"
 msgstr ""
 
-#: qtui/connect.py:74
+#: qtui/connect.py:82
 msgid "Prompt dei comandi"
 msgstr "Command Prompt"
 
-#: qtui/connect.py:125
+#: qtui/connect.py:133
 msgid "Client SSH non trovato"
 msgstr "SSH client not found"
 
-#: qtui/connect.py:125
+#: qtui/connect.py:133
 msgid "Installa il pacchetto openssh-client(s)."
 msgstr "Install the openssh-client(s) package."
 
-#: qtui/connect.py:121
+#: qtui/connect.py:167
+msgid "Host Telnet mancante."
+msgstr "Telnet host missing."
+
+#: qtui/connect.py:188
+msgid "Porta seriale mancante."
+msgstr "Serial port missing."
+
+#: qtui/connect.py:129
 msgid "Client OpenSSH di Windows non installato"
 msgstr "Windows OpenSSH Client is not installed"
 
-#: qtui/connect.py:122
+#: qtui/connect.py:130
 msgid "Impostazioni › Sistema › Funzionalità facoltative › Aggiungi «Client OpenSSH», oppure da PowerShell come amministratore: Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0"
 msgstr "Settings › System › Optional features › Add \"OpenSSH Client\", or from PowerShell as administrator: Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0"
 
-#: qtui/connect.py:162
-msgid "Da PowerShell come amministratore: Enable-WindowsOptionalFeature -Online -FeatureName TelnetClient"
-msgstr "From PowerShell as administrator: Enable-WindowsOptionalFeature -Online -FeatureName TelnetClient"
+#: qtui/connect.py:185
+msgid "Modulo pyserial non installato"
+msgstr "pyserial module not installed"
 
-#: qtui/main_window.py:181
+#: qtui/files_panel.py:129
+msgid "Cartella superiore"
+msgstr "Parent folder"
+
+#: qtui/files_panel.py:130
+msgid "Cartella home"
+msgstr "Home folder"
+
+#: qtui/files_panel.py:133
+msgid "Percorso remoto"
+msgstr "Remote path"
+
+#: qtui/files_panel.py:138 qtui/files_panel.py:467
+msgid "Carica file…"
+msgstr "Upload files…"
+
+#: qtui/files_panel.py:139
+msgid "Scarica la selezione…"
+msgstr "Download selection…"
+
+#: qtui/files_panel.py:143
+msgid "Segui"
+msgstr "Follow"
+
+#: qtui/files_panel.py:146
+msgid "Segui la cartella del terminale (cd)"
+msgstr "Follow the terminal's folder (cd)"
+
+#: qtui/files_panel.py:204 qtui/tunnels.py:192
+msgid "Chiave dell'host sconosciuta"
+msgstr "Unknown host key"
+
+#: qtui/files_panel.py:234
+msgid "Password SFTP"
+msgstr "SFTP password"
+
+#: qtui/files_panel.py:403
+msgid "Scarica in"
+msgstr "Download to"
+
+#: qtui/files_panel.py:436
+msgid "Rinomina"
+msgstr "Rename"
+
+#: qtui/files_panel.py:436
+msgid "Nuovo nome:"
+msgstr "New name:"
+
+#: qtui/files_panel.py:447
+msgid "Eliminare dal server?"
+msgstr "Delete from the server?"
+
+#: qtui/files_panel.py:468
+msgid "Nuova cartella…"
+msgstr "New folder…"
+
+#: qtui/files_panel.py:155
+msgid "Dimensione"
+msgstr "Size"
+
+#: qtui/files_panel.py:155
+msgid "Modificato"
+msgstr "Modified"
+
+#: qtui/files_panel.py:213
+msgid "Chiave dell'host non accettata."
+msgstr "Host key not accepted."
+
+#: qtui/files_panel.py:224
+msgid "Il server chiede una password per i file remoti."
+msgstr "The server asks for a password for remote files."
+
+#: qtui/files_panel.py:225
+msgid "Accedi…"
+msgstr "Sign in…"
+
+#: qtui/files_panel.py:240
+msgid "Nessuna chiave accettata dal server e nessuna password."
+msgstr "No key accepted by the server and no password."
+
+#: qtui/files_panel.py:401
+msgid "Seleziona prima i file da scaricare."
+msgstr "Select the files to download first."
+
+#: qtui/files_panel.py:460
+msgid "Scarica…"
+msgstr "Download…"
+
+#: qtui/files_panel.py:462
+msgid "Rinomina…"
+msgstr "Rename…"
+
+#: qtui/files_panel.py:463
+msgid "Copia il percorso"
+msgstr "Copy path"
+
+#: qtui/files_panel.py:465
+msgid "Elimina…"
+msgstr "Delete…"
+
+#: qtui/files_panel.py:177 qtui/files_panel.py:199
+msgid "Connessione a {target}…"
+msgstr "Connecting to {target}…"
+
+#: qtui/files_panel.py:205
+msgid ""
+"È la prima connessione a {host}.\n"
+"\n"
+"Tipo di chiave: {kind}\n"
+"Impronta: {fp}\n"
+"\n"
+"Se l'impronta è quella del server, accettala: verrà salvata in known_hosts (la usa anche il terminale SSH)."
+msgstr ""
+"This is the first connection to {host}.\n"
+"\n"
+"Key type: {kind}\n"
+"Fingerprint: {fp}\n"
+"\n"
+"If the fingerprint is the server's, accept it: it will be saved in known_hosts (the SSH terminal uses it too)."
+
+#: qtui/files_panel.py:234
+msgid "Password per {target}:"
+msgstr "Password for {target}:"
+
+#: qtui/files_panel.py:264
+msgid "Caricamento completato"
+msgstr "Upload complete"
+
+#: qtui/files_panel.py:264
+msgid "Download completato"
+msgstr "Download complete"
+
+#: qtui/files_panel.py:265
+msgid "File aperto"
+msgstr "File opened"
+
+#: qtui/files_panel.py:286 qtui/files_panel.py:290 qtui/files_panel.py:297
+msgid "SFTP: {error}"
+msgstr ""
+
+#: qtui/files_panel.py:380
+msgid "Caricamento di {names} in {folder}…"
+msgstr "Uploading {names} to {folder}…"
+
+#: qtui/files_panel.py:390
+msgid "Carica file in {folder}"
+msgstr "Upload files to {folder}"
+
+#: qtui/files_panel.py:407
+msgid "Download di {count} elementi in {folder}…"
+msgstr "Downloading {count} items to {folder}…"
+
+#: qtui/files_panel.py:421
+msgid "Apro {name}…"
+msgstr "Opening {name}…"
+
+#: qtui/files_panel.py:429
+msgid "Nome della cartella in {folder}:"
+msgstr "Folder name in {folder}:"
+
+#: qtui/files_panel.py:448
+msgid ""
+"Questi elementi verranno eliminati dal server, comprese le cartelle con tutto il loro contenuto. Non si può annullare.\n"
+"\n"
+"{names}"
+msgstr ""
+"These items will be deleted from the server, including folders with all their contents. This cannot be undone.\n"
+"\n"
+"{names}"
+
+#: qtui/files_panel.py:257
+msgid "{target} — {count} elementi"
+msgstr "{target} — {count} items"
+
+#: qtui/files_panel.py:285
+msgid "Non connesso: {error}"
+msgstr "Not connected: {error}"
+
+#: qtui/main_window.py:285
 msgid "Sposta in cartella…"
 msgstr "Move to folder…"
 
-#: qtui/main_window.py:186 qtui/main_window.py:279
+#: qtui/main_window.py:293
+msgid "Mostra o nasconde i file remoti accanto al terminale SSH"
+msgstr "Show or hide remote files next to the SSH terminal"
+
+#: qtui/main_window.py:294 qtui/main_window.py:390
 msgid "Importa sessioni…"
 msgstr "Import sessions…"
 
-#: qtui/main_window.py:187
+#: qtui/main_window.py:295
 msgid "Esporta selezione…"
 msgstr "Export selection…"
 
-#: qtui/main_window.py:198
+#: qtui/main_window.py:306
 msgid "File"
 msgstr ""
 
-#: qtui/main_window.py:271
+#: qtui/main_window.py:382
 msgid "Scegli una sessione a sinistra, oppure:"
 msgstr "Pick a session on the left, or:"
 
-#: qtui/main_window.py:710
+#: qtui/main_window.py:872
 msgid "Scrivi utente@host[:porta] per SSH, rdp:host per il desktop remoto o telnet:host."
 msgstr "Type user@host[:port] for SSH, rdp:host for remote desktop or telnet:host."
 
-#: qtui/main_window.py:474
+#: qtui/main_window.py:949
+msgid "Il pannello dei file remoti c'è nelle schede SSH."
+msgstr "The remote files panel is available in SSH tabs."
+
+#: qtui/main_window.py:152
+msgid "{message} Pannello dei file chiuso."
+msgstr "{message} Files panel closed."
+
+#: qtui/main_window.py:585
 msgid "Sposta «{name}» in:"
 msgstr "Move \"{name}\" to:"
 
-#: qtui/main_window.py:681
+#: qtui/main_window.py:792
+msgid "{n} tunnel attivo"
+msgstr "{n} tunnel active"
+
+#: qtui/main_window.py:792
+msgid "{n} tunnel attivi"
+msgstr "{n} tunnels active"
+
+#: qtui/main_window.py:812
 msgid "Le sessioni {protocol} si aprono per ora solo nella versione Linux di FedTermHub."
 msgstr "{protocol} sessions can only be opened in the Linux version of FedTermHub for now."
 
-#: qtui/main_window.py:781
+#: qtui/main_window.py:927
+msgid "Programma non trovato: {name}"
+msgstr "Program not found: {name}"
+
+#: qtui/main_window.py:1007
 msgid "C'è una sessione ancora aperta: verrà chiusa."
 msgstr "A session is still open: it will be closed."
 
-#: qtui/main_window.py:781
+#: qtui/main_window.py:1007
 msgid "Ci sono {n} sessioni ancora aperte: verranno chiuse."
 msgstr "{n} sessions are still open: they will be closed."
 
-#: qtui/main_window.py:99
+#: qtui/main_window.py:197
 msgid "[processo terminato con codice {code} — premi Invio per riaprire]"
 msgstr "[process exited with code {code} — press Enter to restart]"
 
-#: qtui/main_window.py:812
+#: qtui/main_window.py:819
+msgid "La sessione «{name}» è collegata a un tunnel che non esiste più."
+msgstr "Session \"{name}\" is linked to a tunnel that no longer exists."
+
+#: qtui/main_window.py:822
+msgid "Avvio del tunnel «{name}»…"
+msgstr "Starting tunnel \"{name}\"…"
+
+#: qtui/main_window.py:1039
 msgid "Scarica FedTermHub {version}"
 msgstr "Download FedTermHub {version}"
 
-#: qtui/main_window.py:816
+#: qtui/main_window.py:1043
 msgid "È disponibile FedTermHub {version}"
 msgstr "FedTermHub {version} is available"
 
-#: qtui/main_window.py:824
+#: qtui/main_window.py:830
+msgid ""
+"La sessione «{name}» non è stata aperta perché il tunnel «{tunnel}» non è pronto.\n"
+"\n"
+"{log}"
+msgstr ""
+"Session \"{name}\" was not opened because tunnel \"{tunnel}\" is not ready.\n"
+"\n"
+"{log}"
+
+#: qtui/main_window.py:1051
 msgid "Gestore integrato di terminali e connessioni remote."
 msgstr "Integrated manager for terminals and remote connections."
 
-#: qtui/main_window.py:825
+#: qtui/main_window.py:1052
 msgid "Configurazione locale: {path}"
 msgstr "Local configuration: {path}"
 
-#: qtui/rdp_tab.py:34
+#: qtui/net_core.py:169
+msgid "rete troppo grande (massimo 4096 indirizzi): usa una /20 o più piccola"
+msgstr "network too large (at most 4096 addresses): use a /20 or smaller"
+
+#: qtui/net_core.py:336
+msgid "indirizzo MAC non valido"
+msgstr "invalid MAC address"
+
+#: qtui/net_core.py:475
+msgid "{client}  inviato {name} ({size} byte in {seconds} s)"
+msgstr "{client}  sent {name} ({size} bytes in {seconds} s)"
+
+#: qtui/net_core.py:521
+msgid "{client}  ricevuto {name} ({size} byte)"
+msgstr "{client}  received {name} ({size} bytes)"
+
+#: qtui/net_core.py:450
+msgid "{client}  non trovato: {name}"
+msgstr "{client}  not found: {name}"
+
+#: qtui/net_core.py:431
+msgid "{client}  errore: {error}"
+msgstr "{client}  error: {error}"
+
+#: qtui/net_core.py:469
+msgid "{client}  interrotto: {name}"
+msgstr "{client}  interrupted: {name}"
+
+#: qtui/net_core.py:505
+msgid "{client}  ricezione interrotta: {name}"
+msgstr "{client}  upload interrupted: {name}"
+
+#: qtui/net_core.py:425
+msgid "{client}  scrittura rifiutata: {name}"
+msgstr "{client}  write refused: {name}"
+
+#: qtui/net_tools.py:114
+msgid "Risolvi i nomi"
+msgstr "Resolve names"
+
+#: qtui/net_tools.py:116
+msgid "Scansiona"
+msgstr "Scan"
+
+#: qtui/net_tools.py:205
+msgid "Tutte le porte TCP (1-65535)"
+msgstr "All TCP ports (1-65535)"
+
+#: qtui/net_tools.py:211
+msgid "Elenco"
+msgstr "List"
+
+#: qtui/net_tools.py:214
+msgid "Avvia la scansione"
+msgstr "Start scan"
+
+#: qtui/net_tools.py:291
+msgid "Filtra per porta o programma"
+msgstr "Filter by port or program"
+
+#: qtui/net_tools.py:366
+msgid "Server HTTP (sola lettura)"
+msgstr "HTTP server (read only)"
+
+#: qtui/net_tools.py:379 qtui/net_tools.py:464 qtui/net_tools.py:469
+msgid "Server TFTP"
+msgstr "TFTP server"
+
+#: qtui/net_tools.py:385
+msgid "Permetti di scrivere file (backup delle configurazioni)"
+msgstr "Allow writing files (configuration backups)"
+
+#: qtui/net_tools.py:411 qtui/session_dialog.py:202 qtui/tunnels.py:378
+msgid "Sfoglia…"
+msgstr "Browse…"
+
+#: qtui/net_tools.py:522
+msgid "Scansione rete"
+msgstr "Network scan"
+
+#: qtui/net_tools.py:523
+msgid "Scansione porte"
+msgstr "Port scan"
+
+#: qtui/net_tools.py:526
+msgid "Server temporanei"
+msgstr "Temporary servers"
+
+#: qtui/net_tools.py:527
+msgid "Ping e traceroute"
+msgstr "Ping and traceroute"
+
+#: qtui/net_tools.py:108
+msgid "Trova gli host attivi in una rete: ping, poi alcune porte TCP per chi non risponde al ping. Il MAC arriva dalla cache ARP di Windows."
+msgstr "Finds the active hosts in a network: ping, then a few TCP ports for hosts that ignore ping. The MAC comes from the Windows ARP cache."
+
+#: qtui/net_tools.py:129
+msgid "Tempo (ms)"
+msgstr "Time (ms)"
+
+#: qtui/net_tools.py:133
+msgid "Scansiona le porte"
+msgstr "Scan ports"
+
+#: qtui/net_tools.py:133
+msgid "Crea sessione…"
+msgstr "Create session…"
+
+#: qtui/net_tools.py:134 qtui/net_tools.py:229
+msgid "Copia l'elenco"
+msgstr "Copy list"
+
+#: qtui/net_tools.py:225
+msgid "Risposta del servizio"
+msgstr "Service response"
+
+#: qtui/net_tools.py:229
+msgid "Crea sessione dal servizio…"
+msgstr "Create session from service…"
+
+#: qtui/net_tools.py:248
+msgid "Scrivi prima l'host."
+msgstr "Enter the host first."
+
+#: qtui/net_tools.py:288
+msgid "Le porte aperte su questo PC e il programma che le usa."
+msgstr "The ports open on this PC and the program using them."
+
+#: qtui/net_tools.py:298
+msgid "Indirizzo"
+msgstr "Address"
+
+#: qtui/net_tools.py:298
+msgid "Programma"
+msgstr "Program"
+
+#: qtui/net_tools.py:326
+msgid "Accende un PC spento mandando il «magic packet» sulla rete (la scheda di rete del PC deve avere il Wake-on-LAN attivo)."
+msgstr "Turns on a PC that is off by sending the \"magic packet\" on the network (the PC's network card must have Wake-on-LAN enabled)."
+
+#: qtui/net_tools.py:362
+msgid "Server da accendere per pochi minuti: per passare un firmware o una configurazione a uno switch, un firewall o un altro PC. La prima volta Windows chiede se permettere a FedTermHub di usare la rete: senza il permesso gli altri dispositivi non lo vedono."
+msgstr "Servers to turn on for a few minutes: to hand a firmware or a configuration to a switch, a firewall or another PC. The first time Windows asks whether FedTermHub may use the network: without that permission other devices cannot see it."
+
+#: qtui/net_tools.py:398
+msgid "Richieste ricevute"
+msgstr "Requests received"
+
+#: qtui/net_tools.py:436
+msgid "Server HTTP fermato."
+msgstr "HTTP server stopped."
+
+#: qtui/net_tools.py:460
+msgid "Server TFTP fermato."
+msgstr "TFTP server stopped."
+
+#: qtui/net_tools.py:490
+msgid "Si aprono in una scheda terminale, così restano sotto gli occhi mentre lavori."
+msgstr "They open in a terminal tab, so they stay in view while you work."
+
+#: qtui/net_tools.py:497
+msgid "Ping continuo"
+msgstr "Continuous ping"
+
+#: qtui/net_tools.py:497
+msgid "Traceroute"
+msgstr ""
+
+#: qtui/net_tools.py:550
+msgid "Scrivi un IP o un nome host valido."
+msgstr "Enter a valid IP or host name."
+
+#: qtui/net_tools.py:562
+msgid "I server temporanei verranno fermati. Chiudere?"
+msgstr "The temporary servers will be stopped. Close?"
+
+#: qtui/net_tools.py:157
+msgid "Scansione di {cidr}…"
+msgstr "Scanning {cidr}…"
+
+#: qtui/net_tools.py:170
+msgid "{count} host attivi"
+msgstr "{count} active hosts"
+
+#: qtui/net_tools.py:202
+msgid "Porte comuni ({n})"
+msgstr "Common ports ({n})"
+
+#: qtui/net_tools.py:203
+msgid "Le {n} porte più usate"
+msgstr "Top {n} ports"
+
+#: qtui/net_tools.py:255
+msgid "Elenco di porte non valido (es. 22,80,8000-8100)."
+msgstr "Invalid port list (e.g. 22,80,8000-8100)."
+
+#: qtui/net_tools.py:262
+msgid "Scansione di {host}…"
+msgstr "Scanning {host}…"
+
+#: qtui/net_tools.py:270
+msgid "{count} porte aperte"
+msgstr "{count} open ports"
+
+#: qtui/net_tools.py:429
+msgid "Indirizzi di questo PC: "
+msgstr "Addresses of this PC: "
+
+#: qtui/net_tools.py:440 qtui/net_tools.py:445
+msgid "Server HTTP"
+msgstr "HTTP server"
+
+#: qtui/net_tools.py:440 qtui/net_tools.py:464
+msgid "La cartella non esiste."
+msgstr "The folder does not exist."
+
+#: qtui/net_tools.py:349
+msgid "Magic packet inviato a {mac}."
+msgstr "Magic packet sent to {mac}."
+
+#: qtui/net_tools.py:452
+msgid "Server HTTP attivo sulla porta {port}: {folder}"
+msgstr "HTTP server running on port {port}: {folder}"
+
+#: qtui/net_tools.py:476
+msgid "Server TFTP attivo sulla porta {port}: {folder}"
+msgstr "TFTP server running on port {port}: {folder}"
+
+#: qtui/net_tools.py:542
+msgid "Protocollo per {host}:"
+msgstr "Protocol for {host}:"
+
+#: qtui/net_tools.py:556
+msgid "Ping {host}"
+msgstr ""
+
+#: qtui/net_tools.py:556
+msgid "Traceroute {host}"
+msgstr ""
+
+#: qtui/net_tools.py:556
+msgid "DNS {host}"
+msgstr ""
+
+#: qtui/net_tools.py:445 qtui/net_tools.py:469
+msgid "Impossibile usare la porta {port}: {error}"
+msgstr "Cannot use port {port}: {error}"
+
+#: qtui/rdp_tab.py:39
 msgid "Nessuna informazione"
 msgstr "No information"
 
-#: qtui/rdp_tab.py:35
+#: qtui/rdp_tab.py:40
 msgid "Disconnessione dal computer locale"
 msgstr "Disconnected by the local computer"
 
-#: qtui/rdp_tab.py:36
+#: qtui/rdp_tab.py:41
 msgid "Disconnessione dal server (o sessione chiusa con logoff)"
 msgstr "Disconnected by the server (or the session was logged off)"
 
-#: qtui/rdp_tab.py:37
+#: qtui/rdp_tab.py:42
 msgid "Il nome del server non è stato trovato (DNS)"
 msgstr "The server name was not found (DNS)"
 
-#: qtui/rdp_tab.py:38
+#: qtui/rdp_tab.py:43
 msgid "Il server non risponde entro il tempo previsto"
 msgstr "The server did not respond in time"
 
-#: qtui/rdp_tab.py:39
+#: qtui/rdp_tab.py:44
 msgid "Impossibile stabilire la connessione: controlla indirizzo, porta, rete e firewall"
 msgstr "Could not connect: check address, port, network and firewall"
 
-#: qtui/rdp_tab.py:40
+#: qtui/rdp_tab.py:45
 msgid "Errore di rete durante la connessione"
 msgstr "Network error while connecting"
 
-#: qtui/rdp_tab.py:41
+#: qtui/rdp_tab.py:46
 msgid "Errore di sicurezza: il server richiede un'autenticazione diversa"
 msgstr "Security error: the server requires a different authentication"
 
-#: qtui/rdp_tab.py:42
+#: qtui/rdp_tab.py:47
 msgid "Accesso negato: utente o password non corretti"
 msgstr "Access denied: wrong user name or password"
 
-#: qtui/rdp_tab.py:43
+#: qtui/rdp_tab.py:48
 msgid "Il server ha rifiutato la connessione"
 msgstr "The server refused the connection"
 
-#: qtui/rdp_tab.py:44
+#: qtui/rdp_tab.py:49
 msgid "Connessione interrotta: la rete è caduta o il server si è riavviato"
 msgstr "Connection lost: the network went down or the server restarted"
 
-#: qtui/rdp_tab.py:45
+#: qtui/rdp_tab.py:50
 msgid "L'account non ha il permesso di accedere con Desktop remoto"
 msgstr "The account is not allowed to sign in with Remote Desktop"
 
-#: qtui/rdp_tab.py:46
+#: qtui/rdp_tab.py:51
 msgid "L'account è bloccato"
 msgstr "The account is locked out"
 
-#: qtui/rdp_tab.py:47
+#: qtui/rdp_tab.py:52
 msgid "L'account è disabilitato"
 msgstr "The account is disabled"
 
-#: qtui/rdp_tab.py:48
+#: qtui/rdp_tab.py:53
 msgid "La password è scaduta"
 msgstr "The password has expired"
 
-#: qtui/rdp_tab.py:49
+#: qtui/rdp_tab.py:54
 msgid "La password deve essere cambiata prima del primo accesso"
 msgstr "The password must be changed before the first sign-in"
 
-#: qtui/rdp_tab.py:87
+#: qtui/rdp_tab.py:228
 msgid "Preparazione del desktop remoto…"
 msgstr "Preparing the remote desktop…"
 
-#: qtui/rdp_tab.py:95
+#: qtui/rdp_tab.py:236
 msgid "Apri con Connessione Desktop remoto"
 msgstr "Open with Remote Desktop Connection"
 
-#: qtui/rdp_tab.py:96
+#: qtui/rdp_tab.py:237
 msgid "Apre la sessione in mstsc, la finestra di Windows, invece che nella scheda"
 msgstr "Opens the session in mstsc, the Windows client, instead of the tab"
 
-#: qtui/rdp_tab.py:277
+#: qtui/rdp_tab.py:451
 msgid "Connessione in corso…"
 msgstr "Connecting…"
 
-#: qtui/rdp_tab.py:282
+#: qtui/rdp_tab.py:456
 msgid "Connesso, accesso in corso…"
 msgstr "Connected, signing in…"
 
-#: qtui/rdp_tab.py:346
+#: qtui/rdp_tab.py:523
 msgid "Sessione aperta in Connessione Desktop remoto"
 msgstr "Session opened in Remote Desktop Connection"
 
-#: qtui/rdp_tab.py:123
+#: qtui/rdp_tab.py:265
 msgid "RDP incorporato non disponibile"
 msgstr "Embedded RDP not available"
 
-#: qtui/rdp_tab.py:223
+#: qtui/rdp_tab.py:395
 msgid "Il componente RDP di Windows non si è avviato."
 msgstr "The Windows RDP component did not start."
 
-#: qtui/rdp_tab.py:116
+#: qtui/rdp_tab.py:258
 msgid "Il desktop remoto incorporato è disponibile nella versione Windows. Su Linux usa per ora la versione GTK di FedTermHub (comando fedtermhub)."
 msgstr "The embedded remote desktop is available in the Windows version. On Linux use the GTK version of FedTermHub for now (fedtermhub command)."
 
-#: qtui/rdp_tab.py:118
+#: qtui/rdp_tab.py:260
 msgid "Il componente RDP di Windows non è disponibile: apri la sessione con Connessione Desktop remoto."
 msgstr "The Windows RDP component is not available: open the session with Remote Desktop Connection."
 
-#: qtui/rdp_tab.py:172
+#: qtui/rdp_tab.py:341
 msgid "Connessione a {host}…"
 msgstr "Connecting to {host}…"
 
-#: qtui/rdp_tab.py:287
+#: qtui/rdp_tab.py:461
 msgid "Connesso a {host}"
 msgstr "Connected to {host}"
 
-#: qtui/rdp_tab.py:299
+#: qtui/rdp_tab.py:476
 msgid "Codice {code}"
 msgstr "Code {code}"
 
-#: qtui/rdp_tab.py:314
+#: qtui/rdp_tab.py:491
 msgid "Errore del componente RDP (codice {code})"
 msgstr "RDP component error (code {code})"
 
-#: qtui/rdp_tab.py:319
+#: qtui/rdp_tab.py:496
 msgid "Avviso RDP (codice {code})"
 msgstr "RDP warning (code {code})"
 
-#: qtui/rdp_tab.py:307
+#: qtui/rdp_tab.py:484
 msgid "Disconnesso: {reason}"
 msgstr "Disconnected: {reason}"
 
-#: qtui/rdp_tab.py:230
+#: qtui/rdp_tab.py:403
 msgid "Avvio RDP fallito: {exc}"
 msgstr "RDP start failed: {exc}"
 
-#: qtui/rdp_tab.py:343
+#: qtui/rdp_tab.py:520
 msgid "Impossibile avviare mstsc: {exc}"
 msgstr "Could not start mstsc: {exc}"
 
@@ -8515,77 +8991,137 @@ msgstr "Could not start mstsc: {exc}"
 msgid "Desktop remoto (RDP)"
 msgstr "Remote desktop (RDP)"
 
-#: qtui/session_dialog.py:63
+#: qtui/session_dialog.py:41
+msgid "SFTP (file remoti)"
+msgstr "SFTP (remote files)"
+
+#: qtui/session_dialog.py:66
 msgid "Nome mostrato nell'elenco delle sessioni"
 msgstr "Name shown in the session list"
 
-#: qtui/session_dialog.py:91
+#: qtui/session_dialog.py:97
 msgid "Usa la password salvata quando il protocollo lo permette"
 msgstr "Use the saved password when the protocol allows it"
 
-#: qtui/session_dialog.py:110
+#: qtui/session_dialog.py:136
+msgid "Velocità (baud)"
+msgstr "Speed (baud)"
+
+#: qtui/session_dialog.py:137
+msgid "Bit di dati"
+msgstr "Data bits"
+
+#: qtui/session_dialog.py:139
+msgid "Bit di stop"
+msgstr "Stop bits"
+
+#: qtui/session_dialog.py:156
+msgid "Diretto"
+msgstr "Direct"
+
+#: qtui/session_dialog.py:157
 msgid "Passa da un jump host (ProxyJump)"
 msgstr "Go through a jump host (ProxyJump)"
 
-#: qtui/session_dialog.py:125
-msgid "Apri a schermo intero"
-msgstr "Open full screen"
+#: qtui/session_dialog.py:158
+msgid "Prima avvia un tunnel salvato"
+msgstr "Start a saved tunnel first"
 
-#: qtui/session_dialog.py:127
-msgid "Sessione amministrativa (/admin)"
-msgstr "Administrative session (/admin)"
-
-#: qtui/session_dialog.py:129
-msgid "Appunti condivisi"
-msgstr "Shared clipboard"
-
-#: qtui/session_dialog.py:131
-msgid "Stampanti"
-msgstr "Printers"
-
-#: qtui/session_dialog.py:135
-msgid "Audio remoto sul PC locale"
-msgstr "Play remote audio on this PC"
-
-#: qtui/session_dialog.py:138
-msgid "Nessuna cartella condivisa"
-msgstr "No shared folder"
-
-#: qtui/session_dialog.py:139
-msgid "Sfoglia…"
-msgstr "Browse…"
-
-#: qtui/session_dialog.py:144
+#: qtui/session_dialog.py:159
 msgid "Passa da un RD Gateway"
 msgstr "Go through an RD Gateway"
 
-#: qtui/session_dialog.py:210
+#: qtui/session_dialog.py:172
+msgid "Percorso"
+msgstr "Route"
+
+#: qtui/session_dialog.py:188
+msgid "Apri a schermo intero"
+msgstr "Open full screen"
+
+#: qtui/session_dialog.py:190
+msgid "Sessione amministrativa (/admin)"
+msgstr "Administrative session (/admin)"
+
+#: qtui/session_dialog.py:192
+msgid "Appunti condivisi"
+msgstr "Shared clipboard"
+
+#: qtui/session_dialog.py:194
+msgid "Stampanti"
+msgstr "Printers"
+
+#: qtui/session_dialog.py:198
+msgid "Audio remoto sul PC locale"
+msgstr "Play remote audio on this PC"
+
+#: qtui/session_dialog.py:201
+msgid "Nessuna cartella condivisa"
+msgstr "No shared folder"
+
+#: qtui/session_dialog.py:316
+msgid "Si apre un pannello per sfogliare, scaricare e caricare file. Per le sessioni SSH lo stesso pannello si apre accanto al terminale."
+msgstr "Opens a panel to browse, download and upload files. For SSH sessions the same panel opens next to the terminal."
+
+#: qtui/session_dialog.py:318
+msgid "Il desktop VNC si apre nella scheda; la password VNC si prende dalla credenziale collegata."
+msgstr "The VNC desktop opens in the tab; the VNC password comes from the linked credential."
+
+#: qtui/session_dialog.py:319
+msgid "Telnet non è cifrato: usalo solo per apparati che non hanno SSH."
+msgstr "Telnet is not encrypted: use it only for devices without SSH."
+
+#: qtui/session_dialog.py:332
 msgid "manca il nome della sessione"
 msgstr "the session name is missing"
 
-#: qtui/session_dialog.py:87
+#: qtui/session_dialog.py:334
+msgid "scegli il tunnel da avviare prima della connessione"
+msgstr "choose the tunnel to start before connecting"
+
+#: qtui/session_dialog.py:93 qtui/tunnels.py:358
 msgid "Credenziale salvata (sblocca le password per vederla)"
 msgstr "Saved credential (unlock the passwords to see it)"
 
-#: qtui/session_dialog.py:90
+#: qtui/session_dialog.py:96
 msgid "Sblocca il Password Manager per scegliere fra le credenziali salvate."
 msgstr "Unlock the Password Manager to choose among the saved credentials."
 
-#: qtui/session_dialog.py:193
+#: qtui/session_dialog.py:131
+msgid "Nessuna"
+msgstr "None"
+
+#: qtui/session_dialog.py:131
+msgid "Pari"
+msgstr "Even"
+
+#: qtui/session_dialog.py:131
+msgid "Dispari"
+msgstr "Odd"
+
+#: qtui/session_dialog.py:168
+msgid "Tunnel non trovato"
+msgstr "Tunnel not found"
+
+#: qtui/session_dialog.py:280
+msgid "Non ci sono tunnel salvati: creane uno in Strumenti › Tunnel SSH."
+msgstr "There are no saved tunnels: create one in Tools › SSH tunnels."
+
+#: qtui/session_dialog.py:294
 msgid "es. ping 8.8.8.8 oppure Get-Service"
 msgstr "e.g. ping 8.8.8.8 or Get-Service"
 
-#: qtui/session_dialog.py:193
+#: qtui/session_dialog.py:294
 msgid "Comando remoto facoltativo"
 msgstr "Optional remote command"
 
-#: qtui/session_dialog.py:201
-msgid "Questo tipo di sessione si apre per ora solo nella versione Linux di FedTermHub. Puoi comunque salvarla e modificarla qui."
-msgstr "This kind of session can only be opened in the Linux version of FedTermHub for now. You can still save and edit it here."
+#: qtui/session_dialog.py:298
+msgid "Porta o display"
+msgstr "Port or display"
 
-#: qtui/session_dialog.py:66
-msgid "{label} (non ancora su Windows)"
-msgstr "{label} (not yet on Windows)"
+#: qtui/session_dialog.py:299
+msgid "Utente (se il server lo chiede)"
+msgstr "User (if the server asks)"
 
 #: qtui/settings_dialog.py:73
 msgid "Dimensione del carattere"
@@ -8619,23 +9155,31 @@ msgstr ""
 msgid "Chiave dell'host"
 msgstr "Host key"
 
-#: qtui/settings_dialog.py:98 qtui/settings_dialog.py:99
+#: qtui/settings_dialog.py:94
+msgid "Mostra i file remoti accanto al terminale SSH"
+msgstr "Show remote files next to the SSH terminal"
+
+#: qtui/settings_dialog.py:96
+msgid "I file remoti seguono la cartella del terminale (cd)"
+msgstr "Remote files follow the terminal's folder (cd)"
+
+#: qtui/settings_dialog.py:104 qtui/settings_dialog.py:105
 msgid "mai"
 msgstr "never"
 
-#: qtui/settings_dialog.py:100
+#: qtui/settings_dialog.py:106
 msgid "Chiedi conferma prima di chiudere con sessioni aperte"
 msgstr "Ask before closing with open sessions"
 
-#: qtui/settings_dialog.py:102
+#: qtui/settings_dialog.py:108
 msgid "Blocca le password dopo"
 msgstr "Lock passwords after"
 
-#: qtui/settings_dialog.py:103
+#: qtui/settings_dialog.py:109
 msgid "Svuota gli appunti dopo"
 msgstr "Clear the clipboard after"
 
-#: qtui/settings_dialog.py:107
+#: qtui/settings_dialog.py:113
 msgid "Avvisami quando esce una nuova versione"
 msgstr "Tell me when a new version is out"
 
@@ -8658,6 +9202,276 @@ msgstr "Known hosts only"
 #: qtui/settings_dialog.py:86
 msgid "Non controllare (sconsigliato)"
 msgstr "Do not check (not recommended)"
+
+#: qtui/sftp_client.py:108
+msgid "Accesso negato: utente, password o chiave non accettati dal server."
+msgstr "Access denied: user, password or key not accepted by the server."
+
+#: qtui/sftp_client.py:110
+msgid "Il server non risponde (timeout)."
+msgstr "The server does not respond (timeout)."
+
+#: qtui/sftp_client.py:112
+msgid "Connessione rifiutata: sul server non c'è SSH su quella porta."
+msgstr "Connection refused: there is no SSH on that port."
+
+#: qtui/sftp_client.py:114
+msgid "Nome del server non trovato."
+msgstr "Server name not found."
+
+#: qtui/sftp_client.py:116
+msgid "Permesso negato sul server."
+msgstr "Permission denied on the server."
+
+#: qtui/sftp_client.py:118
+msgid "File o cartella inesistente."
+msgstr "No such file or folder."
+
+#: qtui/sftp_client.py:120 qtui/sftp_client.py:201
+msgid "Il server non offre SFTP (sottosistema sftp disattivato)."
+msgstr "The server does not offer SFTP (sftp subsystem disabled)."
+
+#: qtui/sftp_client.py:104
+msgid "ATTENZIONE: la chiave dell'host {host} è cambiata rispetto a quella salvata in known_hosts. Potrebbe essere un server reinstallato oppure un attacco: controlla prima di continuare."
+msgstr "WARNING: the host key of {host} differs from the one saved in known_hosts. It could be a reinstalled server or an attack: check before continuing."
+
+#: qtui/sftp_client.py:354
+msgid "Connessione SFTP chiusa: riconnetti."
+msgstr "SFTP connection closed: reconnect."
+
+#: qtui/sftp_client.py:362
+msgid "Trasferimento annullato."
+msgstr "Transfer cancelled."
+
+#: qtui/sftp_client.py:144
+msgid "La chiave dell'host {host} non è in known_hosts e le impostazioni chiedono di accettare solo host già conosciuti."
+msgstr "The host key of {host} is not in known_hosts and the settings only accept known hosts."
+
+#: qtui/stream_process.py:205
+msgid "Telnet: {error}"
+msgstr ""
+
+#: qtui/stream_process.py:348
+msgid "Porta seriale {port}: {error}"
+msgstr "Serial port {port}: {error}"
+
+#: qtui/stream_process.py:200
+msgid "Telnet: {host} non risponde (timeout)."
+msgstr "Telnet: {host} does not respond (timeout)."
+
+#: qtui/stream_process.py:202
+msgid "Telnet: connessione rifiutata da {host}:{port}."
+msgstr "Telnet: connection refused by {host}:{port}."
+
+#: qtui/stream_process.py:204
+msgid "Telnet: nome «{host}» non trovato."
+msgstr "Telnet: name \"{host}\" not found."
+
+#: qtui/stream_process.py:345
+msgid "{port} è già usata da un altro programma (o manca il permesso)."
+msgstr "{port} is already in use by another program (or permission is missing)."
+
+#: qtui/stream_process.py:347
+msgid "{port} non esiste: controlla il cavo e il numero della porta."
+msgstr "{port} does not exist: check the cable and the port number."
+
+#: qtui/stream_process.py:323
+msgid "[connesso a {port}, {baud} {bits}{parity}{stop} — scrivi pure]"
+msgstr "[connected to {port}, {baud} {bits}{parity}{stop} — go ahead and type]"
+
+#: qtui/tunnels.py:48
+msgid "Avvio…"
+msgstr "Starting…"
+
+#: qtui/tunnels.py:48
+msgid "Attivo"
+msgstr "Active"
+
+#: qtui/tunnels.py:48
+msgid "Errore"
+msgstr "Error"
+
+#: qtui/tunnels.py:49
+msgid "Riavvio fra poco…"
+msgstr "Restarting shortly…"
+
+#: qtui/tunnels.py:45
+msgid "Locale (-L): porta di questo PC → destinazione"
+msgstr "Local (-L): port on this PC → destination"
+
+#: qtui/tunnels.py:46
+msgid "Remoto (-R): porta del server → questo PC"
+msgstr "Remote (-R): server port → this PC"
+
+#: qtui/tunnels.py:47
+msgid "Dinamico (-D): proxy SOCKS"
+msgstr "Dynamic (-D): SOCKS proxy"
+
+#: qtui/tunnels.py:57
+msgid "manca il nome"
+msgstr "the name is missing"
+
+#: qtui/tunnels.py:60
+msgid "server SSH mancante o non valido"
+msgstr "SSH server missing or invalid"
+
+#: qtui/tunnels.py:61
+msgid "porta SSH"
+msgstr "SSH port"
+
+#: qtui/tunnels.py:61
+msgid "porta in ascolto"
+msgstr "listening port"
+
+#: qtui/tunnels.py:70
+msgid "utente non valido"
+msgstr "invalid user"
+
+#: qtui/tunnels.py:78
+msgid "Client OpenSSH non trovato"
+msgstr "OpenSSH client not found"
+
+#: qtui/tunnels.py:338
+msgid "es. Database del cliente"
+msgstr "e.g. Customer database"
+
+#: qtui/tunnels.py:345
+msgid "Server SSH da cui passare"
+msgstr "SSH server to go through"
+
+#: qtui/tunnels.py:354
+msgid "(nessuna: chiave SSH o agente)"
+msgstr "(none: SSH key or agent)"
+
+#: qtui/tunnels.py:377
+msgid "Facoltativa: file della chiave privata"
+msgstr "Optional: private key file"
+
+#: qtui/tunnels.py:383
+msgid "Avvia all'apertura di FedTermHub"
+msgstr "Start when FedTermHub opens"
+
+#: qtui/tunnels.py:385
+msgid "Riavvia da solo se la connessione cade"
+msgstr "Restart automatically if the connection drops"
+
+#: qtui/tunnels.py:394
+msgid "Opzioni ssh in più, es. -o HostKeyAlias=nome"
+msgstr "Extra ssh options, e.g. -o HostKeyAlias=name"
+
+#: qtui/tunnels.py:400
+msgid "In ascolto su"
+msgstr "Listening on"
+
+#: qtui/tunnels.py:407
+msgid "Attesa prima del riavvio"
+msgstr "Wait before restarting"
+
+#: qtui/tunnels.py:409
+msgid "Opzioni"
+msgstr "Options"
+
+#: qtui/tunnels.py:491
+msgid "Un tunnel porta una porta di un server raggiungibile via SSH su questo PC (o il contrario). Una sessione può avviare il suo tunnel da sola: Instradamento › Prima avvia un tunnel salvato."
+msgstr "A tunnel brings a port of a server reachable over SSH to this PC (or the other way round). A session can start its tunnel by itself: Routing › Start a saved tunnel first."
+
+#: qtui/tunnels.py:600
+msgid "Eliminare il tunnel?"
+msgstr "Delete the tunnel?"
+
+#: qtui/tunnels.py:66
+msgid "destinazione mancante"
+msgstr "destination missing"
+
+#: qtui/tunnels.py:68
+msgid "porta di destinazione non valida"
+msgstr "invalid destination port"
+
+#: qtui/tunnels.py:220
+msgid "Tunnel attivo."
+msgstr "Tunnel active."
+
+#: qtui/tunnels.py:248
+msgid "Tunnel fermato."
+msgstr "Tunnel stopped."
+
+#: qtui/tunnels.py:307
+msgid "Il tunnel collegato alla sessione non esiste più."
+msgstr "The tunnel linked to the session no longer exists."
+
+#: qtui/tunnels.py:437
+msgid "Porta su questo PC"
+msgstr "Port on this PC"
+
+#: qtui/tunnels.py:438
+msgid "Destinazione (vista dal server)"
+msgstr "Destination (as seen from the server)"
+
+#: qtui/tunnels.py:439
+msgid "Esempio: 127.0.0.1:13389 → 10.0.0.5:3389 porta il desktop remoto di 10.0.0.5 su questo PC; poi collegati a 127.0.0.1:13389."
+msgstr "Example: 127.0.0.1:13389 → 10.0.0.5:3389 brings the remote desktop of 10.0.0.5 to this PC; then connect to 127.0.0.1:13389."
+
+#: qtui/tunnels.py:497
+msgid "Su questo PC"
+msgstr "On this PC"
+
+#: qtui/tunnels.py:522
+msgid "Log del tunnel selezionato"
+msgstr "Log of the selected tunnel"
+
+#: qtui/tunnels.py:224
+msgid "Il tunnel non è diventato operativo entro il tempo previsto."
+msgstr "The tunnel did not become ready in time."
+
+#: qtui/tunnels.py:231
+msgid "ssh terminato (codice {code})."
+msgstr "ssh exited (code {code})."
+
+#: qtui/tunnels.py:442
+msgid "Porta sul server"
+msgstr "Port on the server"
+
+#: qtui/tunnels.py:443
+msgid "Destinazione (vista da questo PC)"
+msgstr "Destination (as seen from this PC)"
+
+#: qtui/tunnels.py:444
+msgid "Esempio: il server apre la porta 8080 e la gira a 127.0.0.1:80 di questo PC."
+msgstr "Example: the server opens port 8080 and forwards it to 127.0.0.1:80 on this PC."
+
+#: qtui/tunnels.py:446
+msgid "Proxy SOCKS su questo PC"
+msgstr "SOCKS proxy on this PC"
+
+#: qtui/tunnels.py:447
+msgid "Esempio: 127.0.0.1:1080 diventa un proxy SOCKS5; il browser naviga dalla rete del server."
+msgstr "Example: 127.0.0.1:1080 becomes a SOCKS5 proxy; the browser surfs from the server's network."
+
+#: qtui/tunnels.py:63
+msgid "{label} non valida"
+msgstr "invalid {label}"
+
+#: qtui/tunnels.py:193
+msgid ""
+"Tunnel «{name}»: è la prima connessione a {host}.\n"
+"\n"
+"{details}\n"
+"\n"
+"Accetti la chiave? Verrà salvata in known_hosts."
+msgstr ""
+"Tunnel \"{name}\": this is the first connection to {host}.\n"
+"\n"
+"{details}\n"
+"\n"
+"Accept the key? It will be saved in known_hosts."
+
+#: qtui/tunnels.py:332
+msgid "Modifica tunnel: {name}"
+msgstr "Edit tunnel: {name}"
+
+#: qtui/tunnels.py:547
+msgid "via"
+msgstr "via"
 
 #: qtui/vault_dialogs.py:53
 msgid "Sblocca"
@@ -8726,3 +9540,67 @@ msgstr "Strength: {label}"
 #: qtui/vault_dialogs.py:389
 msgid "Salva qui utenti e password dei server: restano cifrati con la master password. Poi, nella finestra di una sessione, scegli la credenziale da usare."
 msgstr "Save server users and passwords here: they stay encrypted with the master password. Then, in a session's window, choose the credential to use."
+
+#: qtui/vnc_tab.py:99
+msgid "Adatta alla finestra"
+msgstr "Fit to window"
+
+#: qtui/vnc_tab.py:102
+msgid "Solo visualizzazione"
+msgstr "View only"
+
+#: qtui/vnc_tab.py:104
+msgid "Ctrl+Alt+Canc"
+msgstr "Ctrl+Alt+Del"
+
+#: qtui/vnc_tab.py:106
+msgid "Invia appunti"
+msgstr "Send clipboard"
+
+#: qtui/vnc_tab.py:107
+msgid "Manda il testo degli appunti di questo PC agli appunti del desktop remoto"
+msgstr "Sends the text on this PC's clipboard to the remote desktop's clipboard"
+
+#: qtui/vnc_tab.py:174
+msgid "Accesso VNC"
+msgstr "VNC sign-in"
+
+#: qtui/vnc_tab.py:179
+msgid "Password VNC"
+msgstr "VNC password"
+
+#: qtui/vnc_tab.py:204
+msgid "Schermo intero: Ctrl+Alt+Invio per tornare alla scheda"
+msgstr "Full screen: Ctrl+Alt+Enter to go back to the tab"
+
+#: qtui/vnc_tab.py:96 qtui/vnc_tab.py:147
+msgid "Connessione a {host}:{port}…"
+msgstr "Connecting to {host}:{port}…"
+
+#: qtui/vnc_tab.py:151
+msgid "Sessione VNC attiva"
+msgstr "VNC session active"
+
+#: qtui/vnc_tab.py:174
+msgid "Utente per {host}:"
+msgstr "User for {host}:"
+
+#: qtui/vnc_tab.py:179
+msgid "Password VNC per {host}:"
+msgstr "VNC password for {host}:"
+
+#: qtui/vnc_tab.py:150
+msgid "Connesso a {host}:{port}"
+msgstr "Connected to {host}:{port}"
+
+#: qtui/vnc_tab.py:159
+msgid "Sessione VNC chiusa"
+msgstr "VNC session closed"
+
+#: qtui/vnc_tab.py:154
+msgid "Accesso VNC rifiutato: {reason}"
+msgstr "VNC access refused: {reason}"
+
+#: qtui/vnc_tab.py:163
+msgid "Disconnesso: il server VNC non risponde o ha chiuso la connessione ({host}:{port})"
+msgstr "Disconnected: the VNC server does not respond or closed the connection ({host}:{port})"
