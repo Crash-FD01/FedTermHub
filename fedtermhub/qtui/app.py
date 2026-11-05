@@ -253,6 +253,7 @@ def self_test(report_path: Path) -> int:
         check("RDP incorporato", rdp)
 
     window.grab().save(str(report_path.with_name("main-window.png")))
+    window.settings.confirm_close_active_sessions = False
     window.close()
     ok = all(r["ok"] for r in results)
     report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": ok, "checks": results, "dialogs": dialogs}

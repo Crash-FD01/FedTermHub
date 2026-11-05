@@ -44,6 +44,8 @@ class _StreamProcess(QObject):
         self._eof.connect(self._closed)
         self._thread: Optional[threading.Thread] = None
         self._alive = False
+        self._opened = False
+        self._pending_input = bytearray()  # tasti premuti mentre la connessione si sta ancora aprendo
         self._lock = threading.Lock()
         self.cols, self.rows = 100, 30
 
@@ -71,6 +73,8 @@ class _StreamProcess(QObject):
     def start(self, argv=None, cwd=None, env=None) -> None:  # noqa: ANN001 (stessa firma di PtyProcess)
         self.stop()
         self._decoder.reset()
+        self._opened = False
+        self._pending_input.clear()
         self._alive = True
         self._thread = threading.Thread(target=self._run, name=type(self).__name__, daemon=True)
         self._thread.start()
@@ -79,6 +83,11 @@ class _StreamProcess(QObject):
         code = 0
         try:
             self._open()
+            with self._lock:
+                self._opened = True
+                if self._pending_input:
+                    self._send_raw(bytes(self._pending_input))
+                    self._pending_input.clear()
             while self._alive:
                 data = self._read_once()
                 if data is None:
@@ -125,7 +134,10 @@ class _StreamProcess(QObject):
             return
         try:
             with self._lock:
-                self._send_raw(self._encode_input(text))
+                if self._opened:
+                    self._send_raw(self._encode_input(text))
+                else:
+                    self._pending_input += self._encode_input(text)
         except OSError:
             pass
 
