@@ -112,6 +112,8 @@ jobs:
             if ($c.ok) { Write-Output "::notice title=OK $($c.name)::$($c.detail)" }
             else { Write-Output "::error title=$($c.name)::$($c.detail)" }
           }
+          if ((Test-Path out\crash.txt) -and (Get-Item out\crash.txt).Length) { Write-Host '--- crash ---'; Get-Content out\crash.txt }
+          if ($data.running) { Write-Output "::error title=Prova interrotta::durante: $($data.running)" }
           if ($data.error) { Write-Output "::error title=Prova del programma installato::$($data.error -replace "`r?`n", '%0A')" }
           if ($t.ExitCode) { throw "prova del programma installato non riuscita ($($t.ExitCode))" }
           Write-Host "FedTermHub installato e funzionante: $exe"

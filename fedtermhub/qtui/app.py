@@ -82,6 +82,11 @@ def _wait(app, condition: Callable[[], bool], seconds: float) -> bool:  # noqa: 
 
 
 def self_test(report_path: Path) -> int:
+    import faulthandler
+
+    # Se il processo cade (crash nativo), lo stack di Python finisce qui accanto al risultato.
+    crash_log = open(report_path.with_name("crash.txt"), "w", encoding="utf-8")  # noqa: SIM115
+    faulthandler.enable(crash_log, all_threads=True)
     _isolate_config()
     os.environ.setdefault("FEDTERMHUB_LANGUAGE", "it")
     from PySide6.QtWidgets import QApplication
@@ -254,7 +259,9 @@ def self_test(report_path: Path) -> int:
 
     window.grab().save(str(report_path.with_name("main-window.png")))
     window.settings.confirm_close_active_sessions = False
+    save("chiusura della finestra")
     window.close()
+    _wait(app, lambda: False, 1)
     ok = all(r["ok"] for r in results)
     report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": ok, "checks": results, "dialogs": dialogs}
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
