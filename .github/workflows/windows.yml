@@ -80,6 +80,15 @@ jobs:
           if (-not $ok) { Write-Output '::warning title=Desktop remoto di prova::la porta 3389 non risponde: la prova RDP si ferma alla risposta del componente' }
           else { "target=127.0.0.2;$env:COMPUTERNAME\fthrdp;$pw" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT }
 
+      - name: Sonda del componente RDP (diagnostica)
+        if: steps.rdp.outputs.target != ''
+        continue-on-error: true
+        timeout-minutes: 8
+        shell: bash
+        env:
+          TARGET: ${{ steps.rdp.outputs.target }}
+        run: python tests/windows_rdp_probe.py "$TARGET"
+
       - name: Installazione silenziosa e prova del programma installato
         shell: pwsh
         env:
