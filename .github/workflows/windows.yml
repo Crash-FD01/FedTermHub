@@ -136,7 +136,9 @@ jobs:
         run: |
           Get-Process FedTermHub -ErrorAction SilentlyContinue | Stop-Process -Force
           $setup = Get-Item dist\packages\FedTermHub-*-Setup.exe
-          $p = Start-Process $setup.FullName -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RESTART=1', '/CURRENTUSER' -Wait -PassThru
+          # Start-Process -Wait aspetterebbe anche FedTermHub riaperto dal Setup: si aspetta solo il Setup.
+          $p = Start-Process $setup.FullName -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RESTART=1', '/CURRENTUSER' -PassThru
+          if (-not $p.WaitForExit(600000)) { throw 'il Setup non è terminato entro 10 minuti' }
           if ($p.ExitCode) { throw "aggiornamento non riuscito ($($p.ExitCode))" }
           $running = $null
           foreach ($i in 1..30) { $running = Get-Process FedTermHub -ErrorAction SilentlyContinue; if ($running) { break }; Start-Sleep 1 }
