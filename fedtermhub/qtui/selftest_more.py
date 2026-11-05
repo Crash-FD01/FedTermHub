@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Callable
 
 from .. import model
-from . import net_core, selftest_servers
+from .. import netcore as net_core
+from . import selftest_servers
 
 
 def run_checks(app, window, check: Callable[[str, Callable[[], object]], None],  # noqa: ANN001, C901

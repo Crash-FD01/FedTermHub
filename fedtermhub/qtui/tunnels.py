@@ -9,7 +9,6 @@ chiede con una finestra. Stessi tunnel della versione Linux (model.TunnelStore, 
 from __future__ import annotations
 
 import re
-import shlex
 import socket
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
@@ -37,7 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import model
+from .. import commands, model
 from ..i18n import tr
 from . import connect
 from .pty_process import PtyProcess
@@ -52,63 +51,20 @@ _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)
 
 
 def tunnel_problems(tunnel: model.TunnelSession) -> List[str]:
-    problems = []
-    if not tunnel.name.strip():
-        problems.append(tr("manca il nome"))
-    host = tunnel.ssh_host.strip()
-    if not host or host.startswith("-") or any(c.isspace() for c in host):
-        problems.append(tr("server SSH mancante o non valido"))
-    for value, label in ((tunnel.ssh_port, tr("porta SSH")), (tunnel.local_port, tr("porta in ascolto"))):
-        if not str(value).isdigit() or not 0 < int(value) < 65536:
-            problems.append(tr("{label} non valida").format(label=label))
-    if tunnel.tunnel_type != "dynamic":
-        if not tunnel.remote_host.strip() or tunnel.remote_host.startswith("-"):
-            problems.append(tr("destinazione mancante"))
-        if not str(tunnel.remote_port).isdigit() or not 0 < int(tunnel.remote_port) < 65536:
-            problems.append(tr("porta di destinazione non valida"))
-    if tunnel.ssh_user.startswith("-"):
-        problems.append(tr("utente non valido"))
-    return problems
+    """Le stesse regole della versione Linux (commands.py), più il nome che qui è obbligatorio."""
+    problems = [] if tunnel.name.strip() else [tr("manca il nome")]
+    return problems + commands.tunnel_problems(tunnel)
 
 
 def tunnel_argv(tunnel: model.TunnelSession, settings: model.AppSettings, user: str, password: Optional[str]) -> List[str]:
-    """Il comando ssh del tunnel, come build_tunnel_command della versione GTK."""
+    """Il comando ssh del tunnel: commands.tunnel_argv, uguale alla versione Linux."""
     binary = connect.ssh_binary()
     if not binary:
         raise connect.LaunchError(tr("Client OpenSSH non trovato"))
-    argv = [binary, "-N", "-T", "-o", f"ConnectTimeout={settings.connection_timeout_seconds}",
-            "-o", "NumberOfPasswordPrompts=1"]
-    if settings.ssh_strict_host_key in {"accept-new", "yes", "no"}:
-        argv += ["-o", f"StrictHostKeyChecking={settings.ssh_strict_host_key}"]
-    if tunnel.exit_on_forward_failure:
-        argv += ["-o", "ExitOnForwardFailure=yes"]
-    if tunnel.server_alive_interval > 0:
-        argv += ["-o", f"ServerAliveInterval={tunnel.server_alive_interval}",
-                 "-o", f"ServerAliveCountMax={tunnel.server_alive_count}"]
-    if tunnel.compression:
-        argv.append("-C")
-    if tunnel.address_family == "ipv4":
-        argv.append("-4")
-    elif tunnel.address_family == "ipv6":
-        argv.append("-6")
-    if tunnel.verbose_log:
-        argv.append("-v")
-    argv += ["-p", tunnel.ssh_port or "22"]
-    if tunnel.identity_file:
-        argv += ["-i", str(Path(tunnel.identity_file).expanduser())]
-    listen = f"{tunnel.bind_address or '127.0.0.1'}:{tunnel.local_port}"
-    if tunnel.tunnel_type == "dynamic":
-        argv += ["-D", listen]
-    elif tunnel.tunnel_type == "remote":
-        argv += ["-R", f"{listen}:{tunnel.remote_host}:{tunnel.remote_port}"]
-    else:
-        argv += ["-L", f"{listen}:{tunnel.remote_host}:{tunnel.remote_port}"]
-    if tunnel.options:
-        argv += shlex.split(tunnel.options, posix=True)
-    if not password:
-        argv += ["-o", "BatchMode=yes"]
-    target = f"{user}@{tunnel.ssh_host}" if user else tunnel.ssh_host
-    return argv + ["--", target]
+    try:
+        return commands.tunnel_argv(binary, tunnel, settings, user, bool(password))
+    except commands.CommandError as exc:
+        raise connect.LaunchError(exc.title) from exc
 
 
 class TunnelRunner(QObject):

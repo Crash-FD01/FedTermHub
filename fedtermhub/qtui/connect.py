@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
-from .. import model
+from .. import commands, model
 from ..i18n import tr
 
 IS_WINDOWS = sys.platform == "win32"
@@ -89,31 +89,12 @@ def ssh_binary() -> Optional[str]:
 
 
 def proxy_jump_spec(sess: model.Session) -> str:
-    if getattr(sess, "routing_mode", "direct") != "proxy_jump":
-        return ""
-    host = str(getattr(sess, "jump_host", "") or "").strip()
-    if not host:
-        return ""
-    if ":" in host and not host.startswith("["):
-        host = f"[{host}]"
-    user = str(getattr(sess, "jump_user", "") or "").strip()
-    port = str(getattr(sess, "jump_port", "22") or "22").strip()
-    endpoint = f"{user}@{host}" if user else host
-    if port and port != "22":
-        endpoint += f":{port}"
-    return endpoint
+    return commands.proxy_jump_spec(sess)
 
 
 def ssh_options(settings: model.AppSettings, with_password: bool) -> List[str]:
-    """Opzioni OpenSSH come nella versione GTK (timeout, keepalive, controllo della chiave dell'host)."""
-    options = ["-o", f"ConnectTimeout={settings.connection_timeout_seconds}"]
-    if settings.ssh_keepalive_interval > 0:
-        options += ["-o", f"ServerAliveInterval={settings.ssh_keepalive_interval}",
-                    "-o", f"ServerAliveCountMax={settings.ssh_keepalive_count}"]
-    if settings.ssh_strict_host_key in {"accept-new", "yes", "no"}:
-        options += ["-o", f"StrictHostKeyChecking={settings.ssh_strict_host_key}"]
-    if settings.ssh_compression:
-        options.append("-C")
+    """Le opzioni comuni (commands.py, le stesse della versione Linux) più quelle per la password scritta al prompt."""
+    options = commands.ssh_common_options(settings)
     if with_password:
         # Una sola richiesta: se la password salvata è sbagliata ssh si ferma invece di riproporla
         # (PasswordFeeder la scrive una volta sola).
@@ -133,19 +114,11 @@ def ssh(sess: model.Session, settings: model.AppSettings, user: str, password: O
         raise LaunchError(tr("Client SSH non trovato"), tr("Installa il pacchetto openssh-client(s)."))
     if not sess.host:
         raise LaunchError(tr("Host SSH mancante."))
-    argv = [binary] + ssh_options(settings, bool(password))
-    jump = proxy_jump_spec(sess)
-    if getattr(sess, "routing_mode", "direct") == "proxy_jump" and not jump:
-        raise LaunchError(tr("Jump host incompleto"), tr("Compila il server jump host nella sezione Instradamento avanzato."))
-    if jump:
-        argv += ["-J", jump]
-    if sess.port:
-        argv += ["-p", sess.port]
-    target = f"{user}@{sess.host}" if user else sess.host
-    # "--": un host o un utente che comincia con "-" non deve diventare un'opzione di ssh.
-    argv += ["--", target]
-    if sess.command:
-        argv.append(sess.command)
+    try:
+        argv = commands.ssh_session_argv(binary, sess, user, ssh_options(settings, bool(password)))
+    except commands.CommandError as exc:
+        raise LaunchError(exc.title, exc.hint) from exc
+    target = commands.ssh_target(user, sess.host)
     return Launch(sess.name or target, argv, {}, password=password)
 
 

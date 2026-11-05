@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..i18n import tr
-from . import net_core
+from .. import netcore as net_core
 
 
 class _Relay(QObject):
@@ -334,7 +334,11 @@ class WakePage(QWidget):
         self.port.setValue(9)
         form.addRow(tr("Indirizzo MAC"), self.mac)
         form.addRow(tr("Broadcast"), self.broadcast)
+        self.repeat = QSpinBox()
+        self.repeat.setRange(1, 10)
+        self.repeat.setValue(3)
         form.addRow(tr("Porta UDP"), self.port)
+        form.addRow(tr("Invii"), self.repeat)
         layout.addLayout(form)
         send = QPushButton(tr("Invia"))
         send.clicked.connect(self.send)
@@ -345,7 +349,8 @@ class WakePage(QWidget):
 
     def send(self) -> None:
         try:
-            net_core.wake_on_lan(self.mac.text(), self.broadcast.text().strip() or "255.255.255.255", self.port.value())
+            net_core.wake_on_lan(self.mac.text(), self.broadcast.text().strip() or "255.255.255.255", self.port.value(),
+                                 self.repeat.value())
             self.status.setText(tr("Magic packet inviato a {mac}.").format(mac=self.mac.text().strip()))
         except (ValueError, OSError) as exc:
             self.status.setText(tr("Errore: {error}").format(error=exc))

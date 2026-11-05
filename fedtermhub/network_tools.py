@@ -30,10 +30,11 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 try:
     from .i18n import tr, trn
-    from . import distro
+    from . import distro, netcore
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import tr, trn
     import distro  # type: ignore[no-redef]
+    import netcore  # type: ignore[no-redef]
 
 import gi
 
@@ -1604,21 +1605,18 @@ class WakeOnLanPage(ToolPage):
         self.pack_start(self.result, False, False, 0)
 
     def send(self, _button: Gtk.Button) -> None:
-        mac = re.sub(r"[:-]", "", self.mac.get_text().strip())
-        if len(mac) != 12 or not all(ch in "0123456789abcdefABCDEF" for ch in mac):
-            self.message(self.parent, tr("MAC non valido"), tr("Usa il formato AA:BB:CC:DD:EE:FF."), True)
-            return
-        packet = bytes.fromhex("FF" * 6 + mac * 16)
         destination = (self.broadcast.get_child().get_text().strip() or "255.255.255.255", int(self.port.get_value()))
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                for _ in range(int(self.repeat.get_value())):
-                    sock.sendto(packet, destination)
-                    time.sleep(0.05)
-            self.result.set_text(tr("Magic Packet inviato a {upper} tramite {v}:{v2}.").format(upper=self.mac.get_text().upper(), v=destination[0], v2=destination[1]))
+            # Stesso invio della versione Windows (netcore.py)
+            netcore.wake_on_lan(self.mac.get_text(), destination[0], destination[1], int(self.repeat.get_value()))
+        except ValueError:
+            self.message(self.parent, tr("MAC non valido"), tr("Usa il formato AA:BB:CC:DD:EE:FF."), True)
+            return
         except Exception as exc:
             self.message(self.parent, tr("Invio Wake-on-LAN non riuscito"), str(exc), True)
+            return
+        else:
+            self.result.set_text(tr("Magic Packet inviato a {upper} tramite {v}:{v2}.").format(upper=self.mac.get_text().upper(), v=destination[0], v2=destination[1]))
 
 
 class NetworkScannerPage(ToolPage):

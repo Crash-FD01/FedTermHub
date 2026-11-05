@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Crash
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Strumenti di rete senza programmi esterni (versione Windows; funzionano anche su Linux).
+"""Strumenti di rete senza programmi esterni, comuni alle due interfacce.
 
 Ping (su Windows con IcmpSendEcho, senza aprire finestre di console), scansione di una rete e delle porte
 TCP, porte in ascolto, Wake-on-LAN, server HTTP e TFTP temporanei. Nessuna funzione qui tocca
-l'interfaccia: girano nei thread e restituiscono dati.
+l'interfaccia (né GTK né Qt): girano nei thread e restituiscono dati.
 """
 from __future__ import annotations
 
@@ -24,7 +24,10 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional
 
-from ..i18n import tr
+try:
+    from .i18n import tr
+except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    from i18n import tr  # type: ignore[no-redef]
 
 IS_WINDOWS = sys.platform == "win32"
 NO_WINDOW = 0x08000000 if IS_WINDOWS else 0  # CREATE_NO_WINDOW: nessuna console che lampeggia
@@ -112,7 +115,7 @@ def _icmp_windows(host: str, timeout_ms: int) -> Optional[float]:
 # ------------------------------------------------------------------ reti locali e ARP
 def local_networks() -> List[str]:
     """Le reti IPv4 delle schede attive, es. ["192.168.1.0/24"] (le /16 o più grandi diventano /24)."""
-    networks: List[str] = []
+    pairs: List[tuple] = []
     try:
         from PySide6.QtNetwork import QAbstractSocket, QNetworkInterface
 
@@ -121,17 +124,24 @@ def local_networks() -> List[str]:
             if not (flags & QNetworkInterface.InterfaceFlag.IsUp) or flags & QNetworkInterface.InterfaceFlag.IsLoopBack:
                 continue
             for entry in iface.addressEntries():
-                ip = entry.ip()
-                if ip.protocol() != QAbstractSocket.NetworkLayerProtocol.IPv4Protocol:
-                    continue
-                prefix = max(entry.prefixLength(), 24)
-                net = ipaddress.ip_network(f"{ip.toString()}/{prefix}", strict=False)
-                if net.is_link_local:
-                    continue
-                if str(net) not in networks:
-                    networks.append(str(net))
-    except Exception:  # noqa: BLE001
-        pass
+                if entry.ip().protocol() == QAbstractSocket.NetworkLayerProtocol.IPv4Protocol:
+                    pairs.append((entry.ip().toString(), entry.prefixLength()))
+    except ImportError:  # interfaccia GTK: senza Qt si legge «ip -4 addr»
+        try:
+            out = run_hidden(["ip", "-o", "-4", "addr", "show", "up"], 10).stdout
+            pairs = [(ip, int(prefix)) for ip, prefix in re.findall(r"inet (\d+\.\d+\.\d+\.\d+)/(\d+)", out)]
+        except (OSError, subprocess.TimeoutExpired):
+            pairs = []
+    networks: List[str] = []
+    for ip, prefix in pairs:
+        try:
+            net = ipaddress.ip_network(f"{ip}/{max(prefix, 24)}", strict=False)
+        except ValueError:
+            continue
+        if net.is_loopback or net.is_link_local:
+            continue
+        if str(net) not in networks:
+            networks.append(str(net))
     return networks or ["192.168.1.0/24"]
 
 
@@ -331,14 +341,18 @@ def listening_ports() -> List[Listener]:
 
 
 # ------------------------------------------------------------------ Wake-on-LAN
-def wake_on_lan(mac: str, broadcast: str = "255.255.255.255", port: int = 9) -> None:
-    clean = re.sub(r"[^0-9a-fA-F]", "", mac)
-    if len(clean) != 12:
+def wake_on_lan(mac: str, broadcast: str = "255.255.255.255", port: int = 9, repeat: int = 1) -> None:
+    """Manda il «magic packet» (sei FF e il MAC ripetuto 16 volte), eventualmente più volte."""
+    clean = re.sub(r"[:\-.\s]", "", mac.strip())
+    if len(clean) != 12 or not all(ch in "0123456789abcdefABCDEF" for ch in clean):
         raise ValueError(tr("indirizzo MAC non valido"))
     packet = b"\xff" * 6 + bytes.fromhex(clean) * 16
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.sendto(packet, (broadcast, port))
+        for index in range(max(1, repeat)):
+            if index:
+                time.sleep(0.05)
+            sock.sendto(packet, (broadcast or "255.255.255.255", port))
 
 
 # ------------------------------------------------------------------ server temporanei
