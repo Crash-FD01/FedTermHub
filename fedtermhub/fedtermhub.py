@@ -1979,7 +1979,7 @@ class VaultManagerDialog(Gtk.Dialog):
         self.listbox = Gtk.ListBox()
         self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.listbox.get_style_context().add_class("vault-list")
-        self.listbox.set_header_func(self._row_header, None)
+        self.listbox.set_header_func(self._row_header)
         self.listbox.connect("row-selected", self.on_row_selected)
         # Nessuna azione sull'attivazione della riga: Gtk.ListBox attiva con un clic singolo, e cosi'
         # scegliere una credenziale apriva la modifica. Si modifica solo con il pulsante Modifica.
@@ -11066,7 +11066,7 @@ class AppWindow(Gtk.ApplicationWindow):
                         cb.store()
                         self.set_status(tr("Dato sensibile rimosso dagli appunti."))
                 try:
-                    clipboard.request_text(received, None)
+                    clipboard.request_text(received)
                 except Exception:
                     pass
                 return False

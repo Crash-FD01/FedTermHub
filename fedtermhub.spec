@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.10.0
+Version:        0.10.1
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -144,6 +144,9 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.10.1-1
+- openSUSE Leap 16 (PyGObject 3.52): un user_data None passato esplicitamente dopo un callback lo faceva scartare con «expected tuple for callback user_data». Il terminale non riceveva il PID del programma avviato e la lettura degli appunti non arrivava. Ora i callback di Vte.Terminal.spawn_async, Gtk.Clipboard.request_text e Gtk.ListBox.set_header_func sono passati senza user_data
+- Test: tests/test_revisione.py non dipende più da un tempo fisso fra Salva e Annulla, che su un runner carico poteva arrivare prima di Salva
 * Thu Nov 05 2026 Crash-FD01 - 1:0.10.0-1
 - Versione nativa per Windows 10 (1809+) e 11: FedTermHub-0.10.0-Setup.exe nella release, si installa per l'utente senza permessi di amministratore e avvisa delle versioni nuove. Contiene sessioni in cartelle, terminale (PowerShell, SSH con il client OpenSSH di Windows, Telnet, comandi), desktop remoto incorporato con il componente RDP di Windows, Password Manager; importa le sessioni e il backup cifrato delle password esportati da Linux
 - Interfaccia Qt (PySide6) in fedtermhub/qtui, per ora usata solo su Windows: i pacchetti Linux restano con l'interfaccia GTK e non la includono

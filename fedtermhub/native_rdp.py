@@ -205,7 +205,7 @@ class ClipboardBridge:
             self._write_host_text(text)
 
         try:
-            clipboard.request_text(received, None)
+            clipboard.request_text(received)
         except Exception:
             pass
 

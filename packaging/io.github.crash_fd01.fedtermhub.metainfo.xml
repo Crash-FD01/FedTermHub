@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.10.1" date="2026-11-05">
+      <description>
+        <p>openSUSE Leap 16: terminal and clipboard callbacks work with PyGObject 3.52.</p>
+        <p xml:lang="it">openSUSE Leap 16: i callback di terminale e appunti funzionano con PyGObject 3.52.</p>
+      </description>
+    </release>
     <release version="0.10.0" date="2026-11-05">
       <description>
         <p>New native Windows version (Windows 10 1809+ and 11): sessions, terminal, SSH, embedded remote desktop and Password Manager.</p>
