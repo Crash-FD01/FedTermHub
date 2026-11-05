@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.13.1
+Version:        0.13.2
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -145,6 +145,8 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.13.2-1
+- Windows: con il terminale diviso il riquadro attivo poteva cambiare da solo: le risposte automatiche del terminale alla shell (posizione del cursore e simili) contavano come se l'utente avesse scritto in quel riquadro. Ora il riquadro attivo cambia solo con un clic, con i tasti e con le scorciatoie dei riquadri. Comprende le correzioni della 0.13.1, che non è stata pubblicata
 * Thu Nov 05 2026 Crash-FD01 - 1:0.13.1-1
 - Windows: un doppio clic su una sessione apriva due schede, per tutti i protocolli. Ora ne apre una sola
 - Windows: il gestore dei tunnel SSH ha la disposizione e le azioni di quello Linux: cerca, Duplica, Verifica SSH, Copia comando, Copia endpoint, Crea sessione, riepilogo, log che si apre a richiesta, Avvia tutti e Ferma tutti, menu col clic destro; doppio clic avvia o ferma. Anche l'editor è lo stesso: percorso della connessione, tre riquadri, affidabilità, opzioni avanzate e anteprima del comando. Allargando le finestre si allargano tabella e campi, non gli spazi

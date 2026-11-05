@@ -44,6 +44,7 @@ class TerminalPane(QWidget):
         self.view.cwd_changed.connect(lambda path: tab.pane_cwd_changed(self, path))
         self.view.input_hooks.append(lambda data: tab.pane_input(self, data))
         self.view.page_ready.connect(tab.pane_ready)
+        self.view.clicked.connect(lambda: tab.pane_clicked(self))
         self.view.pty.output.connect(self._output)
         self.view.pty.finished.connect(self._finished)
         self.start()
@@ -118,7 +119,7 @@ class TerminalTab(QWidget):
         self.files: Optional[FilesPanel] = None
         self.files_missing = False
         self._first_output = False
-        self._relaying = False
+        self.relaying = False  # i riquadri si stanno spostando: il fuoco passa da uno all'altro da solo
         self._root: Optional[QWidget] = None
         self._outer = QVBoxLayout(self)
         self._outer.setContentsMargins(0, 0, 0, 0)
@@ -157,9 +158,7 @@ class TerminalTab(QWidget):
         return any(pane.running for pane in self.panes)
 
     def set_active(self, pane: TerminalPane) -> None:
-        # Mentre i riquadri si spostano o le pagine si caricano il fuoco passa da uno all'altro (su Windows
-        # lo prende la prima pagina pronta): non è una scelta dell'utente.
-        if not self._relaying and pane in self.panes and all(p.view.ready for p in self.panes):
+        if not self.relaying and pane in self.panes:
             self.active_pane = pane
 
     def focus_active(self) -> None:
@@ -249,7 +248,7 @@ class TerminalTab(QWidget):
         return splitter
 
     def _relayout(self) -> None:
-        self._relaying = True
+        self.relaying = True
         try:
             old = self._root
             if old is not None:
@@ -270,7 +269,7 @@ class TerminalTab(QWidget):
                 self.panes[index].show()
             self._toast.raise_()
         finally:
-            self._relaying = False
+            self.relaying = False
         self.focus_active()
 
     def _discard(self, pane: TerminalPane) -> None:
@@ -295,7 +294,14 @@ class TerminalTab(QWidget):
         if len(self.panes) > 1 and focus is not None and self.isAncestorOf(focus):
             self.focus_active()
 
+    def pane_clicked(self, pane: TerminalPane) -> None:
+        """Clic dentro il terminale (dalla pagina): vale anche se il fuoco di Qt arriva dopo il rilascio."""
+        self.set_active(pane)
+        self.pane_ready()  # il clic arriva dalla pagina con un attimo di ritardo: se intanto il fuoco è uscito, resta fuori
+
     def pane_input(self, pane: TerminalPane, data: str) -> None:
+        if termcore.is_terminal_reply(data):
+            return  # la shell di un riquadro ha chiesto qualcosa al terminale: l'utente non c'entra
         self.set_active(pane)
         self.activity.emit()
         if self.broadcast and len(self.panes) > 1 and termcore.broadcastable(data):

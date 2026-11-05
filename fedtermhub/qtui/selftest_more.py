@@ -109,9 +109,11 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         app.processEvents()
         indexes = window.tree.selectionModel().selectedIndexes()
         assert indexes and indexes[0].data(PATH_ROLE) == window.store.find_node_path(sess), "sessione non selezionata"
-        center: QPoint = window.tree.visualRect(indexes[0]).center()
-        QTest.mouseClick(window.tree.viewport(), Qt.MouseButton.LeftButton, pos=center)
-        QTest.mouseDClick(window.tree.viewport(), Qt.MouseButton.LeftButton, pos=center)
+        # Sulla finestra, non sul widget: è il percorso dei clic veri, e non lascia il tasto segnato come premuto.
+        center: QPoint = window.tree.viewport().mapTo(window, window.tree.visualRect(indexes[0]).center())
+        QTest.mouseClick(window.windowHandle(), Qt.MouseButton.LeftButton, pos=center)
+        wait(app, lambda: False, 0.6)  # altrimenti i due clic contano come parte del doppio clic
+        QTest.mouseDClick(window.windowHandle(), Qt.MouseButton.LeftButton, pos=center)
         wait(app, lambda: False, 0.3)
         opened = window.tabs.count()
         assert opened == 1, f"un doppio clic ha aperto {opened} schede"
@@ -228,6 +230,19 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         assert wait(app, lambda: first.view.ready and second.view.ready, 30), "xterm.js non si è caricato nei riquadri"
         assert wait(app, lambda: first.running and second.running, 15), "un riquadro non è partito"
         assert first.isVisible() and second.isVisible(), "riquadri non visibili"
+        # Le risposte automatiche del terminale passano dallo stesso canale dei tasti, ma non sono l'utente:
+        # qui il riquadro 1 risponde a una domanda sulla posizione del cursore, come fanno le shell all'avvio.
+        # La risposta qui non va alla shell, che non l'ha chiesta e la scriverebbe sul prompt.
+        replies = []
+        first.view.pty.write = replies.append
+        first.view.write_local("\x1b[6n")
+        arrived = wait(app, lambda: any(r.endswith("R") for r in replies), 10)
+        del first.view.pty.write
+        assert arrived, f"nessuna risposta dal terminale: {replies}"
+        wait(app, lambda: False, 1.5)
+        assert tab.active_pane is second, "dopo la divisione il riquadro attivo non è quello nuovo"
+        if app.activeWindow() is window:
+            assert wait(app, lambda: window._focused_pane() is second, 5), "i tasti non andrebbero al riquadro nuovo"
         root = tab._root
         assert isinstance(root, QSplitter) and root.orientation() == Qt.Orientation.Horizontal, type(root)
         out1, out2 = [], []
@@ -291,6 +306,7 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
 
     def split_keys() -> str:
         from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
 
         window.show()
         window.raise_()
@@ -314,10 +330,17 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         assert press(Qt.Key.Key_L) and tab.pane_layout == "grid", "Ctrl+Shift+L"
         assert press(Qt.Key.Key_W) and len(tab.panes) == 2, "Ctrl+Shift+W"
         assert not any(ch in "".join(out) for ch in ("\x0f", "\x05")), "i tasti sono arrivati anche al programma"
-        # il fuoco sul riquadro passa con Qt: cambia il riquadro attivo
-        other = tab.panes[0] if tab.active_pane is not tab.panes[0] else tab.panes[1]
+        # un passaggio di fuoco non chiesto torna indietro; un clic del mouse cambia il riquadro attivo
+        active = tab.active_pane
+        other = tab.panes[0] if active is not tab.panes[0] else tab.panes[1]
         other.view.setFocus()
-        assert wait(app, lambda: tab.active_pane is other, 5), "il fuoco non cambia il riquadro attivo"
+        assert wait(app, lambda: window._focused_pane() is active, 5) and tab.active_pane is active, \
+            "il fuoco non chiesto ha cambiato riquadro"
+        center = other.view.rect().center()
+        target = other.view.mapTo(window, center)
+        QTest.mouseClick(window.windowHandle(), Qt.MouseButton.LeftButton, pos=target)
+        assert wait(app, lambda: tab.active_pane is other and window._focused_pane() is other, 5), \
+            "il clic non cambia il riquadro attivo"
         # fuori dal terminale Ctrl+Shift+E resta File remoti (qui non c'è SSH: solo il messaggio) e non divide
         window.tree.setFocus()
         wait(app, lambda: False, 0.2)
