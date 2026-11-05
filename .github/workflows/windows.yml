@@ -1,0 +1,144 @@
+# SPDX-FileCopyrightText: 2026 Crash
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Windows
+
+# Versione Windows (interfaccia Qt in fedtermhub/qtui):
+#   1. prova i sorgenti (tests/test_qtui.py: terminale, password, import, comandi ssh);
+#   2. costruisce FedTermHub.exe con PyInstaller e FedTermHub-<versione>-Setup.exe con Inno Setup;
+#   3. installa il Setup.exe in modo silenzioso, come farebbe un utente senza permessi di amministratore,
+#      e prova il programma installato (--self-test), compreso il desktop remoto incorporato: sul runner
+#      si attiva Desktop remoto con un utente di prova e la sessione deve arrivare al desktop;
+#   4. disinstalla e controlla che sessioni e password dell'utente restino.
+# Gira sulle pull request che toccano la versione Windows e viene chiamato dal Rilascio, che allega
+# il Setup.exe alla release.
+on:
+  pull_request:
+    paths:
+      - 'fedtermhub/qtui/**'
+      - 'fedtermhub/model.py'
+      - 'fedtermhub/i18n.py'
+      - 'fedtermhub/locale/**'
+      - 'packaging/windows/**'
+      - 'tests/test_qtui.py'
+      - '.github/workflows/windows.yml'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Setup.exe per Windows
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Dipendenze
+        shell: bash
+        run: python -m pip install --quiet -r packaging/windows/requirements.txt
+
+      - name: Prova dei sorgenti
+        shell: bash
+        env:
+          FEDTERMHUB_LANGUAGE: it
+        run: .github/scripts/annotate.sh "Prova dei sorgenti su Windows" python tests/test_qtui.py
+
+      - name: Costruzione di FedTermHub.exe e del Setup.exe
+        shell: pwsh
+        run: packaging\windows\build.ps1
+
+      # Desktop remoto sul runner, per provare la sessione RDP incorporata fino all'accesso.
+      # Utente locale con password casuale, solo per questa esecuzione.
+      - name: Desktop remoto di prova
+        id: rdp
+        shell: pwsh
+        run: |
+          $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+          $pw = -join (1..20 | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] }) + '!7a'
+          Write-Output "::add-mask::$pw"
+          $secure = ConvertTo-SecureString $pw -AsPlainText -Force
+          New-LocalUser -Name fthrdp -Password $secure -PasswordNeverExpires -AccountNeverExpires | Out-Null
+          Add-LocalGroupMember -Group (Get-LocalGroup -SID 'S-1-5-32-555').Name -Member fthrdp
+          Add-LocalGroupMember -Group (Get-LocalGroup -SID 'S-1-5-32-544').Name -Member fthrdp
+          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
+          Enable-NetFirewallRule -DisplayGroup (Get-NetFirewallRule -Name 'RemoteDesktop-UserMode-In-TCP').DisplayGroup -ErrorAction SilentlyContinue
+          Start-Service TermService
+          $ok = $false
+          foreach ($i in 1..30) { if (Test-NetConnection 127.0.0.2 -Port 3389 -InformationLevel Quiet -WarningAction SilentlyContinue) { $ok = $true; break }; Start-Sleep 2 }
+          if (-not $ok) { Write-Output '::warning title=Desktop remoto di prova::la porta 3389 non risponde: la prova RDP si ferma alla risposta del componente' }
+          else { "target=127.0.0.2;$env:COMPUTERNAME\fthrdp;$pw" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT }
+
+      - name: Installazione silenziosa e prova del programma installato
+        shell: pwsh
+        env:
+          FEDTERMHUB_SELFTEST_RDP: ${{ steps.rdp.outputs.target }}
+        run: |
+          $setup = Get-Item dist\packages\FedTermHub-*-Setup.exe
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER' -Wait -PassThru
+          if ($p.ExitCode) { throw "installazione non riuscita ($($p.ExitCode))" }
+          $exe = "$env:LOCALAPPDATA\Programs\FedTermHub\FedTermHub.exe"
+          if (-not (Test-Path $exe)) { throw "FedTermHub.exe non installato in $exe" }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\FedTermHub.lnk")) { throw 'collegamento nel menu Start mancante' }
+          New-Item -ItemType Directory -Force out | Out-Null
+          $report = (Join-Path (Get-Location) 'out\selftest.json')
+          $t = Start-Process $exe -ArgumentList '--self-test', $report -Wait -PassThru
+          if (-not (Test-Path $report)) { throw "il programma installato non ha scritto il risultato (uscita $($t.ExitCode))" }
+          $data = Get-Content $report -Raw | ConvertFrom-Json
+          foreach ($c in $data.checks) {
+            $line = "$($c.name): $($c.detail)"
+            if ($c.ok) { Write-Output "::notice title=OK $($c.name)::$($c.detail)" }
+            else { Write-Output "::error title=$($c.name)::$($c.detail)" }
+          }
+          if ($data.error) { Write-Output "::error title=Prova del programma installato::$($data.error -replace "`r?`n", '%0A')" }
+          if ($t.ExitCode) { throw "prova del programma installato non riuscita ($($t.ExitCode))" }
+          Write-Host "FedTermHub installato e funzionante: $exe"
+
+      # Le schermate della prova anche nel log (in base64), leggibili senza scaricare gli artifact.
+      - name: Schermate della prova
+        if: always()
+        shell: pwsh
+        run: |
+          Get-ChildItem out\*.png -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Output "=== SCREENSHOT $($_.Name) ==="
+            [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName)) -split '(.{1,4000})' | Where-Object { $_ } | ForEach-Object { Write-Output $_ }
+            Write-Output "=== END $($_.Name) ==="
+          }
+
+      - name: Disinstallazione (i dati dell'utente restano)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:APPDATA\FedTermHub" | Out-Null
+          Set-Content "$env:APPDATA\FedTermHub\keep.txt" 'dati utente'
+          $u = Start-Process "$env:LOCALAPPDATA\Programs\FedTermHub\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait -PassThru
+          if ($u.ExitCode) { throw "disinstallazione non riuscita ($($u.ExitCode))" }
+          Start-Sleep 3
+          if (Test-Path "$env:LOCALAPPDATA\Programs\FedTermHub\FedTermHub.exe") { throw 'programma ancora presente dopo la disinstallazione' }
+          if (-not (Test-Path "$env:APPDATA\FedTermHub\keep.txt")) { throw 'la disinstallazione ha cancellato i dati dell utente' }
+
+      - name: Pulizia del Desktop remoto di prova
+        if: always() && steps.rdp.outcome != 'skipped'
+        shell: pwsh
+        run: Remove-LocalUser -Name fthrdp -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-setup
+          path: |
+            dist/packages/*.exe
+            out/*
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 14

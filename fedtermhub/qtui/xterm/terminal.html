@@ -1,0 +1,108 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Crash
+     SPDX-License-Identifier: GPL-3.0-or-later -->
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="xterm.css">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg, #0f1115); }
+  #term { position: absolute; inset: 6px 4px 4px 8px; }
+  .xterm .xterm-viewport { scrollbar-width: thin; }
+</style>
+<script src="xterm.js"></script>
+<script src="addon-fit.js"></script>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+<div id="term"></div>
+<script>
+  // Terminale di FedTermHub (interfaccia Qt): xterm.js collegato al pseudo-terminale tramite QWebChannel.
+  const params = new URLSearchParams(location.search);
+  const term = new Terminal({
+    fontFamily: params.get('font') || '"Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace',
+    fontSize: parseInt(params.get('size') || '13', 10), lineHeight: 1.1,
+    cursorBlink: params.get('blink') !== '0', allowProposedApi: true,
+    scrollback: parseInt(params.get('scrollback') || '10000', 10),
+    rightClickSelectsWord: false,
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById('term'));
+  let bridge = null;
+
+  function applyTheme(t) {
+    document.body.style.setProperty('--bg', t.background);
+    document.body.style.background = t.background;
+    document.documentElement.style.colorScheme = t.dark ? 'dark' : 'light';
+    term.options.theme = t;
+  }
+  function doFit() {
+    try { fit.fit(); } catch (e) { return; }
+    if (bridge) bridge.resized(term.cols, term.rows);
+  }
+  new ResizeObserver(doFit).observe(document.getElementById('term'));
+
+  // Come nei terminali di Linux: Ctrl+Maiusc+C copia, Ctrl+Maiusc+V incolla; Ctrl+C e Ctrl+V vanno al
+  // programma (Ctrl+C interrompe). Ctrl+Maiusc+F cerca è gestito dalla finestra.
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey) return true;
+    const k = e.key.toLowerCase();
+    if (k === 'c') { if (bridge && term.hasSelection()) bridge.copy(term.getSelection()); return false; }
+    if (k === 'v') { if (bridge) bridge.pasteClipboard(); return false; }
+    return true;
+  });
+  // Clic destro: copia la selezione se c'è, altrimenti incolla (come PuTTY e il terminale di Windows).
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (!bridge) return;
+    if (term.hasSelection()) { bridge.copy(term.getSelection()); term.clearSelection(); }
+    else bridge.pasteClipboard();
+  });
+  document.addEventListener('paste', (e) => {
+    const text = e.clipboardData && e.clipboardData.getData('text/plain');
+    if (!bridge || !text) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    bridge.pasteText(text);
+  }, true);
+
+  window.fthScreen = (n) => {
+    const b = term.buffer.active;
+    const lines = [];
+    for (let i = Math.max(0, b.length - (n || 200)); i < b.length; i++) {
+      const l = b.getLine(i);
+      if (l) lines.push(l.translateToString(true));
+    }
+    return lines.join('\n').replace(/\s+$/, '');
+  };
+  window.fthFind = (text, back) => {
+    if (!text) return false;
+    const b = term.buffer.active;
+    for (let i = b.length - 1; i >= 0; i--) {
+      const l = b.getLine(i);
+      if (l && l.translateToString(true).toLowerCase().includes(text.toLowerCase())) {
+        term.scrollToLine(Math.max(0, i - Math.floor(term.rows / 2)));
+        return true;
+      }
+    }
+    return false;
+  };
+
+  new QWebChannel(qt.webChannelTransport, (channel) => {
+    bridge = channel.objects.bridge;
+    bridge.write.connect((text) => term.write(text));
+    bridge.reset.connect(() => term.reset());
+    bridge.themeChanged.connect((json) => applyTheme(JSON.parse(json)));
+    bridge.fontChanged.connect((size) => { term.options.fontSize = size; doFit(); });
+    bridge.focusTerminal.connect(() => term.focus());
+    term.onData((data) => bridge.input(data));
+    term.onBinary((data) => bridge.input(data));
+    term.onTitleChange((title) => bridge.titleChanged(title));
+    bridge.ready();
+    doFit();
+    term.focus();
+  });
+</script>
+</body>
+</html>

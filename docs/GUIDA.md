@@ -12,6 +12,7 @@
 - [Password Manager](#password-manager)
 - [Strumenti di rete](#strumenti-di-rete)
 - [Laboratorio Linux usa e getta](#laboratorio-linux-usa-e-getta)
+- [Windows](#windows)
 - [Scorciatoie da tastiera](#scorciatoie-da-tastiera)
 - [Dove sono i tuoi dati](#dove-sono-i-tuoi-dati)
 - [Risoluzione dei problemi](#risoluzione-dei-problemi)
@@ -342,6 +343,52 @@ Servono `libvirt-daemon-kvm`, `libvirt-client`, `virt-install`, `virt-viewer` e
 finestra grafica resta ferma sui messaggi del kernel, la macchina è avviata e
 aspetta su `virsh -c qemu:///session console <nome>`.
 
+## Windows
+
+FedTermHub gira anche su **Windows 10 (versione 1809 o successiva) e Windows 11**, a 64 bit.
+
+**Installazione.** Scarica `FedTermHub-<versione>-Setup.exe` dall'[ultima
+release](https://github.com/Crash-FD01/FedTermHub/releases/latest) e aprilo. Si installa per il tuo utente in
+`%LOCALAPPDATA%\Programs\FedTermHub`, senza permessi di amministratore (nella prima schermata puoi scegliere
+di installarlo per tutti gli utenti). Il programma non è firmato con un certificato: la prima volta Windows
+SmartScreen può mostrare «PC protetto da Windows» → *Ulteriori informazioni* → *Esegui comunque*.
+
+**Aggiornamenti.** Una volta al giorno il programma chiede a GitHub qual è l'ultima versione (nessun dato
+inviato oltre alla richiesta); se ce n'è una nuova compare un pulsante nella barra di stato. Si disattiva in
+*Impostazioni › Avvisami quando esce una nuova versione*. Per aggiornare basta aprire il nuovo Setup.exe:
+sessioni, impostazioni e password restano.
+
+**Cosa c'è per ora.**
+
+| Funzione | Su Windows |
+|---|---|
+| Sessioni in cartelle, ricerca, connessione rapida (**Ctrl+L**) | ✓ |
+| Terminale locale: PowerShell 7 se installato, altrimenti Windows PowerShell | ✓ |
+| SSH con il client OpenSSH di Windows, jump host, password dal Password Manager | ✓ |
+| Desktop remoto RDP incorporato nella scheda (componente di Windows), RD Gateway | ✓ |
+| Telnet (serve il «Client Telnet» di Windows), sessioni Comando | ✓ |
+| Password Manager, backup cifrato importabile anche su Linux | ✓ |
+| SFTP e file remoti, tunnel, VNC, seriale, strumenti di rete, laboratorio | non ancora |
+
+Le sessioni dei tipi non ancora disponibili si possono comunque importare, salvare e modificare: si aprono
+nella versione Linux.
+
+**Portare le sessioni da Linux.** Su Linux usa *Esporta tutte le sessioni* (o seleziona una cartella e *Esporta la selezione*); su
+Windows *File › Importa sessioni…* e scegli il file. Le password non sono nel file delle sessioni: per portarle
+usa *File › Esporta backup cifrato delle password* su Linux e *Importa backup cifrato* su Windows.
+
+**SSH.** FedTermHub usa `ssh.exe` di Windows. Se manca: *Impostazioni › Sistema › Funzionalità facoltative ›
+Aggiungi «Client OpenSSH»*. La password salvata viene scritta al prompt `password:` una volta sola, come fa
+`sshpass` su Linux; le chiavi in `%USERPROFILE%\.ssh` funzionano come al solito.
+
+**Desktop remoto.** La sessione si apre nella scheda con il componente RDP di Windows (lo stesso di
+Connessione Desktop remoto): appunti, stampanti, smart card, audio, cartella condivisa e schermo intero; la
+risoluzione segue la dimensione della scheda. Il pulsante *Apri con Connessione Desktop remoto* apre la stessa
+sessione in `mstsc`.
+
+**Dove sono i dati.** `%APPDATA%\FedTermHub` (sessioni, password cifrate, impostazioni); stesso formato dei
+file Linux. Disinstallare (da *Impostazioni › App*) non li cancella.
+
 ## Scorciatoie da tastiera
 
 | Tasti | Azione |
@@ -376,7 +423,8 @@ terminale. Dentro il terminale:
 
 ## Dove sono i tuoi dati
 
-Tutto resta sul tuo computer; FedTermHub non manda dati da nessuna parte.
+Tutto resta sul tuo computer; FedTermHub non manda dati da nessuna parte (la versione Windows chiede
+solo a GitHub, una volta al giorno, qual è l'ultima versione: vedi [Windows](#windows)).
 
 | Percorso | Contenuto |
 |---|---|

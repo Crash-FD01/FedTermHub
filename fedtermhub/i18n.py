@@ -31,10 +31,30 @@ _CATALOG: Dict[str, str] = {}
 _REVERSE: Dict[str, str] = {}
 
 
-def _configured_language() -> str:
-    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+def _settings_file() -> Path:
+    # Stesso percorso di model.SETTINGS_FILE (qui non si importa model: i18n viene caricato prima).
+    if os.name == "nt":
+        root = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming")) / "FedTermHub"
+    else:
+        root = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "fedtermhub"
+    return root / "settings.json"
+
+
+def _windows_ui_language() -> str:
+    """Il codice della lingua dell'interfaccia di Windows (it, en, de...), vuoto se non si legge."""
     try:
-        raw = json.loads((config_home / "fedtermhub" / "settings.json").read_text(encoding="utf-8"))
+        import ctypes
+        import locale
+
+        lcid = ctypes.windll.kernel32.GetUserDefaultUILanguage()  # type: ignore[attr-defined]
+        return (locale.windows_locale.get(lcid, "") or "").split("_")[0].lower()
+    except Exception:
+        return ""
+
+
+def _configured_language() -> str:
+    try:
+        raw = json.loads(_settings_file().read_text(encoding="utf-8"))
         return str(raw.get("language", "auto"))
     except Exception:
         return "auto"
@@ -56,6 +76,11 @@ def detect_language(setting: Optional[str] = None) -> str:
         if code in {"c", "posix"}:
             continue
         return "it" if code == "it" else "en"
+    if os.name == "nt":
+        # Su Windows LANG di solito non c'è: vale la lingua dell'interfaccia del sistema.
+        code = _windows_ui_language()
+        if code:
+            return "it" if code == "it" else "en"
     return "it"
 
 

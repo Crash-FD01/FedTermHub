@@ -46,13 +46,14 @@ msgstr ""
 def extract() -> Dict[str, List[str]]:
     """{msgid: [file:riga, ...]} nell'ordine in cui compaiono nei moduli."""
     found: Dict[str, List[str]] = {}
-    for path in sorted(PACKAGE.glob("*.py")):
+    # Anche i moduli dell'interfaccia Qt (fedtermhub/qtui/).
+    for path in sorted(PACKAGE.glob("*.py")) + sorted(PACKAGE.glob("qtui/*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {"tr", "trn"}:
                 for arg in node.args[: 1 if node.func.id == "tr" else 2]:
                     if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value:
-                        found.setdefault(arg.value, []).append(f"{path.name}:{node.lineno}")
+                        found.setdefault(arg.value, []).append(f"{path.relative_to(PACKAGE).as_posix()}:{node.lineno}")
     return found
 
 

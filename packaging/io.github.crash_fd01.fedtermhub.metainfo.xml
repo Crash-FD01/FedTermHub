@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.10.0" date="2026-11-05">
+      <description>
+        <p>New native Windows version (Windows 10 1809+ and 11): sessions, terminal, SSH, embedded remote desktop and Password Manager.</p>
+        <p xml:lang="it">Nuova versione nativa per Windows (Windows 10 1809+ e 11): sessioni, terminale, SSH, desktop remoto incorporato e Password Manager.</p>
+      </description>
+    </release>
     <release version="0.9.13" date="2026-10-30">
       <description>
         <p>openSUSE: installation from the repository works on Tumbleweed and Leap 16.</p>

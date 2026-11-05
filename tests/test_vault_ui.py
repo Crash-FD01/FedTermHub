@@ -304,7 +304,9 @@ def main() -> int:
         )
         import fedtermhub as app  # noqa: PLC0415
 
-        app.KDF_ITERATIONS = 2_000  # la robustezza del KDF non e' oggetto di questo test
+        import model  # noqa: PLC0415
+
+        model.KDF_ITERATIONS = 2_000  # la robustezza del KDF non e' oggetto di questo test
         check_model(app, tmp)
         check_generator()
         window = build_window(app)

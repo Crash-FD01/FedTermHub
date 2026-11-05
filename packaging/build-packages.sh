@@ -34,8 +34,8 @@ APP_ID="io.github.crash_fd01.fedtermhub"
 # 0.9.x come un downgrade rispetto ai pacchetti già installati.
 EPOCH=1
 RELEASE=1
-VERSION="$(sed -n 's/^APP_VERSION = "\([^"]*\)"/\1/p' "$ROOT/fedtermhub/fedtermhub.py")"
-[[ -n "$VERSION" ]] || { echo "APP_VERSION non trovata in fedtermhub/fedtermhub.py" >&2; exit 1; }
+VERSION="$(sed -n 's/^APP_VERSION = "\([^"]*\)"/\1/p' "$ROOT/fedtermhub/model.py")"
+[[ -n "$VERSION" ]] || { echo "APP_VERSION non trovata in fedtermhub/model.py" >&2; exit 1; }
 case "$ARCH" in
     x86_64) DEB_ARCH=amd64 ;;
     aarch64) DEB_ARCH=arm64 ;;
@@ -74,8 +74,9 @@ if [[ "${SKIP_MAIN:-0}" != 1 ]]; then
     STAGE="$WORK/main"
     APPDIR="$STAGE/usr/share/fedtermhub"
     mkdir -p "$APPDIR"
-    # solo i file del programma: niente cache di Python né file dei test
-    tar -C "$ROOT" --exclude='__pycache__' --exclude='*.pyc' -cf - fedtermhub | tar -C "$APPDIR" -xf -
+    # solo i file del programma: niente cache di Python né file dei test; l'interfaccia Qt
+    # (fedtermhub/qtui) per ora serve solo alla versione Windows
+    tar -C "$ROOT" --exclude='__pycache__' --exclude='*.pyc' --exclude='fedtermhub/qtui' -cf - fedtermhub | tar -C "$APPDIR" -xf -
     find "$APPDIR" -type d -exec chmod 0755 {} +
     find "$APPDIR" -type f -exec chmod 0644 {} +
     chmod 0755 "$APPDIR/fedtermhub/fedtermhub.py"

@@ -55,6 +55,24 @@ xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots.py . light docs
 
 e le altre tre varianti indicate in `tools/screenshots.py`.
 
+### Versione Windows (interfaccia Qt)
+
+Il nucleo senza interfaccia (sessioni, password, impostazioni) è in `fedtermhub/model.py` ed è
+lo stesso per le due interfacce. L'interfaccia GTK (`fedtermhub/fedtermhub.py`) è quella dei
+pacchetti Linux; l'interfaccia Qt (`fedtermhub/qtui/`, PySide6) è quella della versione Windows e
+in futuro sostituirà la GTK anche su Linux. Si prova anche da Linux:
+
+```bash
+python3 -m venv ~/.venv/fth-qt && ~/.venv/fth-qt/bin/pip install PySide6-Essentials PySide6-WebEngine cryptography
+~/.venv/fth-qt/bin/python -m fedtermhub.qtui                 # il programma (RDP incorporato solo su Windows)
+~/.venv/fth-qt/bin/python tests/test_qtui.py                 # prove, compreso --self-test
+```
+
+Su Windows `pwsh packaging\windows\build.ps1` costruisce `FedTermHub.exe` e il Setup.exe
+(Python 3.13; Inno Setup viene installato se manca). La CI *Windows* fa lo stesso su ogni pull
+request che tocca `fedtermhub/qtui`, installa il Setup.exe e prova il programma installato con
+`FedTermHub.exe --self-test <file.json>`, compreso un desktop remoto vero sul runner.
+
 ### Testi e traduzioni
 
 I testi dell'interfaccia si scrivono in italiano dentro `tr()` (o `trn()` per
@@ -113,7 +131,7 @@ pacchetti (la privata resta tua e nel secret di GitHub) e pubblica il primo tag.
 Per ogni versione successiva:
 
 1. Aggiorna `Version` e aggiungi la voce di `%changelog` in `fedtermhub.spec`.
-2. Aggiorna `APP_VERSION` in `fedtermhub/fedtermhub.py`, `APP_VERSION` in
+2. Aggiorna `APP_VERSION` in `fedtermhub/model.py`, `APP_VERSION` in
    `install.sh` e il blocco `<releases>` di
    `packaging/io.github.crash_fd01.fedtermhub.metainfo.xml`.
    `python3 tests/test_versions.py` controlla di non averne dimenticato nessuno.
@@ -129,7 +147,9 @@ Per ogni versione successiva:
    inclusa nel motore RDP; x86_64 e aarch64. Li firma, pubblica la release con
    `SHA256SUMS` firmato e aggiorna i repository (dnf per Fedora, dnf/zypper per
    RHEL e openSUSE, APT) e il sito. Chi ha installato con `setup.sh` riceve
-   l'aggiornamento con `apt`, `dnf` o `zypper`.
+   l'aggiornamento con `apt`, `dnf` o `zypper`. Con il workflow *Windows* allega
+   anche `FedTermHub-X.Y.Z-Setup.exe`, già installato e provato su Windows: chi lo
+   usa vede l'avviso della nuova versione nella barra di stato.
 5. Subito dopo, il workflow *Verifica installazione* installa la nuova versione
    dal sito su Fedora, Debian, Ubuntu, AlmaLinux e openSUSE puliti, con lo
    stesso comando del README, e controlla firme, versione, avvio, motore RDP

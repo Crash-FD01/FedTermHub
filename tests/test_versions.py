@@ -36,7 +36,7 @@ def main() -> int:
         "fedtermhub.spec  Version": spec,
         "fedtermhub.spec  prima voce di %changelog": one(
             r"^%changelog\s*\n\*[^\n]*?-\s*(?:\d+:)?([0-9][^\s-]*)-\S+\s*$", "fedtermhub.spec"),
-        "fedtermhub/fedtermhub.py  APP_VERSION": one(r'^APP_VERSION = "([^"]+)"', "fedtermhub/fedtermhub.py"),
+        "fedtermhub/model.py  APP_VERSION": one(r'^APP_VERSION = "([^"]+)"', "fedtermhub/model.py"),
         "install.sh  APP_VERSION": one(r'^APP_VERSION="([^"]+)"', "install.sh"),
     }
     metainfo = ROOT / "packaging/io.github.crash_fd01.fedtermhub.metainfo.xml"

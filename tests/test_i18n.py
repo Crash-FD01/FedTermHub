@@ -84,7 +84,7 @@ def check_catalog() -> dict:
 def check_mnemonics(catalog: dict) -> None:
     """Un'etichetta con _ resta con il suo mnemonico anche in inglese."""
     missing = []
-    for path in sorted(PACKAGE.glob("*.py")):
+    for path in sorted(PACKAGE.glob("*.py")) + sorted(PACKAGE.glob("qtui/*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
                 continue
