@@ -67,7 +67,7 @@ jobs:
         run: echo "version=$(sed -n 's/^FREERDP_VERSION="\${FREERDP_VERSION:-\([^}]*\)}"/\1/p' packaging/build-freerdp.sh)" >> "$GITHUB_OUTPUT"
 
       # La compilazione di FreeRDP prende qualche minuto: si rifà solo quando cambiano versione o opzioni.
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: /opt/freerdp
           key: freerdp-${{ steps.freerdp.outputs.version }}-${{ matrix.arch }}-alma9-${{ hashFiles('packaging/build-freerdp.sh') }}
