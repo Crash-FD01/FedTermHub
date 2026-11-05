@@ -151,9 +151,13 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         assert wait(app, lambda: tab.view.ready, 20), "terminale non pronto"
         assert wait(app, lambda: not tab.feeder.armed and tab.running, 30), \
             "password non scritta: " + "".join(out)[-300:]
-        wait(app, lambda: False, 3)
+        # Il primo accesso di un utente nuovo su Windows crea il suo profilo: il prompt può tardare.
+        mark = len("".join(out))
+        prompt = re.compile(r"[>$#]\s*$")
+        wait(app, lambda: bool(prompt.search(re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", "".join(out)[mark:]).rstrip("\r\n"))), 90)
+        wait(app, lambda: False, 1)
         tab.view.on_input("echo FTH_SSH_$((6*7))_OK\r")
-        ok = wait(app, lambda: "FTH_SSH_42_OK" in "".join(out) or "FTH_SSH_$((6*7))_OK" in "".join(out).replace("echo FTH", ""), 20)
+        ok = wait(app, lambda: "FTH_SSH_42_OK" in "".join(out) or "FTH_SSH_$((6*7))_OK" in "".join(out).replace("echo FTH", ""), 40)
         assert ok, "nessuna risposta dalla shell remota: " + "".join(out)[-300:]
         # Pannello dei file accanto al terminale
         assert wait(app, lambda: tab.files is not None and tab.files.connected, 30), \
