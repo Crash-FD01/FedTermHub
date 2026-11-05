@@ -73,6 +73,7 @@ class TerminalView(QWebEngineView):
 
     title_changed = Signal(str)
     cwd_changed = Signal(str)  # cartella corrente dichiarata dalla shell (OSC 7)
+    page_ready = Signal()  # xterm.js è caricato
 
     def __init__(self, parent=None, font_size: int = 13, scrollback: int = 10000, blink: bool = True, process=None):
         super().__init__(parent)
@@ -109,6 +110,7 @@ class TerminalView(QWebEngineView):
         if self._pending:
             self.bridge.write.emit("".join(self._pending))
             self._pending.clear()
+        self.page_ready.emit()
 
     @property
     def ready(self) -> bool:

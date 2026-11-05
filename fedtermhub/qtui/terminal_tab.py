@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtWidgets import QLabel, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QSplitter, QVBoxLayout, QWidget
 
 from .. import look, model, termcore
 from ..i18n import tr
@@ -43,6 +43,7 @@ class TerminalPane(QWidget):
         self.feeder = connect.PasswordFeeder(launch.password)
         self.view.cwd_changed.connect(lambda path: tab.pane_cwd_changed(self, path))
         self.view.input_hooks.append(lambda data: tab.pane_input(self, data))
+        self.view.page_ready.connect(tab.pane_ready)
         self.view.pty.output.connect(self._output)
         self.view.pty.finished.connect(self._finished)
         self.start()
@@ -152,8 +153,9 @@ class TerminalTab(QWidget):
         return any(pane.running for pane in self.panes)
 
     def set_active(self, pane: TerminalPane) -> None:
-        # Mentre i riquadri si spostano il fuoco passa da uno all'altro: non è una scelta dell'utente.
-        if not self._relaying and pane in self.panes:
+        # Mentre i riquadri si spostano o le pagine si caricano il fuoco passa da uno all'altro (su Windows
+        # lo prende la prima pagina pronta): non è una scelta dell'utente.
+        if not self._relaying and pane in self.panes and all(p.view.ready for p in self.panes):
             self.active_pane = pane
 
     def focus_active(self) -> None:
@@ -283,6 +285,12 @@ class TerminalTab(QWidget):
         self._toast_timer.start(1800)
 
     # ------------------------------------------------------------------ dai riquadri
+    def pane_ready(self) -> None:
+        """Una pagina è pronta: il fuoco torna al riquadro attivo, se non è già uscito dalla scheda."""
+        focus = QApplication.focusWidget()
+        if len(self.panes) > 1 and focus is not None and self.isAncestorOf(focus):
+            self.focus_active()
+
     def pane_input(self, pane: TerminalPane, data: str) -> None:
         self.set_active(pane)
         self.activity.emit()

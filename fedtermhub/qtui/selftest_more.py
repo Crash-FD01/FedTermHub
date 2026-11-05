@@ -216,6 +216,8 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         from .chrome import MultiExecDialog
         from . import connect as launch_for
 
+        for index in range(window.tabs.count() - 1, -1, -1):  # schede rimaste da una prova fallita
+            window.close_tab(index)
         fake = launch_for.local_shell(window.settings)
         fake.title, fake.close_on_success = "web01", False
         ssh_tab = window.add_terminal_tab(fake, protocol="ssh")  # il comando è una shell: conta il tipo di scheda
