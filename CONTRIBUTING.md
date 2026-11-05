@@ -33,14 +33,15 @@ FEDTERMHUB_RDP_NATIVE_HELPER="$HOME/.local/libexec/fedtermhub/fedtermrdp-native"
 
 ## Prima di aprire una pull request
 
-Esegui i controlli che fa anche la CI:
+Esegui i controlli che fa anche la CI, con un riassunto di una riga per prova:
 
 ```bash
-python3 -m compileall -q fedtermhub tests
-python3 tests/test_theme_parity.py
-python3 tests/test_versions.py
-for t in tests/test_*.py; do xvfb-run -a python3 "$t" || echo "FALLITO: $t"; done
+tools/test_all.sh          # tutto: prove veloci, interfaccia Linux (GTK) e Windows (Qt)
+tools/test_all.sh linux    # oppure solo veloci + GTK; «fast» solo le prove senza interfaccia
 ```
+
+Dopo aver aperto la pull request, `tools/ci_wait.sh <numero>` aspetta la fine della CI e stampa solo
+il riassunto e gli errori (`--windows` aggiunge il risultato del self-test di Windows).
 
 `tests/test_ui_behaviours.py` prova sull'applicazione vera i comportamenti che si
 rompono facilmente: le combinazioni da tastiera dentro il terminale, la posizione
