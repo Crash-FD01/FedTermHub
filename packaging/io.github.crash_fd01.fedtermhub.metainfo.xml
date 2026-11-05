@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.13.0" date="2026-11-05">
+      <description>
+        <p>Windows version: split terminal and MultiExec, with the same keys and behaviour as on Linux.</p>
+        <p xml:lang="it">Versione Windows: terminale diviso e MultiExec, con gli stessi tasti e lo stesso comportamento della versione Linux.</p>
+      </description>
+    </release>
     <release version="0.12.0" date="2026-11-05">
       <description>
         <p>Linux and Windows share one core (ssh and tunnel commands, network tools, colours); the Windows window now has the Linux layout.</p>

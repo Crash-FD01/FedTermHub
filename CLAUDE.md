@@ -21,6 +21,7 @@ Nucleo comune (né GTK né Qt):
   tunnel, AppSettings, import/export delle sessioni.
 - `fedtermhub/commands.py` — comandi ssh, ProxyJump, tunnel (`ssh_session_argv`, `tunnel_argv`, controlli).
 - `fedtermhub/netcore.py` — strumenti di rete (scansioni, porte in ascolto, WoL, server HTTP/TFTP, ping).
+- `fedtermhub/termcore.py` — riquadri del terminale (disposizioni, tasti, broadcast) e regole di MultiExec.
 - `fedtermhub/look.py` — colori della finestra, colori delle icone, icone delle cartelle, colori del terminale.
 - `fedtermhub/i18n.py` + `fedtermhub/locale/en.po` — testi: si scrive `tr("testo italiano")`.
 
@@ -35,8 +36,8 @@ Linux (GTK 3), pacchetti RPM/DEB:
   `windows_sessions.py`, `serial_bridge.py`, `distro.py`.
 
 Windows (Qt 6 / PySide6), Setup.exe — `fedtermhub/qtui/`:
-- `app.py` avvio e `--self-test`; `main_window.py` finestra (TerminalTab, MainWindow); `chrome.py` albero con
-  trascinamento, dialoghi cartella/log/scorciatoie; `theme.py` tema da look.py; `quick_tools.py` test rapidi
+- `app.py` avvio e `--self-test`; `main_window.py` finestra (MainWindow); `terminal_tab.py` scheda terminale a
+  riquadri (TerminalTab, TerminalPane); `chrome.py` albero con trascinamento, dialoghi cartella/log/scorciatoie/MultiExec; `theme.py` tema da look.py; `quick_tools.py` test rapidi
   PowerShell; `terminal_view.py` + `xterm/` terminale; `pty_process.py` ConPTY; `connect.py` comandi di avvio;
   `session_dialog.py`, `settings_dialog.py`, `vault_dialogs.py`, `tunnels.py`, `net_tools.py`, `files_panel.py`
   + `sftp_client.py` (paramiko), `rdp_tab.py` (ActiveX via ATL+comtypes), `vnc_tab.py` + `ws_bridge.py` + `novnc/`,

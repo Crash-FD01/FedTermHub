@@ -11,7 +11,8 @@ FedTermHub ha due interfacce, ognuna fatta con quello che funziona meglio sul su
 
 Sotto le due interfacce c'è un **nucleo comune**, uguale per entrambe: sessioni, cartelle, password cifrate,
 impostazioni e formato di import/export (`model.py`), comandi ssh, ProxyJump e tunnel (`commands.py`),
-strumenti di rete (`netcore.py`), colori, icone e colori del terminale (`look.py`). Le sessioni esportate da
+strumenti di rete (`netcore.py`), riquadri del terminale e MultiExec (`termcore.py`), colori, icone e colori del
+terminale (`look.py`). Le sessioni esportate da
 una versione si importano nell'altra, e le due finestre hanno la stessa disposizione: menu, barra dei
 comandi con le tendine, barra verticale, pannello Sessioni | File remoti, schede con il pallino di stato.
 
@@ -24,8 +25,8 @@ Linux sia nella tabella e che le voci segnate **sì** esistano davvero nell'inte
 | Funzione | Linux | Windows | Note |
 |---|---|---|---|
 | Nuovo terminale locale | sì | sì | Windows: PowerShell (7 se c'è) o la shell scelta nelle Impostazioni |
-| Terminale diviso | sì | no | in programma per Windows |
-| MultiExec | sì | no | in programma per Windows |
+| Terminale diviso | sì | sì | stessi tasti; Windows: anche in Terminale › Riquadri, perché il clic destro copia e incolla |
+| MultiExec | sì | sì | |
 | Quick connect | sì | sì | `utente@host[:porta]`, `rdp:host`, `telnet:host` |
 | Esci | sì | sì | |
 

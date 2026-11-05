@@ -18,6 +18,7 @@ on:
       - 'fedtermhub/model.py'
       - 'fedtermhub/commands.py'
       - 'fedtermhub/netcore.py'
+      - 'fedtermhub/termcore.py'
       - 'fedtermhub/look.py'
       - 'fedtermhub/icons/**'
       - 'docs/PARITA.md'

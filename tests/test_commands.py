@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("FEDTERMHUB_LANGUAGE", "it")
 
-from fedtermhub import commands, look, model, netcore  # noqa: E402
+from fedtermhub import commands, look, model, netcore, termcore  # noqa: E402
 
 
 def settings(**kw) -> model.AppSettings:  # noqa: ANN003
@@ -205,9 +205,54 @@ def check_parity_doc() -> None:
             assert f'"{name}"' in qt or f"'{name}'" in qt, f"{name}: segnata «sì» per Windows ma non c'è in qtui/"
 
 
+def check_panes() -> None:
+    """Riquadri e MultiExec: stesse regole sulle due interfacce (termcore.py)."""
+    assert termcore.next_layout("grid") == "stack" and termcore.next_layout("stack") == "tall"
+    assert termcore.layout_after_add("stack", 2) == "tall" and termcore.layout_after_add("grid", 3) == "grid"
+    assert [termcore.grid_shape(n) for n in (1, 2, 3, 4, 5, 9)] == [(1, 1), (2, 1), (2, 2), (2, 2), (3, 2), (3, 3)]
+    assert termcore.layout_plan("tall", 1) == 0 and termcore.layout_plan("stack", 3, active=2) == 2
+    assert termcore.layout_plan("tall", 2) == ("h", [0, 1])
+    assert termcore.layout_plan("tall", 3) == ("h", [0, ("v", [1, 2])])
+    assert termcore.layout_plan("fat", 3) == ("v", [0, ("h", [1, 2])])
+    assert termcore.layout_plan("grid", 2) == ("h", [0, 1])
+    assert termcore.layout_plan("grid", 3) == ("v", [("h", [0, 1]), 2])
+    assert termcore.layout_plan("grid", 4) == ("v", [("h", [0, 1]), ("h", [2, 3])])
+    # broadcast: testo e tasti semplici sì; frecce, Ctrl+tasto e risposte del terminale no
+    for data in ("a", "uptime", "è", "\r", "\x7f", "\t", "\x1b"):
+        assert termcore.broadcastable(data), repr(data)
+    for data in ("", "\x03", "\x1b[A", "\x1b[12;5R", "\x1b[?1;2c", "\x1b[<0;3;4M", "a\x03"):
+        assert not termcore.broadcastable(data), repr(data)
+    # MultiExec: spuntate le SSH; se non ce n'è nessuna, tutte
+    assert termcore.multiexec_target("ssh") == ("SSH", True)
+    assert termcore.multiexec_target("telnet") == ("TELNET", False)
+    assert termcore.multiexec_target("local") == ("terminale locale", False)
+    assert termcore.multiexec_target("tool") == ("strumento", False)
+    assert termcore.multiexec_target("local", split=True) == ("terminale diviso", False)
+    mixed = [("a", "A", "SSH", True), ("b", "B", "TELNET", False)]
+    assert termcore.multiexec_defaults(mixed) == mixed
+    assert [t[3] for t in termcore.multiexec_defaults([("b", "B", "TELNET", False)])] == [True]
+    assert termcore.multiexec_line("uptime") == "uptime\n" and termcore.multiexec_line("uptime", "\r") == "uptime\r"
+    # le due interfacce usano il nucleo e i tasti della tabella sono quelli della versione Linux
+    gtk = (ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8")
+    panel = (ROOT / "fedtermhub" / "terminal_panel.py").read_text(encoding="utf-8")
+    qt = (ROOT / "fedtermhub" / "qtui" / "main_window.py").read_text(encoding="utf-8")
+    qt_tab = (ROOT / "fedtermhub" / "qtui" / "terminal_tab.py").read_text(encoding="utf-8")
+    for function in ("multiexec_target", "multiexec_defaults", "multiexec_line"):
+        assert f"termcore.{function}" in gtk and f"termcore.{function}" in qt, function
+    assert "termcore.next_layout" in panel and "termcore.next_layout" in qt_tab
+    assert "termcore.PANE_KEYS" in qt and "termcore.broadcastable" in qt_tab
+    for letter, action in (("o", "split_v"), ("e", "split_h"), ("w", "close_pane")):
+        assert f'lower == "{letter}":\n            self._request("{action}")' in panel, action
+        assert f"Ctrl+Shift+{letter.upper()}" in termcore.PANE_KEYS[action]
+    for letter, action in (("l", "cycle_layout"), ("p", "toggle_broadcast")):
+        assert f'lower == "{letter}":\n            self.dispatch("{action}", pane)' in panel, action
+        assert f"Ctrl+Shift+{letter.upper()}" in termcore.PANE_KEYS[action]
+    assert all(color in gtk for color in look.TERMINAL_TOAST.values()), "avviso del terminale diverso dal CSS GTK"
+
+
 def main() -> int:
     for check in (check_ssh, check_tunnels, check_netcore, check_both_interfaces_use_the_core, check_look,
-                  check_parity_doc):
+                  check_panes, check_parity_doc):
         check()
         print(f"OK {check.__name__}")
     return 0

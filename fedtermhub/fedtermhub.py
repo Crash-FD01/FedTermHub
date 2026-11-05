@@ -91,12 +91,14 @@ try:
     from . import distro
     from . import commands
     from . import look
+    from . import termcore
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
     from i18n import detect_language as i18n_detect, original, tr, trn
     import distro  # type: ignore[no-redef]
     import commands  # type: ignore[no-redef]
     import look  # type: ignore[no-redef]
+    import termcore  # type: ignore[no-redef]
 
 # La versione sta in model.py (con fedtermhub.spec, install.sh e il metainfo: tests/test_versions.py
 # controlla che coincidano). Si importa in cima perche' il doctor la stampa anche quando GTK non si carica.
@@ -8935,12 +8937,11 @@ class AppWindow(Gtk.ApplicationWindow):
                 continue
             sess = getattr(page, "fedtermhub_session", None)
             if isinstance(sess, Session):
-                kind = sess.protocol.upper()
-                default = sess.protocol.lower() in {"ssh"}
+                kind, default = termcore.multiexec_target(sess.protocol)
             elif isinstance(page, SplitTerminalTab):
-                kind, default = tr("terminale diviso"), False
+                kind, default = termcore.multiexec_target("local", split=True)
             else:
-                kind, default = tr("terminale locale") if getattr(page, "is_local_shell", False) else "strumento", False
+                kind, default = termcore.multiexec_target("local" if getattr(page, "is_local_shell", False) else "tool")
             # Il titolo scelto all'apertura (nome della sessione) sta nel tooltip dell'etichetta.
             title = getattr(page, "title", "") or tr("Terminale")
             label_widget = self.notebook.get_tab_label(page)
@@ -8953,16 +8954,14 @@ class AppWindow(Gtk.ApplicationWindow):
         if not targets:
             self.set_status(tr("Nessuna scheda terminale aperta per MultiExec."))
             return
-        if not any(default for *_rest, default in targets):
-            targets = [(t, title, kind, True) for t, title, kind, _d in targets]
-        dialog = MultiExecDialog(self, targets)
+        dialog = MultiExecDialog(self, termcore.multiexec_defaults(targets))
         try:
             if dialog.run() == Gtk.ResponseType.OK:
                 command = dialog.get_command()
                 chosen = dialog.selected_targets()
                 if command and chosen:
                     sent = 0
-                    payload = (command + "\n").encode("utf-8")
+                    payload = termcore.multiexec_line(command).encode("utf-8")
                     for tab in chosen:
                         try:
                             feed_all = getattr(tab, "feed_all", None)

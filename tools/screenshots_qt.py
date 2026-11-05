@@ -7,6 +7,8 @@ Serve a confrontare le due interfacce una accanto all'altra. Non tocca la config
     xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots_qt.py dark  qt-principale-scuro.png
     xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots_qt.py light qt-principale-chiaro.png
     xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots_qt.py dark  qt-menu-scuro.png menu
+    xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots_qt.py dark  qt-diviso-scuro.png diviso
+    xvfb-run -a -s "-screen 0 1400x880x24" python3 tools/screenshots_qt.py dark  qt-multiexec-scuro.png multiexec
 
 Su Windows funziona anche senza xvfb-run.
 """
@@ -80,8 +82,10 @@ from PySide6.QtCore import QTimer  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from fedtermhub.qtui import connect, theme  # noqa: E402
+from fedtermhub.qtui.chrome import MultiExecDialog  # noqa: E402
 from fedtermhub.qtui.main_window import MainWindow  # noqa: E402
 
+finestre = []
 app = QApplication([])
 theme.apply(app, TEMA)
 win = MainWindow()
@@ -93,17 +97,30 @@ def prepara() -> None:
     win.tree.expandAll()
     path = next(p for p, s, _f in win.store.iter_sessions() if s.name == "web01")
     win.refresh_tree(select=path)
-    win.add_terminal_tab(connect.Launch("web01", ["bash", "-c", script], {}, close_on_success=False), protocol="ssh")
+    tab = win.add_terminal_tab(connect.Launch("web01", ["bash", "-c", script], {}, close_on_success=False), protocol="ssh")
     if VISTA == "menu":
         QTimer.singleShot(2500, lambda: win.ribbon_buttons["sessions"].showMenu())
+    if VISTA == "diviso":
+        tab.dispatch("split_v")
+        tab.dispatch("split_h")
+        tab.dispatch("toggle_broadcast")
+        QTimer.singleShot(3800, tab.toggle_broadcast)
+    if VISTA == "multiexec":
+        win.add_terminal_tab(connect.Launch("db01", ["bash", "-c", script], {}, close_on_success=False), protocol="ssh")
+        win.add_terminal_tab(connect.Launch("Terminale locale", ["bash", "-c", script], {}), protocol="local")
+        dialogo = MultiExecDialog(win, win.multiexec_targets())
+        dialogo.command.setText("uptime")
+        dialogo.setModal(False)
+        dialogo.show()
+        finestre.append(dialogo)
     QTimer.singleShot(5000, scatta)
 
 
 def scatta() -> None:
     win.open_label.setText("Aperto: web01")
     screen = app.primaryScreen()
-    pixmap = screen.grabWindow(0) if VISTA == "menu" else win.grab()
-    if VISTA != "menu":
+    pixmap = screen.grabWindow(0) if VISTA in {"menu", "multiexec"} else win.grab()
+    if VISTA not in {"menu", "multiexec"}:
         pixmap = screen.grabWindow(0, win.geometry().x(), win.geometry().y(), win.width(), win.height())
     pixmap.save(str(USCITA))
     print(USCITA)

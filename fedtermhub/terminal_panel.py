@@ -36,7 +36,6 @@ Scorciatoie da tastiera:
 
 from __future__ import annotations
 
-import math
 import os
 import re
 import shutil
@@ -46,10 +45,11 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 try:
     from .i18n import tr, trn
-    from . import look
+    from . import look, termcore
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import tr, trn
     import look  # type: ignore[no-redef]
+    import termcore  # type: ignore[no-redef]
 from urllib.parse import unquote, urlparse
 
 import gi
@@ -81,7 +81,7 @@ _URL_PATTERN = r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>\"'\)\]]+"
 _HINT_ALPHABET = "asdfghjklqwertyuiopzxcvbnm"
 
 # Layout disponibili, nell'ordine di ciclo con Ctrl+Shift+L.
-LAYOUTS = ("stack", "tall", "fat", "grid")
+LAYOUTS = termcore.LAYOUTS
 
 
 def _default_shell(settings: object) -> str:
@@ -1152,8 +1152,7 @@ class TerminalWorkspace(Gtk.Box):
         self.active_pane = new_pane
         # Uno split esplicito ha senso solo con un layout a riquadri visibili;
         # se eravamo in 'stack', passiamo a 'tall' per mostrarli entrambi.
-        if self.layout == "stack" and len(self.panes) > 1:
-            self.layout = "tall"
+        self.layout = termcore.layout_after_add(self.layout, len(self.panes))
         self._relayout()
         self._update_status()
         GLib.idle_add(lambda: (new_pane.focus(), False)[1])
@@ -1166,8 +1165,7 @@ class TerminalWorkspace(Gtk.Box):
 
     # ---------------------------------------------------------------- layout
     def cycle_layout(self) -> None:
-        idx = LAYOUTS.index(self.layout) if self.layout in LAYOUTS else 0
-        self.layout = LAYOUTS[(idx + 1) % len(LAYOUTS)]
+        self.layout = termcore.next_layout(self.layout)
         self._relayout()
         self._toast_show(tr("Layout: {layout}").format(layout=self.layout))
         if self.active_pane is not None:
@@ -1248,9 +1246,7 @@ class TerminalWorkspace(Gtk.Box):
         return paned
 
     def _build_grid(self, panes: List[TerminalPane]) -> Gtk.Widget:
-        n = len(panes)
-        cols = int(math.ceil(math.sqrt(n)))
-        rows = int(math.ceil(n / cols))
+        cols, rows = termcore.grid_shape(len(panes))
         row_widgets: List[Gtk.Widget] = []
         idx = 0
         for _r in range(rows):
