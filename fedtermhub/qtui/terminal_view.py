@@ -67,6 +67,10 @@ class _Bridge(QObject):
     def ready(self) -> None:
         self.view._on_ready()
 
+    @Slot()
+    def mouseDown(self) -> None:  # noqa: N802
+        self.view.clicked.emit()
+
 
 class TerminalView(QWebEngineView):
     """Mostra un PtyProcess. Segnali: output (testo dal programma), finished (codice di uscita)."""
@@ -74,6 +78,7 @@ class TerminalView(QWebEngineView):
     title_changed = Signal(str)
     cwd_changed = Signal(str)  # cartella corrente dichiarata dalla shell (OSC 7)
     page_ready = Signal()  # xterm.js è caricato
+    clicked = Signal()  # clic del mouse dentro il terminale
 
     def __init__(self, parent=None, font_size: int = 13, scrollback: int = 10000, blink: bool = True, process=None):
         super().__init__(parent)

@@ -47,7 +47,7 @@ except Exception:  # pragma: no cover - dipendenza runtime
 # controlla che coincidano.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.13.1"
+APP_VERSION = "0.13.2"
 
 IS_WINDOWS = sys.platform == "win32"
 

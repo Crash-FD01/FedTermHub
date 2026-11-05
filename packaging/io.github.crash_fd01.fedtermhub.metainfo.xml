@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.13.2" date="2026-11-05">
+      <description>
+        <p>Windows version: after a split, keys always go to the active pane.</p>
+        <p xml:lang="it">Versione Windows: dopo una divisione i tasti vanno sempre al riquadro attivo.</p>
+      </description>
+    </release>
     <release version="0.13.1" date="2026-11-05">
       <description>
         <p>Windows version: a double click opens one tab, and the SSH tunnel windows work like the Linux ones. The hint above the tabs is gone.</p>

@@ -2678,7 +2678,7 @@ msgstr "Restore the default settings?"
 msgid "Impostazioni applicate. La nuova lingua sarà attiva dal prossimo avvio di FedTermHub."
 msgstr "Settings applied. The new language will be active from the next start of FedTermHub."
 
-#: fedtermhub.py:4081 qtui/main_window.py:1612
+#: fedtermhub.py:4081 qtui/main_window.py:1621
 msgid "Impostazioni applicate"
 msgstr "Settings applied"
 
@@ -3484,7 +3484,7 @@ msgstr "doctor compatibility"
 msgid "registro errori"
 msgstr "error log"
 
-#: fedtermhub.py:8867 qtui/main_window.py:1418
+#: fedtermhub.py:8867 qtui/main_window.py:1427
 msgid "Nessuna scheda terminale aperta per MultiExec."
 msgstr "No terminal tab open for MultiExec."
 
@@ -4906,7 +4906,7 @@ msgstr "NOT AVAILABLE"
 msgid "Rapporto diagnostico esportato."
 msgstr "Diagnostic report exported."
 
-#: fedtermhub.py:8490 qtui/main_window.py:1700
+#: fedtermhub.py:8490 qtui/main_window.py:1709
 msgid "Informazioni su {APP_NAME}"
 msgstr "About {APP_NAME}"
 
@@ -5388,7 +5388,7 @@ msgstr "[FedTermHub] Monitors cannot be enumerated: automatic full screen.\n"
 msgid "RDP a schermo intero su {requested_label}{fallback_note} — porta il mouse in alto oppure premi F11/Esc per uscire"
 msgstr "RDP in full screen on {requested_label}{fallback_note} — move the mouse to the top or press F11/Esc to leave"
 
-#: fedtermhub.py:13484 qtui/main_window.py:1584
+#: fedtermhub.py:13484 qtui/main_window.py:1593
 msgid "Chiudere FedTermHub?"
 msgstr "Close FedTermHub?"
 
@@ -5412,7 +5412,7 @@ msgstr "Tunnel saved: {name}"
 msgid "Impossibile copiare il comando: {exc}"
 msgstr "Cannot copy the command: {exc}"
 
-#: fedtermhub.py:3602 qtui/main_window.py:898 qtui/main_window.py:1278 qtui/main_window.py:1510
+#: fedtermhub.py:3602 qtui/main_window.py:898 qtui/main_window.py:1278 qtui/main_window.py:1519
 msgid "Sessione creata: {name}"
 msgstr "Session created: {name}"
 
@@ -5784,7 +5784,7 @@ msgstr "Sessions cannot be read"
 msgid "Esportazione diagnostica non riuscita: {exc}"
 msgstr "Diagnostics export failed: {exc}"
 
-#: fedtermhub.py:8887 qtui/main_window.py:1412
+#: fedtermhub.py:8887 qtui/main_window.py:1421
 msgid "MultiExec: comando inviato a {sent} terminali."
 msgstr "MultiExec: command sent to {sent} terminals."
 
@@ -6546,39 +6546,39 @@ msgstr "[FedTermHub] Copy failed — {line}\n"
 msgid "[Windows] {event_message}\n"
 msgstr ""
 
-#: netcore.py:180
+#: netcore.py:183
 msgid "rete troppo grande (massimo 4096 indirizzi): usa una /20 o più piccola"
 msgstr "network too large (at most 4096 addresses): use a /20 or smaller"
 
-#: netcore.py:348
+#: netcore.py:351
 msgid "indirizzo MAC non valido"
 msgstr "invalid MAC address"
 
-#: netcore.py:490
+#: netcore.py:493
 msgid "{client}  inviato {name} ({size} byte in {seconds} s)"
 msgstr "{client}  sent {name} ({size} bytes in {seconds} s)"
 
-#: netcore.py:536
+#: netcore.py:539
 msgid "{client}  ricevuto {name} ({size} byte)"
 msgstr "{client}  received {name} ({size} bytes)"
 
-#: netcore.py:465
+#: netcore.py:468
 msgid "{client}  non trovato: {name}"
 msgstr "{client}  not found: {name}"
 
-#: netcore.py:446
+#: netcore.py:449
 msgid "{client}  errore: {error}"
 msgstr "{client}  error: {error}"
 
-#: netcore.py:484
+#: netcore.py:487
 msgid "{client}  interrotto: {name}"
 msgstr "{client}  interrupted: {name}"
 
-#: netcore.py:520
+#: netcore.py:523
 msgid "{client}  ricezione interrotta: {name}"
 msgstr "{client}  upload interrupted: {name}"
 
-#: netcore.py:440
+#: netcore.py:443
 msgid "{client}  scrittura rifiutata: {name}"
 msgstr "{client}  write refused: {name}"
 
@@ -7990,11 +7990,11 @@ msgstr "Terminal diagnostics"
 msgid "Schermo intero (F11)"
 msgstr "Full screen (F11)"
 
-#: qtui/terminal_tab.py:226 terminal_panel.py:1312
+#: qtui/terminal_tab.py:225 terminal_panel.py:1312
 msgid "Broadcast attivo: l'input va a tutti i riquadri"
 msgstr "Broadcast on: input goes to every pane"
 
-#: qtui/terminal_tab.py:227 terminal_panel.py:1312
+#: qtui/terminal_tab.py:226 terminal_panel.py:1312
 msgid "Broadcast disattivato"
 msgstr "Broadcast off"
 
@@ -8014,7 +8014,7 @@ msgstr "[FedTermHub] Clipboard: {action} failed: {exc!r}"
 msgid "copy_clipboard (fallback)"
 msgstr ""
 
-#: qtui/terminal_tab.py:222 terminal_panel.py:1170
+#: qtui/terminal_tab.py:221 terminal_panel.py:1170
 msgid "Layout: {layout}"
 msgstr ""
 
@@ -8038,7 +8038,7 @@ msgstr "Open link: {v}"
 msgid "[FedTermHub] Clipboard: nessun testo disponibile negli appunti."
 msgstr "[FedTermHub] Clipboard: no text available on the clipboard."
 
-#: qtui/terminal_tab.py:59 terminal_panel.py:338
+#: qtui/terminal_tab.py:60 terminal_panel.py:338
 msgid "Errore avvio processo: {error}"
 msgstr "Process start-up error: {error}"
 
@@ -8556,31 +8556,31 @@ msgstr "Remote files appear here when the open tab is an SSH session."
 msgid "Mostra i file della sessione"
 msgstr "Show the session files"
 
-#: qtui/main_window.py:1476
+#: qtui/main_window.py:1485
 msgid "Host[:porta]"
 msgstr "Host[:port]"
 
-#: qtui/main_window.py:1649
+#: qtui/main_window.py:1658
 msgid "Nuova versione di FedTermHub"
 msgstr "New version of FedTermHub"
 
-#: qtui/main_window.py:1652
+#: qtui/main_window.py:1661
 msgid "Aggiorno adesso? Scarico il programma di installazione, chiudo FedTermHub e lo riapro alla fine. Sessioni, tunnel e password restano."
 msgstr "Update now? I download the installer, close FedTermHub and reopen it at the end. Sessions, tunnels and passwords stay."
 
-#: qtui/main_window.py:1654
+#: qtui/main_window.py:1663
 msgid "Aggiorna ora"
 msgstr "Update now"
 
-#: qtui/main_window.py:1655
+#: qtui/main_window.py:1664
 msgid "Novità"
 msgstr "What's new"
 
-#: qtui/main_window.py:1656
+#: qtui/main_window.py:1665
 msgid "Più tardi"
 msgstr "Later"
 
-#: qtui/main_window.py:1670
+#: qtui/main_window.py:1679
 msgid "Aggiornamento"
 msgstr "Update"
 
@@ -8600,11 +8600,11 @@ msgstr "Search sessions"
 msgid "I riquadri ci sono nelle schede terminale."
 msgstr "Panes are available in terminal tabs."
 
-#: qtui/main_window.py:1433
+#: qtui/main_window.py:1442
 msgid "Scrivi utente@host[:porta] per SSH, rdp:host per il desktop remoto o telnet:host."
 msgstr "Type user@host[:port] for SSH, rdp:host for remote desktop or telnet:host."
 
-#: qtui/main_window.py:1516
+#: qtui/main_window.py:1525
 msgid "Il pannello dei file remoti c'è nelle schede SSH."
 msgstr "The remote files panel is available in SSH tabs."
 
@@ -8616,23 +8616,23 @@ msgstr "Welcome to {name}"
 msgid "Sposta «{name}» in:"
 msgstr "Move \"{name}\" to:"
 
-#: qtui/main_window.py:1640
+#: qtui/main_window.py:1649
 msgid "Aggiorna a {version}"
 msgstr "Update to {version}"
 
-#: qtui/main_window.py:1650
+#: qtui/main_window.py:1659
 msgid "È disponibile FedTermHub {new} (questa è la {current})."
 msgstr "FedTermHub {new} is available (this is {current})."
 
-#: qtui/main_window.py:1669
+#: qtui/main_window.py:1678
 msgid "Scarico FedTermHub {version}…"
 msgstr "Downloading FedTermHub {version}…"
 
-#: qtui/main_window.py:1686
+#: qtui/main_window.py:1695
 msgid "Aggiornamento rimandato: chiudi FedTermHub e riprova da Aiuto › Cerca aggiornamenti."
 msgstr "Update postponed: close FedTermHub and try again from Help › Check for updates."
 
-#: qtui/main_window.py:1603 qtui/main_window.py:1691
+#: qtui/main_window.py:1612 qtui/main_window.py:1700
 msgid "Aggiornamento non riuscito"
 msgstr "Update failed"
 
@@ -8652,23 +8652,23 @@ msgstr "{n} tunnels active"
 msgid "Le sessioni {protocol} si aprono per ora solo nella versione Linux di FedTermHub."
 msgstr "{protocol} sessions can only be opened in the Linux version of FedTermHub for now."
 
-#: qtui/main_window.py:1495
+#: qtui/main_window.py:1504
 msgid "Programma non trovato: {name}"
 msgstr "Program not found: {name}"
 
-#: qtui/main_window.py:1585
+#: qtui/main_window.py:1594
 msgid "C'è una sessione ancora aperta: verrà chiusa."
 msgstr "A session is still open: it will be closed."
 
-#: qtui/main_window.py:1585
+#: qtui/main_window.py:1594
 msgid "Ci sono {n} sessioni ancora aperte: verranno chiuse."
 msgstr "{n} sessions are still open: they will be closed."
 
-#: qtui/main_window.py:1618 qtui/main_window.py:1623
+#: qtui/main_window.py:1627 qtui/main_window.py:1632
 msgid "Aggiornamenti"
 msgstr "Updates"
 
-#: qtui/main_window.py:1618
+#: qtui/main_window.py:1627
 msgid "Non riesco a raggiungere GitHub per controllare gli aggiornamenti. Controlla la connessione."
 msgstr "Cannot reach GitHub to check for updates. Check the connection."
 
@@ -8680,11 +8680,11 @@ msgstr "Session \"{name}\" is linked to a tunnel that no longer exists."
 msgid "Avvio del tunnel «{name}»…"
 msgstr "Starting tunnel \"{name}\"…"
 
-#: qtui/main_window.py:1678
+#: qtui/main_window.py:1687
 msgid "Scarico FedTermHub {version}… {done} di {total} MB"
 msgstr "Downloading FedTermHub {version}… {done} of {total} MB"
 
-#: qtui/main_window.py:1692
+#: qtui/main_window.py:1701
 msgid ""
 "{error}\n"
 "\n"
@@ -8694,7 +8694,7 @@ msgstr ""
 "\n"
 "You can download the Setup.exe from the release page."
 
-#: qtui/main_window.py:1623
+#: qtui/main_window.py:1632
 msgid "Hai già l'ultima versione ({version})."
 msgstr "You already have the latest version ({version})."
 
@@ -8708,11 +8708,11 @@ msgstr ""
 "\n"
 "{log}"
 
-#: qtui/main_window.py:1702
+#: qtui/main_window.py:1711
 msgid "Gestore integrato di terminali e connessioni remote."
 msgstr "Integrated manager for terminals and remote connections."
 
-#: qtui/main_window.py:1703
+#: qtui/main_window.py:1712
 msgid "Configurazione locale: {path}"
 msgstr "Local configuration: {path}"
 
@@ -9384,11 +9384,11 @@ msgstr "{port} does not exist: check the cable and the port number."
 msgid "[connesso a {port}, {baud} {bits}{parity}{stop} — scrivi pure]"
 msgstr "[connected to {port}, {baud} {bits}{parity}{stop} — go ahead and type]"
 
-#: qtui/terminal_tab.py:359
+#: qtui/terminal_tab.py:363
 msgid "{message} Pannello dei file chiuso."
 msgstr "{message} Files panel closed."
 
-#: qtui/terminal_tab.py:75
+#: qtui/terminal_tab.py:76
 msgid "[processo terminato con codice {code} — premi Invio per riaprire]"
 msgstr "[process exited with code {code} — press Enter to restart]"
 

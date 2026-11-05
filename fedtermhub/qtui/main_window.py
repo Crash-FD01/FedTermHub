@@ -1391,9 +1391,18 @@ class MainWindow(QMainWindow):
         return widget
 
     def _focus_changed(self, _old, _new) -> None:  # noqa: ANN001
+        """Il riquadro attivo lo decide l'utente: un clic lo cambia, un passaggio di fuoco non chiesto no.
+
+        Su Windows una pagina del terminale può prendersi il fuoco da sola mentre si carica o subito dopo, e i
+        tasti finirebbero nel riquadro sbagliato: in quel caso il fuoco torna al riquadro attivo.
+        """
         pane = self._focused_pane()
-        if pane is not None:
+        if pane is None or pane.tab.relaying or pane is pane.tab.active_pane:
+            return
+        if QApplication.mouseButtons() != Qt.MouseButton.NoButton:
             pane.tab.set_active(pane)
+        else:
+            QTimer.singleShot(0, pane.tab.focus_active)  # non dentro il cambio di fuoco ancora in corso
 
     def multiexec_targets(self) -> List[Tuple[object, str, str, bool]]:
         """Le schede terminale con un programma aperto: (scheda, titolo, tipo, già spuntata)."""

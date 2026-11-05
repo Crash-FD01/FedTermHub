@@ -52,6 +52,8 @@
     if (k === 'v') { if (bridge) bridge.pasteClipboard(); return false; }
     return true;
   });
+  // Un clic rende attivo questo riquadro.
+  document.addEventListener('mousedown', () => { if (bridge) bridge.mouseDown(); }, true);
   // Clic destro: copia la selezione se c'è, altrimenti incolla (come PuTTY e il terminale di Windows).
   document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
