@@ -315,8 +315,10 @@ class TerminalPane(Gtk.Box):
                 None,
                 -1,
                 None,
+                # Niente user_data esplicito dopo il callback: con PyGObject 3.52 (openSUSE Leap 16) un
+                # None qui fa scartare il callback («expected tuple for callback user_data») e il PID
+                # del programma non arriva mai.
                 self._spawn_done,
-                None,
             )
         except TypeError:
             # Firma più vecchia di Vte senza callback finale.
@@ -479,7 +481,7 @@ class TerminalPane(Gtk.Box):
                     else:
                         print(tr("[FedTermHub] Clipboard: nessun testo disponibile negli appunti."), file=sys.stderr)
 
-                clipboard.request_text(_received, None)
+                clipboard.request_text(_received)
             except Exception as fallback_exc:
                 self._log_clipboard_error(tr("paste fallback via Gtk.Clipboard"), fallback_exc)
 
@@ -505,7 +507,7 @@ class TerminalPane(Gtk.Box):
                         self.search_entry.set_text(text)
                         self.search_entry.select_region(0, -1)
 
-                primary.request_text(received, None)
+                primary.request_text(received)
         except Exception:
             pass
 

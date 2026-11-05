@@ -294,8 +294,13 @@ def check_session_dialog(app, window) -> None:
     Gtk.MessageDialog.run = fake_message
     try:
         dialog = app.SessionDialog(window, app.Session(name="Nuova SSH", protocol="ssh", port="22"))
-        GLib.idle_add(lambda: (dialog.response(Gtk.ResponseType.OK), False)[1])
-        GLib.timeout_add(300, lambda: (dialog.response(Gtk.ResponseType.CANCEL), False)[1])
+        # Annulla solo dopo Salva: su un runner carico un timeout fisso poteva arrivare prima di Salva.
+        def press_save() -> bool:
+            dialog.response(Gtk.ResponseType.OK)
+            GLib.timeout_add(300, lambda: (dialog.response(Gtk.ResponseType.CANCEL), False)[1])
+            return False
+
+        GLib.idle_add(press_save)
         result = dialog.run()
         dialog.destroy()
     finally:
