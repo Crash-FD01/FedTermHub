@@ -523,4 +523,6 @@ class RdpTab(QWidget):
         self.status.emit(tr("Sessione aperta in Connessione Desktop remoto"))
 
     def close_tab(self) -> None:
+        """Chiude la sessione e libera subito il componente COM, mentre Qt e COM sono ancora attivi."""
         self.disconnect_session()
+        self._release_control()

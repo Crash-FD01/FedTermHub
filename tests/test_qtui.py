@@ -75,8 +75,12 @@ def check_self_test() -> None:
     report = Path(tempfile.mkdtemp()) / "report.json"
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
     env.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--no-sandbox")
-    result = subprocess.run([sys.executable, "-m", "fedtermhub.qtui", "--self-test", str(report)], cwd=ROOT, env=env,
-                            capture_output=True, text=True, timeout=300)
+    try:
+        result = subprocess.run([sys.executable, "-m", "fedtermhub.qtui", "--self-test", str(report)], cwd=ROOT, env=env,
+                                capture_output=True, text=True, timeout=400)
+    except subprocess.TimeoutExpired as exc:
+        partial = report.read_text(encoding="utf-8") if report.is_file() else "(nessun risultato)"
+        raise AssertionError(f"prova bloccata; risultato parziale:\n{partial}\n{exc.stderr or ''}") from exc
     assert report.is_file(), result.stdout + result.stderr
     data = json.loads(report.read_text(encoding="utf-8"))
     failed = [c for c in data.get("checks", []) if not c["ok"]]

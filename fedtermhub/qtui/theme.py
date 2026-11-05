@@ -90,3 +90,24 @@ def terminal_theme() -> Dict[str, object]:
                      brightRed="#D93F3F", brightGreen="#248A3D", brightYellow="#9C6F00", brightBlue="#0A66D8",
                      brightMagenta="#A83BC0", brightCyan="#0E8A96", brightWhite="#3A3A3C")
     return theme
+
+
+def themed_icon(path):  # noqa: ANN001, ANN201
+    """Un'icona SVG con il tratto «currentColor» disegnato nel colore del testo del tema (chiaro o scuro)."""
+    from PySide6.QtCore import QByteArray
+    from PySide6.QtGui import QIcon, QPixmap
+
+    try:
+        svg = open(path, encoding="utf-8").read()
+    except OSError:
+        return QIcon()
+    if "currentColor" not in svg:
+        return QIcon(str(path))
+    data = QByteArray(svg.replace("currentColor", colors()["text"]).encode())
+    icon = QIcon()
+    for size in (16, 24, 32, 48):
+        pixmap = QPixmap(size, size)
+        pixmap.loadFromData(data, "SVG")
+        icon.addPixmap(pixmap.scaled(size, size))
+    return icon
+

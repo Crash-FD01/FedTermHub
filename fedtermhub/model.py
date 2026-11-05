@@ -47,7 +47,7 @@ except Exception:  # pragma: no cover - dipendenza runtime
 # controlla che coincidano.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.10.1"
+APP_VERSION = "0.11.0"
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -541,6 +541,8 @@ class AppSettings:
 
     # Avviso delle nuove versioni (versione Windows: su Linux arrivano con il gestore dei pacchetti)
     check_updates: bool = True
+    # Versione Windows: pannello dei file remoti accanto alle sessioni SSH (su Linux c'è sempre)
+    show_remote_files: bool = True
 
     ui_layout_version: int = 3
 
@@ -624,6 +626,7 @@ class AppSettings:
                 clear_clipboard_seconds=cls._clamp(raw.get("clear_clipboard_seconds", 30), 0, 600, 30),
                 confirm_close_active_sessions=bool(raw.get("confirm_close_active_sessions", True)),
                 check_updates=bool(raw.get("check_updates", True)),
+                show_remote_files=bool(raw.get("show_remote_files", True)),
                 ui_layout_version=3,
             )
         except Exception:
@@ -674,6 +677,7 @@ class AppSettings:
             "clear_clipboard_seconds": self.clear_clipboard_seconds,
             "confirm_close_active_sessions": self.confirm_close_active_sessions,
             "check_updates": self.check_updates,
+            "show_remote_files": self.show_remote_files,
             "ui_layout_version": 3,
         }
 

@@ -39,3 +39,18 @@ SPDX-FileCopyrightText = ["2017-2019 The xterm.js authors (https://github.com/xt
                           "2014-2016 SourceLair Private Company (https://www.sourcelair.com)",
                           "2012-2013 Christopher Jeffrey (https://github.com/chjj/)"]
 SPDX-License-Identifier = "MIT"
+
+# noVNC 1.7.0 (client VNC dell'interfaccia Qt, MPL-2.0) riunito in un modulo con esbuild; contiene pako
+# (MIT, con parti zlib sotto licenza Zlib). La pagina vnc.html è di FedTermHub.
+[[annotations]]
+path = ["fedtermhub/qtui/novnc/novnc.mjs", "fedtermhub/qtui/novnc/LICENSE-noVNC.txt"]
+precedence = "override"
+SPDX-FileCopyrightText = ["2022 The noVNC authors (https://github.com/novnc/noVNC)",
+                          "2014-2016 Vitaly Puzrin and Andrei Tuputcyn (pako)"]
+SPDX-License-Identifier = "MPL-2.0 AND MIT AND Zlib"
+
+[[annotations]]
+path = "fedtermhub/qtui/novnc/LICENSE-pako.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2014-2016 Vitaly Puzrin and Andrei Tuputcyn"
+SPDX-License-Identifier = "MIT"

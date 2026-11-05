@@ -51,8 +51,8 @@ Versioni supportate, installazione a mano, sistemi immutabili, Arch e compilazio
 **Windows 10 (1809 o successivo) e 11** — scarica `FedTermHub-<versione>-Setup.exe` dall'[ultima
 release](https://github.com/Crash-FD01/FedTermHub/releases/latest) e aprilo: si installa per il tuo utente,
 senza permessi di amministratore. Il programma avvisa quando esce una versione nuova.
-La versione Windows contiene per ora sessioni in cartelle, terminale (PowerShell, SSH, Telnet, comandi),
-desktop remoto incorporato e Password Manager; le sessioni esportate da Linux (*Esporta tutte le sessioni*) si
+La versione Windows contiene sessioni in cartelle, terminale (PowerShell, SSH, Telnet, console seriale),
+file remoti SFTP, tunnel SSH, desktop remoto RDP e VNC incorporati, strumenti di rete e Password Manager; le sessioni esportate da Linux (*Esporta tutte le sessioni*) si
 importano con *File › Importa sessioni…*. Dettagli nella [guida](docs/GUIDA.md#windows).
 
 ## Come si usa

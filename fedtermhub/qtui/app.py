@@ -30,6 +30,25 @@ def _say(text: str) -> None:
         print(text, flush=True)
 
 
+def _hard_exit(code: int) -> None:
+    """Esce senza smontare nulla. Su Windows anche senza avvisare le DLL caricate (TerminateProcess): alla
+    chiusura del processo il componente RDP o Qt WebEngine a volte cadono, e Windows mostrerebbe un errore
+    dopo che il programma ha già salvato tutto."""
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:  # noqa: BLE001
+        pass
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        kernel32.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        kernel32.TerminateProcess(kernel32.GetCurrentProcess(), code & 0xFFFFFFFF)
+    os._exit(code)
+
+
 def _isolate_config() -> Path:
     """Configurazione temporanea per la prova: va decisa prima di importare model e i18n."""
     root = Path(tempfile.mkdtemp(prefix="fedtermhub-selftest-"))
@@ -52,6 +71,25 @@ def install_qt_translations(app) -> None:  # noqa: ANN001
         app.installTranslator(translator)
 
 
+def _no_dialogs(log: List[str]) -> None:
+    """Nella prova nessuna finestra deve fermare tutto aspettando un clic: si registra e si risponde «no»."""
+    from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+
+    def message(kind: str):  # noqa: ANN202
+        def show(_parent, title="", text="", *_args, **_kwargs):  # noqa: ANN001, ANN002, ANN003, ANN202
+            log.append(f"{kind}: {title}: {str(text)[:300]}")
+            return QMessageBox.StandardButton.No
+
+        return staticmethod(show)
+
+    for kind in ("question", "warning", "information", "critical"):
+        setattr(QMessageBox, kind, message(kind))
+    QInputDialog.getText = staticmethod(lambda _p, title="", label="", *a, **k: (log.append(f"input: {title}: {label}"), ("", False))[1])
+    QInputDialog.getItem = staticmethod(lambda _p, title="", label="", *a, **k: (log.append(f"input: {title}: {label}"), ("", False))[1])
+    QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: (log.append("cartella"), "")[1])
+    QFileDialog.getOpenFileNames = staticmethod(lambda *a, **k: (log.append("file"), ([], ""))[1])
+
+
 def _wait(app, condition: Callable[[], bool], seconds: float) -> bool:  # noqa: ANN001
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -63,6 +101,11 @@ def _wait(app, condition: Callable[[], bool], seconds: float) -> bool:  # noqa: 
 
 
 def self_test(report_path: Path) -> int:
+    import faulthandler
+
+    # Se il processo cade (crash nativo), lo stack di Python finisce qui accanto al risultato.
+    crash_log = open(report_path.with_name("crash.txt"), "w", encoding="utf-8")  # noqa: SIM115
+    faulthandler.enable(crash_log, all_threads=True)
     _isolate_config()
     os.environ.setdefault("FEDTERMHUB_LANGUAGE", "it")
     from PySide6.QtWidgets import QApplication
@@ -76,16 +119,29 @@ def self_test(report_path: Path) -> int:
     install_qt_translations(app)
     theme.apply(app, "dark")
     results: List[Dict[str, object]] = []
+    dialogs: List[str] = []
+    _no_dialogs(dialogs)
+
+    def save(running: str = "") -> None:
+        # Il risultato si scrive dopo ogni prova: se una si blocca, chi lancia la prova vede dove.
+        report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": False, "running": running,
+                  "checks": results, "dialogs": dialogs}
+        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def check(name: str, func: Callable[[], object]) -> None:
         start = time.monotonic()
+        save(name)
+        seen = len(dialogs)
         try:
             detail = func()
+            if len(dialogs) > seen:
+                raise AssertionError("finestra inattesa: " + " | ".join(dialogs[seen:]))
             results.append({"name": name, "ok": True, "detail": "" if detail is None else str(detail),
                             "seconds": round(time.monotonic() - start, 2)})
         except Exception as exc:  # noqa: BLE001
             results.append({"name": name, "ok": False, "detail": f"{type(exc).__name__}: {exc}",
                             "trace": traceback.format_exc()[-2000:], "seconds": round(time.monotonic() - start, 2)})
+        save()
 
     window = MainWindow()
     window.showMaximized()  # lo schermo del runner è piccolo (1024x768)
@@ -175,6 +231,10 @@ def self_test(report_path: Path) -> int:
     if sys.platform == "win32" or connect.ssh_binary():
         check("comando SSH", ssh_command)
 
+    from .selftest_more import run_checks
+
+    run_checks(app, window, check, _wait, report_path)
+
     if sys.platform == "win32" and app.platformName() != "offscreen":
         def rdp() -> str:
             """Il componente RDP di Windows nella scheda.
@@ -208,18 +268,21 @@ def self_test(report_path: Path) -> int:
                 # QWidget.grab() non vede la finestra nativa del componente: si fotografa lo schermo.
                 app.primaryScreen().grabWindow(0).save(str(report_path.with_name("rdp-session.png")))
             version = str(tab.ax.Version or "")
-            tab.close_tab()
+            tab.disconnect_session()
             _wait(app, lambda: any(e.startswith("disconnected") for e in tab.events), 15)
-            window.tabs.removeTab(window.tabs.indexOf(tab))
+            window.close_tab(window.tabs.indexOf(tab))
             unset = f"; non accettate: {', '.join(tab.unset)}" if tab.unset else ""
             return f"versione {version}; eventi: {', '.join(tab.events)}; stato: {tab.state.text()}{unset}"
 
         check("RDP incorporato", rdp)
 
     window.grab().save(str(report_path.with_name("main-window.png")))
+    window.settings.confirm_close_active_sessions = False
+    save("chiusura della finestra")
     window.close()
+    _wait(app, lambda: False, 1)
     ok = all(r["ok"] for r in results)
-    report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": ok, "checks": results}
+    report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": ok, "checks": results, "dialogs": dialogs}
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     for r in results:
         _say(("OK   " if r["ok"] else "FAIL ") + str(r["name"]) + (f" — {r['detail']}" if r["detail"] else ""))
@@ -242,7 +305,10 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
         index = argv.index("--self-test")
         target = Path(argv[index + 1]) if index + 1 < len(argv) else Path("fedtermhub-selftest.json")
         try:
-            return self_test(target.resolve())
+            code = self_test(target.resolve())
+            # Il risultato è già scritto: si esce senza smontare Qt WebEngine e i componenti COM, che alla
+            # chiusura del processo a volte cadono (0xC0000005) e cambierebbero l'esito.
+            _hard_exit(code)
         except Exception:  # noqa: BLE001
             target.write_text(json.dumps({"ok": False, "error": traceback.format_exc()}), encoding="utf-8")
             _say(traceback.format_exc())
@@ -274,7 +340,9 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
     theme.apply(app, settings.theme)
     window = MainWindow()
     window.show()
-    return app.exec()
+    code = app.exec()
+    # Sessioni, impostazioni e tunnel sono già chiusi e salvati in MainWindow.closeEvent: si esce subito.
+    _hard_exit(code)
 
 
 if __name__ == "__main__":

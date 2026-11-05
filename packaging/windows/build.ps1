@@ -28,8 +28,9 @@ Write-Host '-> FedTermHub.exe (PyInstaller)'
 python -m PyInstaller --noconfirm --clean --windowed --name FedTermHub `
     --icon "$assets\fedtermhub.ico" --version-file "$assets\version.txt" `
     --paths $root `
-    --collect-submodules fedtermhub.qtui --collect-all winpty --collect-all comtypes `
+    --collect-submodules fedtermhub.qtui --collect-all winpty --collect-all comtypes --collect-submodules serial `
     --add-data "$root\fedtermhub\qtui\xterm;fedtermhub\qtui\xterm" `
+    --add-data "$root\fedtermhub\qtui\novnc;fedtermhub\qtui\novnc" `
     --add-data "$root\fedtermhub\locale;fedtermhub\locale" `
     --add-data "$root\fedtermhub\icons;fedtermhub\icons" `
     --add-data "$root\$icon;fedtermhub\qtui" `
@@ -42,7 +43,7 @@ if ($LASTEXITCODE) { throw 'PyInstaller non riuscito' }
 # licenze dei componenti inclusi accanto al programma
 $lic = 'dist\windows\FedTermHub\licenses'
 New-Item -ItemType Directory -Force $lic | Out-Null
-Copy-Item LICENSE, LICENSES\*.txt, fedtermhub\qtui\xterm\LICENSE-xterm.txt $lic
+Copy-Item LICENSE, LICENSES\*.txt, fedtermhub\qtui\xterm\LICENSE-xterm.txt, fedtermhub\qtui\novnc\LICENSE-*.txt $lic
 python -m pip list --format=freeze | Out-File -Encoding utf8 "$lic\BUNDLED-COMPONENTS.txt"
 
 Write-Host '-> Programma di installazione (Inno Setup)'

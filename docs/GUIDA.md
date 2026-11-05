@@ -358,20 +358,21 @@ inviato oltre alla richiesta); se ce n'è una nuova compare un pulsante nella ba
 *Impostazioni › Avvisami quando esce una nuova versione*. Per aggiornare basta aprire il nuovo Setup.exe:
 sessioni, impostazioni e password restano.
 
-**Cosa c'è per ora.**
+**Cosa c'è.**
 
 | Funzione | Su Windows |
 |---|---|
 | Sessioni in cartelle, ricerca, connessione rapida (**Ctrl+L**) | ✓ |
 | Terminale locale: PowerShell 7 se installato, altrimenti Windows PowerShell | ✓ |
 | SSH con il client OpenSSH di Windows, jump host, password dal Password Manager | ✓ |
+| File remoti (SFTP) accanto al terminale SSH e in una scheda propria | ✓ |
+| Tunnel SSH (locali, remoti, SOCKS), anche avviati da soli prima di una sessione | ✓ |
 | Desktop remoto RDP incorporato nella scheda (componente di Windows), RD Gateway | ✓ |
-| Telnet (serve il «Client Telnet» di Windows), sessioni Comando | ✓ |
+| VNC incorporato nella scheda, con la password dal Password Manager | ✓ |
+| Telnet integrato (non serve il «Client Telnet» di Windows), console seriale sulle porte COM | ✓ |
+| Strumenti di rete: scansione rete e porte, porte in ascolto, Wake-on-LAN, server HTTP e TFTP, ping e traceroute | ✓ |
 | Password Manager, backup cifrato importabile anche su Linux | ✓ |
-| SFTP e file remoti, tunnel, VNC, seriale, strumenti di rete, laboratorio | non ancora |
-
-Le sessioni dei tipi non ancora disponibili si possono comunque importare, salvare e modificare: si aprono
-nella versione Linux.
+| Cattura dei pacchetti, server di sistema (SSH, FTP, NFS, Samba…), laboratorio Linux | solo su Linux |
 
 **Portare le sessioni da Linux.** Su Linux usa *Esporta tutte le sessioni* (o seleziona una cartella e *Esporta la selezione*); su
 Windows *File › Importa sessioni…* e scegli il file. Le password non sono nel file delle sessioni: per portarle
@@ -381,13 +382,35 @@ usa *File › Esporta backup cifrato delle password* su Linux e *Importa backup 
 Aggiungi «Client OpenSSH»*. La password salvata viene scritta al prompt `password:` una volta sola, come fa
 `sshpass` su Linux; le chiavi in `%USERPROFILE%\.ssh` funzionano come al solito.
 
+**File remoti.** Accanto a ogni terminale SSH si apre il pannello dei file del server (si nasconde con
+*File remoti*, **Ctrl+Maiusc+E**). Trascina file e cartelle dal PC per caricarli; doppio clic su un file lo
+apre con il programma di Windows; il menu del tasto destro scarica, rinomina ed elimina. Con *Segui* il
+pannello va nella cartella in cui fai `cd` nel terminale (server Linux con bash o zsh). Le sessioni di tipo
+SFTP aprono lo stesso pannello in una scheda intera. Le chiavi degli host sono quelle di
+`%USERPROFILE%\.ssh\known_hosts`, le stesse del terminale.
+
+**Tunnel SSH.** *Strumenti › Tunnel SSH* (**Ctrl+Maiusc+U**): gli stessi tunnel della versione Linux, con lo
+stato e il log di ognuno. Una sessione può avviare il suo tunnel e aspettarlo: nella sessione,
+*Instradamento › Prima avvia un tunnel salvato*.
+
+**VNC.** Il desktop si apre nella scheda; la password VNC è quella della credenziale collegata (se manca, la
+chiede). In alto: adatta alla finestra, solo visualizzazione, Ctrl+Alt+Canc, invio degli appunti, schermo
+intero (**Ctrl+Alt+Invio** per tornare). Nel campo porta un numero sotto 100 è un display (1 = porta 5901).
+
+**Console seriale.** Nella sessione scegli la porta COM (il pulsante *Aggiorna* rilegge quelle collegate) e i
+parametri; il terminale parla direttamente con la porta, senza programmi esterni.
+
+**Strumenti di rete.** *Strumenti › Strumenti di rete* (**Ctrl+Maiusc+R**). I server HTTP e TFTP servono a
+passare un firmware o una configurazione a uno switch o a un firewall; la prima volta Windows chiede se
+FedTermHub può usare la rete.
+
 **Desktop remoto.** La sessione si apre nella scheda con il componente RDP di Windows (lo stesso di
 Connessione Desktop remoto): appunti, stampanti, smart card, audio, cartella condivisa e schermo intero; la
 risoluzione segue la dimensione della scheda. Il pulsante *Apri con Connessione Desktop remoto* apre la stessa
 sessione in `mstsc`.
 
-**Dove sono i dati.** `%APPDATA%\FedTermHub` (sessioni, password cifrate, impostazioni); stesso formato dei
-file Linux. Disinstallare (da *Impostazioni › App*) non li cancella.
+**Dove sono i dati.** `%APPDATA%\FedTermHub` (sessioni, tunnel, password cifrate, impostazioni); stesso
+formato dei file Linux. Disinstallare (da *Impostazioni › App*) non li cancella.
 
 ## Scorciatoie da tastiera
 

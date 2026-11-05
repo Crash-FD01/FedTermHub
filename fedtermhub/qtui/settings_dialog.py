@@ -91,6 +91,12 @@ class SettingsDialog(QDialog):
         form.addRow(tr("Keepalive"), self.keepalive)
         form.addRow(tr("Chiave dell'host"), self.strict)
         form.addRow("", self.compression)
+        self.remote_files = QCheckBox(tr("Mostra i file remoti accanto al terminale SSH"))
+        self.remote_files.setChecked(settings.show_remote_files)
+        self.follow = QCheckBox(tr("I file remoti seguono la cartella del terminale (cd)"))
+        self.follow.setChecked(settings.follow_remote_directory)
+        form.addRow("", self.remote_files)
+        form.addRow("", self.follow)
         layout.addWidget(conn)
 
         safety = QGroupBox(tr("Sicurezza"))
@@ -130,3 +136,5 @@ class SettingsDialog(QDialog):
         s.clear_clipboard_seconds = self.clipboard.value()
         s.confirm_close_active_sessions = self.confirm_close.isChecked()
         s.check_updates = self.check_updates.isChecked()
+        s.show_remote_files = self.remote_files.isChecked()
+        s.follow_remote_directory = self.follow.isChecked()

@@ -6,8 +6,8 @@ name: Windows
 #   1. prova i sorgenti (tests/test_qtui.py: terminale, password, import, comandi ssh);
 #   2. costruisce FedTermHub.exe con PyInstaller e FedTermHub-<versione>-Setup.exe con Inno Setup;
 #   3. installa il Setup.exe in modo silenzioso, come farebbe un utente senza permessi di amministratore,
-#      e prova il programma installato (--self-test), compreso il desktop remoto incorporato: sul runner
-#      si attiva Desktop remoto con un utente di prova e la sessione deve arrivare al desktop;
+#      e prova il programma installato (--self-test): terminale, Telnet, seriale, VNC, strumenti di rete e,
+#      con un utente di prova sul runner, desktop remoto fino al desktop, SSH con password, SFTP e tunnel;
 #   4. disinstalla e controlla che sessioni e password dell'utente restino.
 # Gira sulle pull request che toccano la versione Windows e viene chiamato dal Rilascio, che allega
 # il Setup.exe alla release.
@@ -60,7 +60,7 @@ jobs:
 
       # Desktop remoto sul runner, per provare la sessione RDP incorporata fino all'accesso.
       # Utente locale con password casuale, solo per questa esecuzione.
-      - name: Desktop remoto di prova
+      - name: Desktop remoto e SSH di prova
         id: rdp
         shell: pwsh
         run: |
@@ -79,11 +79,21 @@ jobs:
           foreach ($i in 1..30) { if (Test-NetConnection 127.0.0.2 -Port 3389 -InformationLevel Quiet -WarningAction SilentlyContinue) { $ok = $true; break }; Start-Sleep 2 }
           if (-not $ok) { Write-Output '::warning title=Desktop remoto di prova::la porta 3389 non risponde: la prova RDP si ferma alla risposta del componente' }
           else { "target=127.0.0.2;$env:COMPUTERNAME\fthrdp;$pw" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT }
+          # Server OpenSSH di Windows con lo stesso utente: terminale SSH con password, SFTP e tunnel.
+          if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
+            Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null
+          }
+          Start-Service sshd
+          $ok = $false
+          foreach ($i in 1..30) { if (Test-NetConnection 127.0.0.1 -Port 22 -InformationLevel Quiet -WarningAction SilentlyContinue) { $ok = $true; break }; Start-Sleep 2 }
+          if (-not $ok) { Write-Output '::warning title=SSH di prova::la porta 22 non risponde: niente prove SSH, SFTP e tunnel' }
+          else { "ssh=127.0.0.1;22;fthrdp;$pw" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT }
 
       - name: Installazione silenziosa e prova del programma installato
         shell: pwsh
         env:
           FEDTERMHUB_SELFTEST_RDP: ${{ steps.rdp.outputs.target }}
+          FEDTERMHUB_SELFTEST_SSH: ${{ steps.rdp.outputs.ssh }}
         run: |
           $setup = Get-Item dist\packages\FedTermHub-*-Setup.exe
           $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER' -Wait -PassThru
@@ -98,9 +108,12 @@ jobs:
           $data = Get-Content $report -Raw | ConvertFrom-Json
           foreach ($c in $data.checks) {
             $line = "$($c.name): $($c.detail)"
+            Write-Host ($(if ($c.ok) { 'OK   ' } else { 'FAIL ' }) + $line)
             if ($c.ok) { Write-Output "::notice title=OK $($c.name)::$($c.detail)" }
             else { Write-Output "::error title=$($c.name)::$($c.detail)" }
           }
+          if ((Test-Path out\crash.txt) -and (Get-Item out\crash.txt).Length) { Write-Host '--- crash ---'; Get-Content out\crash.txt }
+          if ($data.running) { Write-Output "::error title=Prova interrotta::durante: $($data.running)" }
           if ($data.error) { Write-Output "::error title=Prova del programma installato::$($data.error -replace "`r?`n", '%0A')" }
           if ($t.ExitCode) { throw "prova del programma installato non riuscita ($($t.ExitCode))" }
           Write-Host "FedTermHub installato e funzionante: $exe"

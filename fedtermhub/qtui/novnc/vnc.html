@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Crash
+     SPDX-License-Identifier: GPL-3.0-or-later -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1d22; }
+  #screen { position: absolute; inset: 0; }
+</style>
+<script src="qwebchannel.js"></script>
+</head>
+<body>
+<div id="screen"></div>
+<script type="module">
+  // Client VNC di FedTermHub: noVNC collegato al ponte WebSocket locale (ws_bridge.py); i comandi della
+  // scheda arrivano da Qt tramite QWebChannel.
+  import RFB from './novnc.mjs';
+
+  const base = location.pathname.replace(/[^/]*$/, '');
+  const wsUrl = `ws://${location.host}${base}ws`;
+  let rfb = null;
+  let bridge = null;
+
+  function connect(opts) {
+    if (rfb) { try { rfb.disconnect(); } catch (e) { /* già chiuso */ } }
+    rfb = new RFB(document.getElementById('screen'), wsUrl, { shared: opts.shared !== false });
+    rfb.scaleViewport = !!opts.scale;
+    rfb.resizeSession = !!opts.resize;
+    rfb.viewOnly = !!opts.viewOnly;
+    rfb.focusOnClick = true;
+    rfb.background = '#1b1d22';
+    rfb.qualityLevel = opts.quality ?? 6;
+    rfb.compressionLevel = opts.compression ?? 2;
+    rfb.addEventListener('connect', () => bridge.state('connected', ''));
+    rfb.addEventListener('disconnect', (e) => bridge.state('disconnected', e.detail.clean ? 'clean' : 'error'));
+    rfb.addEventListener('credentialsrequired', (e) => bridge.needCredentials(JSON.stringify(e.detail.types || ['password'])));
+    rfb.addEventListener('securityfailure', (e) => bridge.state('securityfailure', String(e.detail.reason || e.detail.status)));
+    rfb.addEventListener('clipboard', (e) => bridge.clipboard(e.detail.text || ''));
+    rfb.addEventListener('desktopname', (e) => bridge.desktopName(e.detail.name || ''));
+    bridge.state('connecting', '');
+  }
+
+  window.fthPixel = (x, y) => {
+    const canvas = document.querySelector('#screen canvas');
+    if (!canvas) return null;
+    const d = canvas.getContext('2d').getImageData(x, y, 1, 1).data;
+    return JSON.stringify([d[0], d[1], d[2], canvas.width, canvas.height]);
+  };
+
+  new QWebChannel(qt.webChannelTransport, (channel) => {
+    bridge = channel.objects.bridge;
+    bridge.start.connect((json) => connect(JSON.parse(json)));
+    bridge.credentials.connect((json) => rfb && rfb.sendCredentials(JSON.parse(json)));
+    bridge.ctrlAltDel.connect(() => rfb && rfb.sendCtrlAltDel());
+    bridge.setScale.connect((v) => { if (rfb) rfb.scaleViewport = v; });
+    bridge.setViewOnly.connect((v) => { if (rfb) rfb.viewOnly = v; });
+    bridge.pasteText.connect((t) => { if (rfb) rfb.clipboardPasteFrom(t); });
+    bridge.sendKeys.connect((json) => {
+      if (!rfb) return;
+      for (const k of JSON.parse(json)) rfb.sendKey(k, null);
+    });
+    bridge.stop.connect(() => { if (rfb) rfb.disconnect(); });
+    bridge.focusScreen.connect(() => { if (rfb) rfb.focus(); });
+    bridge.ready();
+  });
+</script>
+</body>
+</html>
