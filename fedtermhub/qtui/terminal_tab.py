@@ -141,6 +141,10 @@ class TerminalTab(QWidget):
         return self.active_pane.view
 
     @property
+    def feeder(self) -> connect.PasswordFeeder:
+        return self.active_pane.feeder
+
+    @property
     def exit_code(self) -> Optional[int]:
         return self.active_pane.exit_code
 
