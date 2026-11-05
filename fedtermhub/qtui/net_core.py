@@ -88,6 +88,7 @@ def _icmp_windows(host: str, timeout_ms: int) -> Optional[float]:
 
     iphlpapi = ctypes.WinDLL("iphlpapi")
     iphlpapi.IcmpCreateFile.restype = wintypes.HANDLE
+    iphlpapi.IcmpCloseHandle.argtypes = [wintypes.HANDLE]  # senza: un HANDLE a 64 bit non entra in un int C
     iphlpapi.IcmpSendEcho.argtypes = [wintypes.HANDLE, wintypes.ULONG, ctypes.c_void_p, wintypes.WORD, ctypes.c_void_p,
                                       ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD]
     handle = iphlpapi.IcmpCreateFile()
