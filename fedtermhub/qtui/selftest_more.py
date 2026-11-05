@@ -232,11 +232,13 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         assert first.isVisible() and second.isVisible(), "riquadri non visibili"
         # Le risposte automatiche del terminale passano dallo stesso canale dei tasti, ma non sono l'utente:
         # qui il riquadro 1 risponde a una domanda sulla posizione del cursore, come fanno le shell all'avvio.
+        # La risposta qui non va alla shell, che non l'ha chiesta e la scriverebbe sul prompt.
         replies = []
-        first.view.input_hooks.append(replies.append)
+        first.view.pty.write = replies.append
         first.view.write_local("\x1b[6n")
-        assert wait(app, lambda: any(r.endswith("R") for r in replies), 10), f"nessuna risposta dal terminale: {replies}"
-        first.view.input_hooks.remove(replies.append)
+        arrived = wait(app, lambda: any(r.endswith("R") for r in replies), 10)
+        del first.view.pty.write
+        assert arrived, f"nessuna risposta dal terminale: {replies}"
         wait(app, lambda: False, 1.5)
         assert tab.active_pane is second, "dopo la divisione il riquadro attivo non è quello nuovo"
         if app.activeWindow() is window:
