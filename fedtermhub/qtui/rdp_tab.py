@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -77,8 +78,9 @@ class RdpTab(QWidget):
         self.gateway_password = gateway_password
         self.ax = None
         self.connected = False
-        self.events: List[str] = []
-        self.unset: List[str] = []  # proprietà che il componente non ha accettato (diagnostica)  # eventi ricevuti dal componente (servono anche alla prova automatica)
+        self.events: List[str] = []  # eventi ricevuti dal componente (servono anche alla prova automatica)
+        self.unset: List[str] = []  # proprietà che il componente non ha accettato (diagnostica)
+        self._last_event: Optional[tuple] = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -126,7 +128,6 @@ class RdpTab(QWidget):
     # ------------------------------------------------------------------ connessione
     def _create_control(self) -> bool:
         from PySide6.QtAxContainer import QAxWidget
-        from PySide6.QtCore import SIGNAL
 
         if self.ax is not None:
             self.ax.hide()
@@ -138,22 +139,63 @@ class RdpTab(QWidget):
             return False
         ax.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.host_layout.addWidget(ax)
-        for signal, slot in (
-            ("OnConnecting()", self._on_connecting),
-            ("OnConnected()", self._on_connected),
-            ("OnLoginComplete()", self._on_login),
-            ("OnDisconnected(int)", self._on_disconnected),
-            ("OnFatalError(int)", self._on_fatal),
-            ("OnWarning(int)", self._on_warning),
-            ("OnLeaveFullScreenMode()", self._on_leave_fullscreen),
-            ("OnRequestLeaveFullScreen()", self._on_leave_fullscreen),
-        ):
+        # Gli eventi COM arrivano tutti dal segnale generico signal(nome, argc, argv): così non dipendono
+        # da come PySide6 espone i segnali generati dal componente.
+        ax.signal.connect(self._com_event)
+        # Anche i segnali con nome, se PySide6 li espone: _dispatch scarta il doppione.
+        from PySide6.QtCore import SIGNAL, QObject
+
+        for signature in ("OnConnecting()", "OnConnected()", "OnLoginComplete()", "OnDisconnected(int)",
+                          "OnFatalError(int)", "OnWarning(int)", "OnLeaveFullScreenMode()", "OnRequestLeaveFullScreen()"):
+            name = signature.split("(")[0]
             try:
-                ax.connect(ax, SIGNAL(signal), slot)
-            except (RuntimeError, TypeError):
+                QObject.connect(ax, SIGNAL(signature), lambda *args, n=name: self._dispatch(n, int(args[0]) if args else 0))
+            except Exception:  # noqa: BLE001
                 pass
+        try:
+            ax.exception.connect(lambda code, source, desc, _help: self.events.append(f"exception:{code}:{desc}"))
+        except (AttributeError, RuntimeError, TypeError):
+            pass
         self.ax = ax
         return True
+
+    @staticmethod
+    def _int_arg(argc: int, argv, index: int = 0) -> int:  # noqa: ANN001
+        """Il parametro intero numero index di un evento COM (argv punta a DISPPARAMS.rgvarg, al contrario)."""
+        try:
+            import ctypes
+
+            address = int(argv)
+            if not address or index >= argc:
+                return 0
+            variant = address + (argc - 1 - index) * ctypes.sizeof(ctypes.c_void_p) * 3  # VARIANT: 24 byte su x64
+            vt = ctypes.c_ushort.from_address(variant).value
+            if vt & 0x4000:  # VT_BYREF
+                return ctypes.c_long.from_address(ctypes.c_void_p.from_address(variant + 8).value).value
+            return ctypes.c_long.from_address(variant + 8).value
+        except Exception:  # noqa: BLE001
+            return 0
+
+    def _com_event(self, name: str, argc: int, argv) -> None:  # noqa: ANN001
+        self._dispatch(str(name).split("(")[0], self._int_arg(argc, argv))
+
+    def _dispatch(self, event: str, code: int) -> None:
+        now = time.monotonic()
+        if self._last_event and self._last_event[:2] == (event, code) and now - self._last_event[2] < 0.3:
+            return  # lo stesso evento arrivato sia dal segnale generico sia da quello con nome
+        self._last_event = (event, code, now)
+        handler = {
+            "OnConnecting": lambda: self._on_connecting(),
+            "OnConnected": lambda: self._on_connected(),
+            "OnLoginComplete": lambda: self._on_login(),
+            "OnDisconnected": lambda: self._on_disconnected(code),
+            "OnFatalError": lambda: self._on_fatal(code),
+            "OnWarning": lambda: self._on_warning(code),
+            "OnLeaveFullScreenMode": lambda: self._on_leave_fullscreen(),
+            "OnRequestLeaveFullScreen": lambda: self._on_leave_fullscreen(),
+        }.get(event)
+        if handler is not None:
+            handler()
 
     def _set(self, target, name: str, value) -> bool:  # noqa: ANN001
         """Imposta una proprietà COM; una che questa versione di Windows non ha non deve fermare tutto.

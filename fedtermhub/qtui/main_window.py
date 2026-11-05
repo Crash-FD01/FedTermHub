@@ -91,10 +91,12 @@ class TerminalTab(QWidget):
 
     def start(self) -> None:
         self.exit_code = None
+        self.start_error = ""
         self.feeder = connect.PasswordFeeder(self.launch.password)
         try:
             self.view.pty.start(self.launch.argv, str(Path.home()), self.launch.env)
         except Exception as exc:  # noqa: BLE001
+            self.start_error = f"{type(exc).__name__}: {exc}"
             self.view.write_local(tr("Errore avvio processo: {error}").format(error=exc) + "\n")
             self.exit_code = -1
 

@@ -24,7 +24,7 @@ Write-Host '-> FedTermHub.exe (PyInstaller)'
 python -m PyInstaller --noconfirm --clean --windowed --name FedTermHub `
     --icon "$assets\fedtermhub.ico" --version-file "$assets\version.txt" `
     --paths $root `
-    --collect-submodules fedtermhub.qtui --hidden-import PySide6.QtAxContainer --hidden-import winpty `
+    --collect-submodules fedtermhub.qtui --hidden-import PySide6.QtAxContainer --collect-all winpty `
     --add-data "$root\fedtermhub\qtui\xterm;fedtermhub\qtui\xterm" `
     --add-data "$root\fedtermhub\locale;fedtermhub\locale" `
     --add-data "$root\fedtermhub\icons;fedtermhub\icons" `

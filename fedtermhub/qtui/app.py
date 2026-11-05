@@ -105,7 +105,7 @@ def self_test(report_path: Path) -> int:
         output: List[str] = []
         tab.view.pty.output.connect(output.append)
         assert _wait(app, lambda: tab.view.ready, 30), "xterm.js non si è caricato"
-        assert _wait(app, lambda: tab.running, 10), "la shell non è partita"
+        assert _wait(app, lambda: tab.running, 10), f"la shell non è partita: {tab.start_error or 'nessun errore'}; {tab.launch.argv}"
         # $((6*7)) dà 42 sia in PowerShell (sottoespressione) sia nelle shell POSIX (aritmetica):
         # se arriva 42 la shell ha davvero eseguito il comando, non solo ripetuto i tasti.
         _wait(app, lambda: bool(output), 15)
@@ -199,7 +199,7 @@ def self_test(report_path: Path) -> int:
             assert tab.ax.querySubObject("AdvancedSettings9") is not None, "AdvancedSettings9 non disponibile"
             final = ("disconnected", "login", "fatal")
             _wait(app, lambda: any(e.startswith(final) for e in tab.events), 60)
-            assert tab.events, "nessun evento dal componente RDP"
+            assert tab.events, f"nessun evento dal componente RDP; stato: {tab.state.text()}"
             if target:
                 assert "login" in tab.events, "accesso non riuscito: " + ", ".join(tab.events) + " — " + tab.state.text()
                 tab.ax.grab().save(str(report_path.with_name("rdp-session.png")))
