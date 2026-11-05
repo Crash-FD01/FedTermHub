@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.13.0
+Version:        0.13.1
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -145,6 +145,13 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Thu Nov 05 2026 Crash-FD01 - 1:0.13.1-1
+- Windows: un doppio clic su una sessione apriva due schede, per tutti i protocolli. Ora ne apre una sola
+- Windows: il gestore dei tunnel SSH ha la disposizione e le azioni di quello Linux: cerca, Duplica, Verifica SSH, Copia comando, Copia endpoint, Crea sessione, riepilogo, log che si apre a richiesta, Avvia tutti e Ferma tutti, menu col clic destro; doppio clic avvia o ferma. Anche l'editor è lo stesso: percorso della connessione, tre riquadri, affidabilità, opzioni avanzate e anteprima del comando. Allargando le finestre si allargano tabella e campi, non gli spazi
+- Windows: al centro della finestra vuota c'è solo un benvenuto, senza pulsanti
+- Linux e Windows: tolta la scritta «Doppio clic per aprire una sessione» sopra le schede, con la sua voce di menu e la sua impostazione
+- Windows: gli strumenti di rete potevano fallire a caso con «The handle is invalid» nel programma installato: ora i comandi di sistema partono con uno standard input esplicito
+- Verifica SSH dei tunnel: il comando di prova è echo invece di printf, così funziona anche con i server che hanno cmd o PowerShell
 * Thu Nov 05 2026 Crash-FD01 - 1:0.13.0-1
 - Windows: terminale diviso come su Linux. Terminale › Terminale diviso apre una scheda locale con due riquadri; ogni scheda terminale si divide con Ctrl+Shift+O (affiancati) e Ctrl+Shift+E (sopra e sotto), Ctrl+Shift+Invio aggiunge un riquadro, Ctrl+Shift+[ e ] passano da uno all'altro, Ctrl+Shift+L cambia disposizione (stack, tall, fat, grid), Ctrl+Shift+P scrive in tutti i riquadri insieme, Ctrl+Shift+W chiude il riquadro. Le stesse azioni sono anche in Terminale › Riquadri
 - Windows: nel terminale Ctrl+Shift+E e Ctrl+Shift+P ora dividono e attivano il broadcast, come su Linux; con il fuoco fuori dal terminale restano File remoti e Password Manager

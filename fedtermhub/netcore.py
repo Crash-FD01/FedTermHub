@@ -54,7 +54,10 @@ SESSION_FOR_PORT = {22: "ssh", 23: "telnet", 3389: "rdp", 5900: "vnc", 5901: "vn
 
 
 def run_hidden(argv: List[str], timeout: float = 30) -> subprocess.CompletedProcess:
-    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW,  # noqa: S603
+    # stdin esplicito: un programma senza console (il Setup.exe) può avere uno standard input non valido, e
+    # subprocess cadrebbe nel duplicarlo («The handle is invalid»).
+    return subprocess.run(argv, capture_output=True, stdin=subprocess.DEVNULL, text=True, timeout=timeout,  # noqa: S603
+                          creationflags=NO_WINDOW,
                           encoding="utf-8" if not IS_WINDOWS else "oem", errors="replace")
 
 

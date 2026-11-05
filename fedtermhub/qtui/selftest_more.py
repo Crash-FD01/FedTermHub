@@ -57,7 +57,7 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         assert set(window.ribbon_buttons) == {"terminal", "sessions", "network", "tools", "password", "view", "system"}
         for category in ("terminal", "sessions", "network", "tools", "view", "system"):
             assert window.ribbon_buttons[category].menu().actions(), f"tendina {category} vuota"
-        assert window.rail.isVisible() and window.sidebar.isVisible() and window.workspace_hint.isVisible()
+        assert window.rail.isVisible() and window.sidebar.isVisible()
         # cambio tema dal pulsante e ritorno
         before = theme.is_dark()
         window.toggle_theme()
@@ -87,6 +87,122 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         return f"menu {len(menus)}, barra dei comandi {len(window.ribbon_buttons)} pulsanti, tema, Vista, trascinamento"
 
     check("Finestra come la versione Linux", layout)
+
+    # ------------------------------------------------------------------ doppio clic, benvenuto
+    def double_click() -> str:
+        from PySide6.QtCore import QPoint, Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QLabel, QPushButton
+
+        from .chrome import PATH_ROLE
+
+        for index in range(window.tabs.count() - 1, -1, -1):
+            window.close_tab(index)
+        assert window.welcome.isVisible(), "senza schede si vede il benvenuto"
+        texts = " ".join(label.text() for label in window.welcome.findChildren(QLabel))
+        assert model.APP_NAME in texts and not window.welcome.findChildren(QPushButton), texts
+        home = window.store.home_path()
+        sess = model.Session(name="doppio-clic", protocol="local")
+        window.store.add_node(home, sess)
+        window.refresh_tree(select=window.store.find_node_path(sess))
+        window.tree.expandAll()
+        app.processEvents()
+        indexes = window.tree.selectionModel().selectedIndexes()
+        assert indexes and indexes[0].data(PATH_ROLE) == window.store.find_node_path(sess), "sessione non selezionata"
+        center: QPoint = window.tree.visualRect(indexes[0]).center()
+        QTest.mouseClick(window.tree.viewport(), Qt.MouseButton.LeftButton, pos=center)
+        QTest.mouseDClick(window.tree.viewport(), Qt.MouseButton.LeftButton, pos=center)
+        wait(app, lambda: False, 0.3)
+        opened = window.tabs.count()
+        assert opened == 1, f"un doppio clic ha aperto {opened} schede"
+        window.close_tab(0)
+        window.store.remove_node(window.store.find_node_path(sess))
+        window.refresh_tree()
+        return "una scheda per doppio clic, benvenuto senza pulsanti"
+
+    check("Doppio clic e benvenuto", double_click)
+
+    # ------------------------------------------------------------------ finestre dei tunnel
+    def tunnel_windows() -> str:
+        opened: list = []
+        try:
+            return check_tunnel_windows(opened)
+        finally:  # anche se la prova fallisce: una finestra rimasta aperta ruberebbe il fuoco alle prove dopo
+            for dialog in opened:
+                dialog.close()
+                dialog.deleteLater()
+
+    def check_tunnel_windows(opened: list) -> str:
+        from .tunnels import TunnelEditDialog, TunnelsDialog
+
+        store = window.tunnels.store
+        before = list(store.tunnels)
+        tunnel = model.TunnelSession(name="rdp-prova", ssh_host="bastion.example.lan", ssh_user="ops", local_port="13389",
+                                     remote_host="10.20.0.5", remote_port="3389", server_alive_interval=45)
+        store.upsert(tunnel)
+        dialog = TunnelsDialog(window, window.tunnels, window.credential_labels, window)
+        opened.append(dialog)
+        dialog.resize(dialog.minimumSize())  # si parte dal minimo: lo schermo può essere piccolo (in CI 1024x768)
+        dialog.show()
+        wait(app, lambda: False, 0.2)
+        assert dialog.table.columnCount() == 7 and dialog.selected() is not None
+        row = [r for r in range(dialog.table.rowCount()) if dialog.table.item(r, dialog.C_NAME).text() == "rdp-prova"][0]
+        dialog.table.selectRow(row)
+        assert "13389" in dialog.detail_summary.text() and "45s" in dialog.detail_status.text(), dialog.detail_status.text()
+        assert dialog.b_start.isEnabled() and not dialog.b_stop.isEnabled() and dialog.b_session.isEnabled()
+        # allargando si allarga la tabella, non le barre né il riepilogo
+        heights = (dialog.b_start.height(), dialog.detail_summary.parentWidget().height())
+        table_size = (dialog.table.width(), dialog.table.height())
+        dialog.resize(dialog.width() + 180, dialog.height() + 120)
+        wait(app, lambda: False, 0.2)
+        assert dialog.table.width() >= table_size[0] + 150 and dialog.table.height() >= table_size[1] + 100, \
+            (table_size, dialog.table.size())
+        # il riepilogo può solo accorciarsi: con più larghezza il testo va a capo meno
+        assert dialog.b_start.height() == heights[0] and dialog.detail_summary.parentWidget().height() <= heights[1], \
+            ("barre allargate", heights, dialog.b_start.height(), dialog.detail_summary.parentWidget().height())
+        widths = [dialog.table.columnWidth(c) for c in range(7)]
+        assert widths[dialog.C_AUTO] == 54 and widths[dialog.C_NAME] > 150, widths
+        # log, cerca, duplica
+        dialog.toggle_log()
+        assert dialog.log_box.isVisible() and dialog.b_log.isEnabled()
+        dialog.toggle_log()
+        dialog.search.setText("nessun-tunnel-così")
+        assert dialog.table.rowCount() == 0 and dialog.selected() is None
+        dialog.search.clear()
+        dialog.table.selectRow([r for r in range(dialog.table.rowCount())
+                                if dialog.table.item(r, dialog.C_NAME).text() == "rdp-prova"][0])
+        dialog.duplicate()
+        clone = dialog.selected()
+        assert clone is not None and clone.id != tunnel.id and not clone.auto_start
+        store.remove(clone.id)
+        dialog.refresh(tunnel.id)
+        # Editor: tipi, percorso, anteprima e nessun campo perso nel salvataggio
+        editor = TunnelEditDialog(dialog, tunnel, [], window.settings, window.tunnels.identity)
+        opened.insert(0, editor)
+        editor.resize(editor.minimumSize())
+        editor.show()
+        wait(app, lambda: False, 0.2)
+        assert editor.current_type() == "local" and editor.flow_right.detail.text() == "10.20.0.5:3389"
+        assert "-L" in editor.command_preview.toPlainText(), editor.command_preview.toPlainText()
+        editor.radio_remote.setChecked(True)
+        assert editor.arrow1.text() == "←" and editor.destination_stack.currentIndex() == 0
+        editor.radio_dynamic.setChecked(True)
+        assert editor.destination_stack.currentIndex() == 1 and "-D" in editor.command_preview.toPlainText()
+        editor.radio_local.setChecked(True)
+        saved = editor.result_tunnel()
+        assert saved.to_dict() == tunnel.to_dict(), "l'editor cambia i campi del tunnel"
+        name_width, name_height = editor.name.width(), editor.ssh_host.height()
+        editor.resize(editor.width() + 180, editor.height() + 120)
+        wait(app, lambda: False, 0.2)
+        assert editor.name.width() >= name_width + 150 and editor.ssh_host.height() == name_height, "editor allargato male"
+        editor.ssh_host.clear()
+        editor._accept()
+        assert editor.validation.isVisibleTo(editor) and editor.result() == 0, "salvato senza server SSH"
+        store.remove(tunnel.id)
+        assert [t.id for t in store.tunnels] == [t.id for t in before]
+        return "elenco, stato, ridimensionamento, editor"
+
+    check("Finestre dei tunnel", tunnel_windows)
 
     # ------------------------------------------------------------------ terminale diviso
     def seen(out: list, marker: str) -> bool:
@@ -423,12 +539,20 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
     check("SFTP", sftp)
 
     def tunnel() -> str:
+        from .tunnels import TunnelProbe
+
         server = selftest_servers.start_telnet()
         local_port = selftest_servers.free_port()
         tunnel = model.TunnelSession(name="tunnel-prova", ssh_host=host, ssh_port=port or "22", ssh_user=user,
                                      local_port=str(local_port), remote_host="127.0.0.1", remote_port=str(server.port))
         window.tunnels.store.upsert(tunnel)
         window.tunnels.identity = lambda t: (user, password)
+        probe_result: list = []
+        probe = TunnelProbe(tunnel, window.settings, window.tunnels.identity)
+        probe.finished.connect(lambda ok, message, details: probe_result.append((ok, message, details)))
+        probe.start()
+        assert wait(app, lambda: probe_result, 40), "Verifica SSH senza risposta"
+        assert probe_result[0][0], f"Verifica SSH fallita: {probe_result[0]}"
         result: list = []
         window.tunnels.when_ready(tunnel.id, lambda ok, log: result.append((ok, log)))
         assert wait(app, lambda: result, 40), "il tunnel non risponde"

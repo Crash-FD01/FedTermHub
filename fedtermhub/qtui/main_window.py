@@ -224,8 +224,7 @@ class MainWindow(QMainWindow):
                           ("show_ribbon", tr("Mostra/nascondi barra comandi")),
                           ("show_sidebar", tr("Mostra/nascondi pannello sessioni")),
                           ("show_left_rail", tr("Mostra/nascondi barra verticale")),
-                          ("show_statusbar", tr("Mostra/nascondi barra di stato")),
-                          ("show_workspace_hint", tr("Mostra/nascondi suggerimento area lavoro"))):
+                          ("show_statusbar", tr("Mostra/nascondi barra di stato"))):
             act = QAction(text, self)
             act.setCheckable(True)
             act.setChecked(bool(getattr(self.settings, key)))
@@ -316,7 +315,7 @@ class MainWindow(QMainWindow):
         elif category == "view":
             heading(tr("Vista"))
             for key in (("show_menubar", "show_ribbon") if not headings else ()) + (
-                    "show_sidebar", "show_left_rail", "show_statusbar", "show_workspace_hint"):
+                    "show_sidebar", "show_left_rail", "show_statusbar"):
                 menu.addAction(self.view_toggles[key])
             menu.addAction(self.act_files)
             menu.addSeparator()
@@ -522,7 +521,7 @@ class MainWindow(QMainWindow):
         self.tree.setModel(self.tree_model)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._tree_menu)
-        self.tree.doubleClicked.connect(lambda index: self.open_path(index.data(PATH_ROLE)))
+        # Solo activated (doppio clic e Invio): con anche doubleClicked un doppio clic aprirebbe due schede.
         self.tree.activated.connect(lambda index: self.open_path(index.data(PATH_ROLE)))
         self.tree.pressed.connect(self.mark_activity)
         s_layout.addWidget(self.tree, 1)
@@ -568,10 +567,6 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(workspace)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        self.workspace_hint = QLabel("<span style='color:%s'>▸</span> %s" % (
-            theme.colors()["ok"], tr("Doppio clic per aprire una sessione")))
-        self.workspace_hint.setObjectName("workspaceHint")
-        layout.addWidget(self.workspace_hint)
         self.tabs = QTabWidget()
         self.tabs.setObjectName("workTabs")
         self.tabs.setTabsClosable(True)
@@ -599,24 +594,10 @@ class MainWindow(QMainWindow):
         logo.setPixmap(app_icon().pixmap(72, 72))
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(logo)
-        title = QLabel(f"{model.APP_NAME}")
+        title = QLabel(tr("Benvenuto in {name}").format(name=model.APP_NAME))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 26px; font-weight: 600;")
-        sub = QLabel(tr("Scegli una sessione a sinistra, oppure:"))
-        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub.setProperty("role", "muted")
         layout.addWidget(title)
-        layout.addWidget(sub)
-        row = QHBoxLayout()
-        row.addStretch(1)
-        for text, slot in ((tr("Nuova sessione"), self.new_session), (tr("Nuovo terminale locale"), self.open_local_terminal),
-                           (tr("Quick connect"), self.focus_quick_connect),
-                           (tr("Importa sessioni nella cartella selezionata"), self.import_sessions)):
-            button = QPushButton(text)
-            button.clicked.connect(lambda *_, s=slot: s())
-            row.addWidget(button)
-        row.addStretch(1)
-        layout.addLayout(row)
         layout.addStretch(2)
         return page
 
@@ -633,7 +614,7 @@ class MainWindow(QMainWindow):
     def set_part_visible(self, key: str, visible: bool, save: bool = True) -> None:
         widgets = {"show_menubar": lambda: self.menuBar(), "show_ribbon": lambda: self.ribbon,
                    "show_sidebar": lambda: self.sidebar, "show_left_rail": lambda: self.rail,
-                   "show_statusbar": lambda: self.statusBar(), "show_workspace_hint": lambda: self.workspace_hint}
+                   "show_statusbar": lambda: self.statusBar()}
         other = {"show_menubar": "show_ribbon", "show_ribbon": "show_menubar"}.get(key)
         if not visible and other and not getattr(self.settings, other):
             # Senza menu e senza barra dei comandi non si potrebbe più tornare indietro.
@@ -679,8 +660,6 @@ class MainWindow(QMainWindow):
         theme.apply(QApplication.instance(), self.settings.theme)
         self._refresh_icons()
         self._update_theme_button()
-        self.workspace_hint.setText("<span style='color:%s'>▸</span> %s" % (
-            theme.colors()["ok"], tr("Doppio clic per aprire una sessione")))
         self._tab_dots.clear()
         self._refresh_tab_dots()
         self.refresh_tree()
@@ -1269,7 +1248,35 @@ class MainWindow(QMainWindow):
         return [(t.id, t.name) for t in self.tunnels.store.tunnels]
 
     def open_tunnels(self) -> None:
-        TunnelsDialog(self, self.tunnels, self.credential_labels, lambda: None).exec()
+        if self.vault.exists() and not self.vault.unlocked:
+            self.ensure_vault_unlocked(create_if_missing=False, quiet=True)
+        dialog = TunnelsDialog(self, self.tunnels, self.credential_labels, self)
+        dialog.exec()
+        dialog.deleteLater()
+
+    def sessions_using_tunnel(self, tunnel_id: str) -> List[model.Session]:
+        return [sess for _path, sess, _folder in self.store.iter_sessions() if sess.required_tunnel_id == tunnel_id]
+
+    def unlink_sessions(self, sessions: List[model.Session]) -> None:
+        """Il tunnel non c'è più: le sessioni che lo usavano tornano a collegarsi direttamente."""
+        for sess in sessions:
+            sess.required_tunnel_id = ""
+            if sess.routing_mode == "saved_tunnel":
+                sess.routing_mode = "direct"
+        self.store.save()
+        self.refresh_tree()
+
+    def create_linked_session(self, tunnel: model.TunnelSession, parent: QWidget) -> None:
+        """Una sessione nuova che passa dal tunnel locale scelto (Crea sessione nel gestore dei tunnel)."""
+        dialog = SessionDialog(parent, tunnel.linked_session(), self.credential_labels(), not self.vault.unlocked,
+                               self.tunnel_labels())
+        dialog.setWindowTitle(tr("Nuova sessione"))
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            sess = dialog.result_session()
+            self.store.add_node(self.store.home_path(), sess)
+            self.refresh_tree(select=self.store.find_node_path(sess))
+            self.set_status(tr("Sessione creata: {name}").format(name=sess.name))
+        dialog.deleteLater()
 
     def _tunnels_changed(self) -> None:
         active = self.tunnels.active()

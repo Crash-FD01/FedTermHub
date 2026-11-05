@@ -399,8 +399,9 @@ pannello va nella cartella in cui fai `cd` nel terminale (server Linux con bash 
 SFTP aprono lo stesso pannello in una scheda intera. Le chiavi degli host sono quelle di
 `%USERPROFILE%\.ssh\known_hosts`, le stesse del terminale.
 
-**Tunnel SSH.** *Strumenti › Tunneling SSH* (**Ctrl+Maiusc+U**): gli stessi tunnel della versione Linux, con lo
-stato e il log di ognuno. Una sessione può avviare il suo tunnel e aspettarlo: nella sessione,
+**Tunnel SSH.** *Strumenti › Tunneling SSH* (**Ctrl+Maiusc+U**): gli stessi tunnel e la stessa finestra della
+versione Linux. Doppio clic su una riga avvia o ferma il tunnel, il clic destro mostra tutte le azioni, *Verifica
+SSH* prova l'accesso senza aprire porte. Una sessione può avviare il suo tunnel e aspettarlo: nella sessione,
 *Instradamento › Prima avvia un tunnel salvato*.
 
 **VNC.** Il desktop si apre nella scheda; la password VNC è quella della credenziale collegata (se manca, la

@@ -77,7 +77,7 @@ def check_tunnels() -> None:
     t.tunnel_type = "remote"
     assert "-R 127.0.0.1:15432:db:5432" in " ".join(commands.tunnel_argv("ssh", t, st, "", False))
     probe = commands.tunnel_probe_argv("ssh", t, st, "ops", False)
-    assert probe[-3:] == ["--", "ops@bastion", "printf FEDTERMHUB_TUNNEL_OK"], probe
+    assert probe[-3:] == ["--", "ops@bastion", "echo FEDTERMHUB_TUNNEL_OK"], probe
 
     bad = model.TunnelSession(name="b", ssh_host="-oProxyCommand=x", ssh_port="99999", local_port="",
                               remote_host="", remote_port="x", options="'non chiusa", identity_file="/non/esiste")
@@ -250,8 +250,27 @@ def check_panes() -> None:
     assert all(color in gtk for color in look.TERMINAL_TOAST.values()), "avviso del terminale diverso dal CSS GTK"
 
 
+def check_tunnel_rules() -> None:
+    """Stato, percorso, copia e sessione collegata dei tunnel: stesse regole sulle due interfacce."""
+    assert commands.tunnel_state_display("running") == ("● Attivo", "#49d17d")
+    assert commands.tunnel_state_display("waiting")[0] == commands.tunnel_state_display("restarting")[0]
+    assert commands.tunnel_route("remote")["arrow"] == "←" and commands.tunnel_route("local")["arrow"] == "→"
+    tunnel = model.TunnelSession(name="rdp", ssh_host="bastion", ssh_user="ops", local_port="13389",
+                                 remote_host="10.20.0.5", remote_port="3389", auto_start=True)
+    assert commands.tunnel_route_details(tunnel) == ("127.0.0.1:13389", "ops@bastion:22", "10.20.0.5:3389")
+    clone = tunnel.duplicate()
+    assert clone.id != tunnel.id and not clone.auto_start and clone.name == "rdp copia" and clone.local_port == "13389"
+    draft = tunnel.linked_session()
+    assert (draft.protocol, draft.host, draft.port, draft.required_tunnel_id) == ("rdp", "127.0.0.1", "13389", tunnel.id)
+    for source in ("fedtermhub.py", "qtui/tunnels.py"):
+        text = (ROOT / "fedtermhub" / source).read_text(encoding="utf-8")
+        for function in ("commands.tunnel_route(", "commands.tunnel_route_details(", "commands.tunnel_state_display("):
+            assert function in text, f"{source}: non usa {function}"
+        assert ".duplicate()" in text
+
+
 def main() -> int:
-    for check in (check_ssh, check_tunnels, check_netcore, check_both_interfaces_use_the_core, check_look,
+    for check in (check_tunnel_rules, check_ssh, check_tunnels, check_netcore, check_both_interfaces_use_the_core, check_look,
                   check_panes, check_parity_doc):
         check()
         print(f"OK {check.__name__}")

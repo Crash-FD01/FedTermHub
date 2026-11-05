@@ -47,7 +47,7 @@ except Exception:  # pragma: no cover - dipendenza runtime
 # controlla che coincidano.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.13.0"
+APP_VERSION = "0.13.1"
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -503,7 +503,6 @@ class AppSettings:
     show_menubar: bool = True
     show_ribbon: bool = True
     show_statusbar: bool = True
-    show_workspace_hint: bool = True
     compact_tabs: bool = True
     animations: bool = True
     startup_mode: str = "terminal"  # terminal oppure empty
@@ -597,7 +596,6 @@ class AppSettings:
                 show_menubar=bool(raw.get("show_menubar", True)),
                 show_ribbon=bool(raw.get("show_ribbon", True)),
                 show_statusbar=bool(raw.get("show_statusbar", True)),
-                show_workspace_hint=bool(raw.get("show_workspace_hint", True)),
                 compact_tabs=bool(raw.get("compact_tabs", True)),
                 animations=bool(raw.get("animations", True)),
                 startup_mode=startup_mode,
@@ -648,7 +646,6 @@ class AppSettings:
             "show_menubar": self.show_menubar,
             "show_ribbon": self.show_ribbon,
             "show_statusbar": self.show_statusbar,
-            "show_workspace_hint": self.show_workspace_hint,
             "compact_tabs": self.compact_tabs,
             "animations": self.animations,
             "startup_mode": self.startup_mode,
@@ -1417,6 +1414,28 @@ class TunnelSession:
     def ssh_endpoint(self) -> str:
         prefix = f"{self.ssh_user}@" if self.ssh_user else ""
         return f"{prefix}{self.ssh_host or '?'}:{self.ssh_port or '22'}"
+
+    def duplicate(self) -> "TunnelSession":
+        """Una copia con un altro nome, che non parte da sola."""
+        clone = TunnelSession.from_dict(self.to_dict())
+        clone.id = uuid.uuid4().hex
+        clone.name = tr("{name} copia").format(name=self.name)
+        clone.auto_start = False
+        return clone
+
+    def linked_session(self) -> Session:
+        """La bozza di una sessione che passa da questo tunnel locale: il protocollo dipende dalla porta remota."""
+        protocol = "rdp" if self.remote_port == "3389" else "vnc" if self.remote_port in {"5900", "5901", "5902"} else "ssh"
+        return Session(
+            name=tr("{name} - sessione").format(name=self.name),
+            protocol=protocol,
+            host=self.bind_address or "127.0.0.1",
+            port=self.local_port or "",
+            routing_mode="saved_tunnel",
+            required_tunnel_id=self.id,
+            wait_for_tunnel=True,
+            notes=tr("Sessione collegata automaticamente al tunnel {name}.").format(name=self.name),
+        )
 
     def summary(self) -> str:
         if self.tunnel_type == "dynamic":

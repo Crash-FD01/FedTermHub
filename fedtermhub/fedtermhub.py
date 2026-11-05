@@ -3019,42 +3019,15 @@ class TunnelDialog(Gtk.Dialog):
         self.remote_host.set_sensitive(not dynamic)
         self.remote_port.set_sensitive(not dynamic)
 
-        if dynamic:
-            self.bind_label.set_text(tr("Indirizzo proxy"))
-            self.port_label.set_text(tr("Porta SOCKS"))
-            self.flow_left._title_label.set_text(tr("Applicazioni locali"))
-            self.flow_ssh._title_label.set_text(tr("Server SSH"))
-            self.flow_right._title_label.set_text(tr("Rete remota"))
-            self.arrow1.set_text("→")
-            self.arrow2.set_text("→")
-            self.explain.set_text(
-                tr("Le applicazioni locali si collegano al proxy SOCKS. Il server SSH "
-                "apre poi la connessione verso la destinazione richiesta dal client.")
-            )
-        elif remote:
-            self.bind_label.set_text(tr("Bind sul server SSH"))
-            self.port_label.set_text(tr("Porta remota"))
-            self.flow_left._title_label.set_text(tr("Servizio locale"))
-            self.flow_ssh._title_label.set_text(tr("Server SSH"))
-            self.flow_right._title_label.set_text(tr("Client remoti"))
-            self.arrow1.set_text("←")
-            self.arrow2.set_text("←")
-            self.explain.set_text(
-                tr("I client remoti raggiungono la porta aperta sul server SSH; il traffico "
-                "viene riportato al servizio raggiungibile da questo computer.")
-            )
-        else:
-            self.bind_label.set_text(tr("Indirizzo locale"))
-            self.port_label.set_text(tr("Porta locale"))
-            self.flow_left._title_label.set_text(tr("Client locale"))
-            self.flow_ssh._title_label.set_text(tr("Server SSH"))
-            self.flow_right._title_label.set_text(tr("Servizio remoto"))
-            self.arrow1.set_text("→")
-            self.arrow2.set_text("→")
-            self.explain.set_text(
-                tr("Il client locale si collega alla porta indicata e raggiunge il servizio "
-                "di destinazione attraverso il server SSH.")
-            )
+        route = commands.tunnel_route(tunnel_type)
+        self.bind_label.set_text(route["bind"])
+        self.port_label.set_text(route["port"])
+        self.flow_left._title_label.set_text(route["left"])
+        self.flow_ssh._title_label.set_text(tr("Server SSH"))
+        self.flow_right._title_label.set_text(route["right"])
+        self.arrow1.set_text(route["arrow"])
+        self.arrow2.set_text(route["arrow"])
+        self.explain.set_text(route["explain"])
         self.update_preview()
 
     def get_tunnel(self) -> TunnelSession:
@@ -3087,18 +3060,10 @@ class TunnelDialog(Gtk.Dialog):
     def update_preview(self, *_args) -> None:
         try:
             tunnel = self.get_tunnel()
-            if tunnel.tunnel_type == "remote":
-                self.flow_left._detail_label.set_text(tunnel.destination_endpoint())
-                self.flow_ssh._detail_label.set_text(tunnel.ssh_endpoint())
-                self.flow_right._detail_label.set_text(tunnel.listen_endpoint())
-            elif tunnel.tunnel_type == "dynamic":
-                self.flow_left._detail_label.set_text(tunnel.listen_endpoint())
-                self.flow_ssh._detail_label.set_text(tunnel.ssh_endpoint())
-                self.flow_right._detail_label.set_text(tr("Destinazione dinamica"))
-            else:
-                self.flow_left._detail_label.set_text(tunnel.listen_endpoint())
-                self.flow_ssh._detail_label.set_text(tunnel.ssh_endpoint())
-                self.flow_right._detail_label.set_text(tunnel.destination_endpoint())
+            left, ssh, right = commands.tunnel_route_details(tunnel)
+            self.flow_left._detail_label.set_text(left)
+            self.flow_ssh._detail_label.set_text(ssh)
+            self.flow_right._detail_label.set_text(right)
             self.use_password.set_sensitive(bool(tunnel.credential_id))
             argv, _env = self.parent_app.build_tunnel_command(tunnel, allow_unlock=False)
             command = self.parent_app.mask_args(argv)
@@ -3391,14 +3356,7 @@ class TunnelManagerDialog(Gtk.Dialog):
 
     @staticmethod
     def _state_display(state: str) -> Tuple[str, str]:
-        return {
-            "running": (tr("● Attivo"), "#49d17d"),
-            "starting": (tr("● Avvio"), "#f3c969"),
-            "restarting": (tr("● Riconnessione"), "#f3c969"),
-            "error": (tr("● Errore"), "#ff7185"),
-            "locked": (tr("● Password bloccate"), "#f3c969"),
-            "stopped": (tr("○ Fermo"), "#9aa4b2"),
-        }.get(state, (f"○ {state}", "#9aa4b2"))
+        return commands.tunnel_state_display(state)
 
     def on_selection_changed(self, *_args) -> None:
         self.update_details()
@@ -3509,10 +3467,7 @@ class TunnelManagerDialog(Gtk.Dialog):
         tunnel = self.selected_tunnel()
         if tunnel is None:
             return
-        clone = TunnelSession.from_dict(tunnel.to_dict())
-        clone.id = uuid.uuid4().hex
-        clone.name = tr("{name} copia").format(name=tunnel.name)
-        clone.auto_start = False
+        clone = tunnel.duplicate()
         self.parent_app.tunnel_store.upsert(clone)
         self.refresh(clone.id)
 
@@ -3637,24 +3592,7 @@ class TunnelManagerDialog(Gtk.Dialog):
         if tunnel is None or tunnel.tunnel_type != "local":
             self.parent_app.show_notification(tr("La creazione guidata è disponibile per i tunnel locali (-L)."), "info", 4000)
             return
-        port = tunnel.local_port or ""
-        if tunnel.remote_port == "3389":
-            proto = "rdp"
-        elif tunnel.remote_port in {"5900", "5901", "5902"}:
-            proto = "vnc"
-        elif tunnel.remote_port == "22":
-            proto = "ssh"
-        else:
-            proto = "ssh"
-        draft = Session(
-            name=tr("{name} - sessione").format(name=tunnel.name),
-            protocol=proto,
-            host=tunnel.bind_address or "127.0.0.1",
-            port=port,
-            required_tunnel_id=tunnel.id,
-            wait_for_tunnel=True,
-            notes=tr("Sessione collegata automaticamente al tunnel {name}.").format(name=tunnel.name),
-        )
+        draft = tunnel.linked_session()
         dialog = SessionDialog(self, draft, credentials=self.parent_app.credential_options_for_dialog(), tunnels=self.parent_app.tunnel_options_for_dialog())
         try:
             if dialog.run() == Gtk.ResponseType.OK:
@@ -3862,15 +3800,13 @@ class SettingsDialog(Gtk.Dialog):
         self.show_left_rail = Gtk.CheckButton(label=tr("Barra rapida verticale"))
         self.show_sidebar = Gtk.CheckButton(label=tr("Pannello sessioni"))
         self.show_statusbar = Gtk.CheckButton(label=tr("Barra di stato inferiore"))
-        self.show_workspace_hint = Gtk.CheckButton(label=tr("Suggerimento sopra le schede"))
         self.sidebar_width = Gtk.SpinButton.new_with_range(190, 520, 5)
         self._row(grid2, 0, tr("Menu"), self.show_menubar)
         self._row(grid2, 1, tr("Comandi"), self.show_ribbon)
         self._row(grid2, 2, tr("Scorciatoie"), self.show_left_rail)
         self._row(grid2, 3, tr("Sessioni"), self.show_sidebar)
         self._row(grid2, 4, tr("Stato"), self.show_statusbar)
-        self._row(grid2, 5, tr("Suggerimenti"), self.show_workspace_hint)
-        self._row(grid2, 6, tr("Larghezza pannello"), self.sidebar_width, tr("Valore in pixel; il pannello resta ridimensionabile con il mouse."))
+        self._row(grid2, 5, tr("Larghezza pannello"), self.sidebar_width, tr("Valore in pixel; il pannello resta ridimensionabile con il mouse."))
         self._append_page(scroll, "interface", tr("Interfaccia"))
 
     def _build_terminal_page(self) -> None:
@@ -4009,7 +3945,6 @@ class SettingsDialog(Gtk.Dialog):
         self.show_left_rail.set_active(settings.show_left_rail)
         self.show_sidebar.set_active(settings.show_sidebar)
         self.show_statusbar.set_active(settings.show_statusbar)
-        self.show_workspace_hint.set_active(settings.show_workspace_hint)
         self.sidebar_width.set_value(settings.sidebar_width)
         self.startup_mode.set_active_id(settings.startup_mode)
         self.confirm_close.set_active(settings.confirm_close_active_sessions)
@@ -4099,7 +4034,6 @@ class SettingsDialog(Gtk.Dialog):
         settings.show_left_rail = bool(self.show_left_rail.get_active())
         settings.show_sidebar = bool(self.show_sidebar.get_active())
         settings.show_statusbar = bool(self.show_statusbar.get_active())
-        settings.show_workspace_hint = bool(self.show_workspace_hint.get_active())
         settings.sidebar_width = int(self.sidebar_width.get_value())
         settings.startup_mode = self.startup_mode.get_active_id() or "terminal"
         settings.confirm_close_active_sessions = bool(self.confirm_close.get_active())
@@ -7760,7 +7694,6 @@ class AppWindow(Gtk.ApplicationWindow):
             (getattr(self, "rail", None), self.settings.show_left_rail),
             (getattr(self, "sidebar", None), self.settings.show_sidebar),
             (getattr(self, "footer", None), self.settings.show_statusbar),
-            (getattr(self, "tabbar_hint", None), self.settings.show_workspace_hint),
         ]
         for widget, visible in visibility:
             if widget is not None:
@@ -7845,15 +7778,6 @@ class AppWindow(Gtk.ApplicationWindow):
         self.settings.show_statusbar = new_state
         self.footer.set_no_show_all(not new_state)
         self.footer.set_visible(new_state)
-        self.settings.save(SETTINGS_FILE)
-
-    def toggle_workspace_hint(self, visible: Optional[bool] = None) -> None:
-        if not hasattr(self, "tabbar_hint"):
-            return
-        new_state = (not self.tabbar_hint.get_visible()) if visible is None else bool(visible)
-        self.settings.show_workspace_hint = new_state
-        self.tabbar_hint.set_no_show_all(not new_state)
-        self.tabbar_hint.set_visible(new_state)
         self.settings.save(SETTINGS_FILE)
 
     def _menu_icon_for_label(self, text: str) -> List[str]:
@@ -8008,7 +7932,6 @@ class AppWindow(Gtk.ApplicationWindow):
             (tr("Mostra/nascondi pannello sessioni"), lambda *_: self.toggle_sidebar()),
             (tr("Mostra/nascondi barra verticale"), lambda *_: self.toggle_left_rail()),
             (tr("Mostra/nascondi barra di stato"), lambda *_: self.toggle_statusbar()),
-            (tr("Mostra/nascondi suggerimento area lavoro"), lambda *_: self.toggle_workspace_hint()),
             ("---", None),
             (tr("Espandi cartelle"), lambda *_: self.session_tree.expand_all()),
             (tr("Comprimi cartelle"), lambda *_: self.session_tree.collapse_all()),
@@ -8294,17 +8217,6 @@ class AppWindow(Gtk.ApplicationWindow):
         notification.pack_start(close_notification, False, False, 0)
         self.notification_revealer.add(notification)
         workspace.pack_start(self.notification_revealer, False, False, 0)
-
-        tabbar_hint = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        self.tabbar_hint = tabbar_hint
-        tabbar_hint.get_style_context().add_class("workspace-strip")
-        terminal_icon = Gtk.Label(label="▸")
-        terminal_icon.get_style_context().add_class("green-dot")
-        tabbar_hint.pack_start(terminal_icon, False, False, 0)
-        hint = Gtk.Label(label=tr("Doppio clic per aprire una sessione"), xalign=0)
-        hint.get_style_context().add_class("workspace-hint")
-        tabbar_hint.pack_start(hint, True, True, 0)
-        workspace.pack_start(tabbar_hint, False, False, 0)
 
         self.notebook = Gtk.Notebook()
         self.notebook.set_name("terminal-notebook")
@@ -13282,7 +13194,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self.notebook.set_current_page(page_num)
             self._rdp_immersive_tab = tab
             self._notebook_tabs_before_immersive = self.notebook.get_show_tabs()
-            for widget in (self.menubar, self.ribbon, self.rail, self.sidebar, self.tabbar_hint, self.footer):
+            for widget in (self.menubar, self.ribbon, self.rail, self.sidebar, self.footer):
                 widget.hide()
             self.notification_revealer.hide()
             self.notebook.set_show_tabs(False)
@@ -13325,7 +13237,6 @@ class AppWindow(Gtk.ApplicationWindow):
             self.unfullscreen()
             self.menubar.show_all()
             self.ribbon.show_all()
-            self.tabbar_hint.show_all()
             self.footer.show_all()
             self.apply_layout_preferences()
             self.notification_revealer.show()
@@ -13353,7 +13264,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 return
             self.notebook.set_current_page(page_num)
             self._notebook_tabs_before_immersive = self.notebook.get_show_tabs()
-            for widget in (self.menubar, self.ribbon, self.rail, self.sidebar, self.tabbar_hint, self.footer):
+            for widget in (self.menubar, self.ribbon, self.rail, self.sidebar, self.footer):
                 widget.hide()
             self.notification_revealer.hide()
             self.notebook.set_show_tabs(False)
@@ -13373,7 +13284,6 @@ class AppWindow(Gtk.ApplicationWindow):
                 pass
             self.menubar.show_all()
             self.ribbon.show_all()
-            self.tabbar_hint.show_all()
             self.footer.show_all()
             self.apply_layout_preferences()
             self.notification_revealer.show()

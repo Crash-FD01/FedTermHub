@@ -94,8 +94,6 @@ def stylesheet(c: Dict[str, str]) -> str:
     QToolButton[role="tabclose"]:hover {{ background: {c['tab_hover']}; color: {c['error']}; }}
     QWidget#workspace {{ background: {c['workspace']}; }}
     QTabWidget#workTabs > QTabBar {{ background: {c['root']}; }}
-    QLabel#workspaceHint {{ background: {c['root']}; color: {c['muted']}; border-bottom: 1px solid {c['line']};
-        padding: 4px 8px; }}
 
     QStatusBar {{ background: {c['bar']}; color: {c['status_text']}; border-top: 1px solid {c['line']}; }}
     QStatusBar QLabel {{ color: {c['status_text']}; padding: 0 4px; }}

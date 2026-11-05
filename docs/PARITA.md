@@ -73,7 +73,7 @@ Linux sia nella tabella e che le voci segnate **sì** esistano davvero nell'inte
 
 | Funzione | Linux | Windows | Note |
 |---|---|---|---|
-| Tunneling SSH | sì | sì | locale, remoto e dinamico (SOCKS), avvio automatico |
+| Tunneling SSH | sì | sì | locale, remoto e dinamico (SOCKS), avvio automatico; stessa finestra sulle due versioni |
 | Password Manager | sì | sì | stesso archivio cifrato (AES-GCM) |
 | Esporta backup cifrato delle password | sì | sì | |
 | Importa backup cifrato delle password | sì | sì | |
@@ -94,7 +94,6 @@ Linux sia nella tabella e che le voci segnate **sì** esistano davvero nell'inte
 | Mostra/nascondi pannello sessioni | sì | sì | |
 | Mostra/nascondi barra verticale | sì | sì | |
 | Mostra/nascondi barra di stato | sì | sì | |
-| Mostra/nascondi suggerimento area lavoro | sì | sì | |
 | Espandi cartelle | sì | sì | |
 | Comprimi cartelle | sì | sì | |
 

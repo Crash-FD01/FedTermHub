@@ -127,6 +127,19 @@ def mostra():
         dialogo.select_credential(win.vault.credentials[0].id)
         finestra["w"] = dialogo
         return False
+    if VISTA in {"tunnel", "tunnel-editor"}:
+        T = app.TunnelSession
+        win.tunnel_store.tunnels[:] = [
+            T(name="RDP Studio Rossi", ssh_host="bastion.example.lan", ssh_user="admin", local_port="13389",
+              remote_host="10.20.0.10", remote_port="3389"),
+            T(name="Proxy di manutenzione", tunnel_type="dynamic", ssh_host="bastion.example.lan", ssh_user="admin",
+              local_port="1080", auto_start=True),
+        ]
+        if VISTA == "tunnel":
+            finestra["w"] = app.TunnelManagerDialog(win)
+        else:
+            finestra["w"] = app.TunnelDialog(win, win.tunnel_store.tunnels[0])
+        return False
     if VISTA == "diviso":
         tab.dispatch("split_v", tab.active_pane)
         tab.dispatch("split_h", tab.active_pane)

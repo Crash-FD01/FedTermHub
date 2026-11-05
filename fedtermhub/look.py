@@ -161,3 +161,7 @@ HOME_SESSION_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="22" height=
 
 # Il piccolo avviso temporaneo sopra i riquadri del terminale (uguale nei due temi, come il terminale).
 TERMINAL_TOAST = {"background": "rgba(20,26,36,0.94)", "text": "#cfe1f5", "line": "#33415a"}
+
+# Lo stato dei tunnel SSH nell'elenco (uguale nei due temi).
+TUNNEL_STATE_COLORS = {"running": "#49d17d", "starting": "#f3c969", "restarting": "#f3c969", "waiting": "#f3c969",
+                       "error": "#ff7185", "locked": "#f3c969", "stopped": "#9aa4b2"}

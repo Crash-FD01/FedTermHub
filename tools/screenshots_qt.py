@@ -83,6 +83,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from fedtermhub.qtui import connect, theme  # noqa: E402
 from fedtermhub.qtui.chrome import MultiExecDialog  # noqa: E402
+from fedtermhub.qtui.tunnels import TunnelEditDialog, TunnelsDialog  # noqa: E402
 from fedtermhub.qtui.main_window import MainWindow  # noqa: E402
 
 finestre = []
@@ -105,6 +106,21 @@ def prepara() -> None:
         tab.dispatch("split_h")
         tab.dispatch("toggle_broadcast")
         QTimer.singleShot(3800, tab.toggle_broadcast)
+    if VISTA in {"tunnel", "tunnel-editor"}:
+        prova = win.tunnels.store.tunnels
+        prova.clear()
+        prova += [
+            model.TunnelSession(name="RDP Studio Rossi", ssh_host="bastion.example.lan", ssh_user="admin",
+                                local_port="13389", remote_host="10.20.0.10", remote_port="3389"),
+            model.TunnelSession(name="Proxy di manutenzione", tunnel_type="dynamic", ssh_host="bastion.example.lan",
+                                ssh_user="admin", local_port="1080", auto_start=True),
+        ]
+        dialogo = TunnelsDialog(win, win.tunnels, win.credential_labels, win)
+        if VISTA == "tunnel-editor":
+            dialogo = TunnelEditDialog(win, prova[0], [], win.settings, win.tunnels.identity)
+        dialogo.setModal(False)
+        dialogo.show()
+        finestre.append(dialogo)
     if VISTA == "multiexec":
         win.add_terminal_tab(connect.Launch("db01", ["bash", "-c", script], {}, close_on_success=False), protocol="ssh")
         win.add_terminal_tab(connect.Launch("Terminale locale", ["bash", "-c", script], {}), protocol="local")
@@ -119,8 +135,8 @@ def prepara() -> None:
 def scatta() -> None:
     win.open_label.setText("Aperto: web01")
     screen = app.primaryScreen()
-    pixmap = screen.grabWindow(0) if VISTA in {"menu", "multiexec"} else win.grab()
-    if VISTA not in {"menu", "multiexec"}:
+    pixmap = finestre[0].grab() if VISTA.startswith("tunnel") else screen.grabWindow(0) if VISTA in {"menu", "multiexec"} else win.grab()
+    if VISTA not in {"menu", "multiexec"} and not VISTA.startswith("tunnel"):
         pixmap = screen.grabWindow(0, win.geometry().x(), win.geometry().y(), win.width(), win.height())
     pixmap.save(str(USCITA))
     print(USCITA)
