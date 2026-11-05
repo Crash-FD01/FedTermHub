@@ -158,7 +158,7 @@ def verify_ui_source_invariants() -> None:
     assert (PROJECT_ROOT / "fedtermhub" / "icons" / "fth-proto-rdp.svg").exists()
     assert (PROJECT_ROOT / "fedtermhub" / "icons" / "fth-act-new.svg").exists()
     # 3.20: icone protocollo colorate per tema e refresh visivo
-    assert 'proto_colors' in source
+    assert 'look.colored_svg(template, name, dark)' in source  # colori per tema, comuni con Windows (look.py)
     assert 'restyle 3.21' in source
     assert 'fth-tb-terminale' in source
     assert (PROJECT_ROOT / 'fedtermhub' / 'icons' / 'fth-tb-terminale.svg').exists()

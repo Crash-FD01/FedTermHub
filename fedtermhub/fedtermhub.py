@@ -90,11 +90,13 @@ try:
     from .i18n import detect_language as i18n_detect, original, tr, trn
     from . import distro
     from . import commands
+    from . import look
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
     from i18n import LANGUAGE as I18N_ACTIVE, SUPPORTED as I18N_LANGUAGES
     from i18n import detect_language as i18n_detect, original, tr, trn
     import distro  # type: ignore[no-redef]
     import commands  # type: ignore[no-redef]
+    import look  # type: ignore[no-redef]
 
 # La versione sta in model.py (con fedtermhub.spec, install.sh e il metainfo: tests/test_versions.py
 # controlla che coincidano). Si importa in cima perche' il doctor la stampa anche quando GTK non si carica.
@@ -393,6 +395,7 @@ try:
     SESSION_PACKAGE_FORMAT,
     session_package,
     node_from_session_package,
+    as_home_session,
     SessionStore,
     TunnelSession,
     TunnelStore,
@@ -447,6 +450,7 @@ except ImportError:
     SESSION_PACKAGE_FORMAT,
     session_package,
     node_from_session_package,
+    as_home_session,
     SessionStore,
     TunnelSession,
     TunnelStore,
@@ -7581,28 +7585,7 @@ class AppWindow(Gtk.ApplicationWindow):
             self._registered_app_icons = set()
             return
         dark = str(getattr(self.settings, "theme", "dark")).lower() != "light"
-        default_stroke = "#cbd5e1" if dark else "#3a4653"
-        # Colori di protocollo per tema: accesi sullo scuro, più saturi/scuri
-        # sul chiaro per restare leggibili su fondo bianco.
-        proto_colors = {
-            "fth-proto-ssh": "#22d3ee" if dark else "#0e7490",
-            "fth-proto-rdp": "#60a5fa" if dark else "#2563eb",
-            "fth-proto-vnc": "#c084fc" if dark else "#7c3aed",
-            "fth-proto-sftp": "#34d399" if dark else "#059669",
-            "fth-proto-serial": "#fbbf24" if dark else "#b45309",
-            "fth-proto-local": "#cbd5e1" if dark else "#475569",
-            "fth-proto-telnet": "#f472b6" if dark else "#be185d",
-            "fth-proto-ftp": "#fb923c" if dark else "#c2410c",
-            "fth-act-delete": "#f87171" if dark else "#dc2626",
-            "fth-tb-terminale": "#22d3ee" if dark else "#0e7490",
-            "fth-tb-sessioni": "#60a5fa" if dark else "#2563eb",
-            "fth-tb-rete": "#34d399" if dark else "#059669",
-            "fth-tb-strumenti": "#c084fc" if dark else "#7c3aed",
-            "fth-tb-password": "#fbbf24" if dark else "#b45309",
-            "fth-tb-vista": "#f472b6" if dark else "#be185d",
-            "fth-tb-sistema": "#9aa5b3" if dark else "#475569",
-            "fth-tb-lab": "#5eead4" if dark else "#0d9488",
-        }
+        # Colori di protocollo e dei pulsanti: gli stessi della versione Windows (look.py).
         registered = set()
         for svg_path in sorted(icons_dir.glob("*.svg")):
             name = svg_path.stem
@@ -7610,8 +7593,7 @@ class AppWindow(Gtk.ApplicationWindow):
                 template = svg_path.read_text(encoding="utf-8")
             except Exception:
                 continue
-            stroke = proto_colors.get(name, default_stroke)
-            colored = template.replace("currentColor", stroke)
+            colored = look.colored_svg(template, name, dark)
             ok = False
             for size in (16, 24, 32):
                 try:
@@ -10601,7 +10583,7 @@ class AppWindow(Gtk.ApplicationWindow):
         cached = self._folder_pixbuf_cache.get(color)
         if cached is not None:
             return cached  # type: ignore[return-value]
-        svg = tr("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"17\" viewBox=\"0 0 20 17\">\n<path d=\"M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"{color}\"/>\n<path d=\"M1.2 5.2h17.6v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"{color}\" opacity=\".92\"/>\n<path d=\"M2 5.2h16\" stroke=\"#ffffff\" stroke-opacity=\".28\"/>\n<path d=\"M1.2 3.2c0-1 .8-1.8 1.8-1.8h4.7l1.7 2h7.6c1 0 1.8.8 1.8 1.8v8.7c0 1-.8 1.8-1.8 1.8H3c-1 0-1.8-.8-1.8-1.8z\" fill=\"none\" stroke=\"#000000\" stroke-opacity=\".32\"/>\n</svg>").format(color=color)
+        svg = look.folder_svg(color)
         try:
             loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
             loader.write(svg.encode("utf-8"))
@@ -10616,13 +10598,7 @@ class AppWindow(Gtk.ApplicationWindow):
         cached = self._folder_pixbuf_cache.get("__home_session__")
         if cached is not None:
             return cached  # type: ignore[return-value]
-        svg = tr("""<svg xmlns="http://www.w3.org/2000/svg" width="22" height="20" viewBox="0 0 22 20">
-<path d="M2 8.2 11 1.4l9 6.8v9.2c0 .8-.7 1.5-1.5 1.5H3.5C2.7 18.9 2 18.2 2 17.4z" fill="#4aa3df"/>
-<path d="M5.5 9.2v7.2h11V9.2L11 5.1z" fill="#1b75bb" opacity=".92"/>
-<path d="M8.2 18.9v-5.4c0-.6.5-1.1 1.1-1.1h3.4c.6 0 1.1.5 1.1 1.1v5.4" fill="#0f1e2b" opacity=".65"/>
-<path d="M2 8.2 11 1.4l9 6.8" fill="none" stroke="#dff4ff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="17.1" cy="4.5" r="2.2" fill="#77e2ff" stroke="#0f1e2b" stroke-width=".8"/>
-</svg>""")
+        svg = look.HOME_SESSION_SVG
         try:
             loader = GdkPixbuf.PixbufLoader.new_with_type("svg")
             loader.write(svg.encode("utf-8"))
@@ -11315,11 +11291,7 @@ class AppWindow(Gtk.ApplicationWindow):
             src = self._choose_open_json(tr("Importa Home Session"))
             if src is None:
                 return
-            node = self._node_from_session_package(src)
-            if not isinstance(node, FolderNode):
-                node = FolderNode(name=HOME_SESSION_NAME, color=HOME_SESSION_COLOR, children=[node])
-            if node.name != HOME_SESSION_NAME:
-                node = FolderNode(name=HOME_SESSION_NAME, color=HOME_SESSION_COLOR, children=[node])
+            node = as_home_session(self._node_from_session_package(src))
             confirm = Gtk.MessageDialog(
                 transient_for=self,
                 flags=0,
@@ -11333,8 +11305,6 @@ class AppWindow(Gtk.ApplicationWindow):
             confirm.destroy()
             if response != Gtk.ResponseType.OK:
                 return
-            node.name = HOME_SESSION_NAME
-            node.color = HOME_SESSION_COLOR
             self.store.nodes = [node]
             self.store.save()
             self.refresh_sessions()

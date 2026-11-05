@@ -360,38 +360,36 @@ sessioni, tunnel, impostazioni e password restano. Con *Più tardi* resta il pul
 barra di stato; *Aiuto › Cerca aggiornamenti* controlla subito. L'avviso si disattiva in *Impostazioni ›
 Avvisami quando esce una nuova versione*.
 
-**Cosa c'è.**
+**La finestra.** È disposta come quella della versione Linux: gli stessi menu (Terminale, Sessioni, Rete,
+Strumenti, Vista, Impostazioni, Aiuto), la barra dei comandi con le tendine e il pulsante *Chiaro*/*Scuro* a
+destra, la barra verticale a sinistra (pannello sessioni, mostra/nascondi il pannello, log, blocca password),
+il pannello con la connessione rapida e le schede *Sessioni* | *File remoti*, le schede con il pallino di
+stato. Sotto, le due versioni hanno in comune sessioni, password, impostazioni, comandi ssh e dei tunnel e
+strumenti di rete; sopra, ognuna usa quello che funziona meglio sul suo sistema (su Windows il terminale
+ConPTY, il desktop remoto di Windows, il Setup.exe che si aggiorna da solo).
 
-| Funzione | Su Windows |
-|---|---|
-| Sessioni in cartelle, ricerca, connessione rapida (**Ctrl+L**) | ✓ |
-| Terminale locale: PowerShell 7 se installato, altrimenti Windows PowerShell | ✓ |
-| SSH con il client OpenSSH di Windows, jump host, password dal Password Manager | ✓ |
-| File remoti (SFTP) accanto al terminale SSH e in una scheda propria | ✓ |
-| Tunnel SSH (locali, remoti, SOCKS), anche avviati da soli prima di una sessione | ✓ |
-| Desktop remoto RDP incorporato nella scheda (componente di Windows), RD Gateway | ✓ |
-| VNC incorporato nella scheda, con la password dal Password Manager | ✓ |
-| Telnet integrato (non serve il «Client Telnet» di Windows), console seriale sulle porte COM | ✓ |
-| Strumenti di rete: scansione rete e porte, porte in ascolto, Wake-on-LAN, server HTTP e TFTP, ping e traceroute | ✓ |
-| Password Manager, backup cifrato importabile anche su Linux | ✓ |
-| Cattura dei pacchetti, server di sistema (SSH, FTP, NFS, Samba…), laboratorio Linux | solo su Linux |
+**Cosa c'è.** L'elenco completo, voce per voce, è in [PARITA.md](PARITA.md). In breve, mancano ancora su
+Windows il terminale diviso, MultiExec e la condivisione FTP/SFTP; non ci sono, perché servono solo su Linux,
+la cattura dei pacchetti, il Journal, la diagnostica e il Lab.
 
-**Portare le sessioni da Linux.** Su Linux usa *Esporta tutte le sessioni* (o seleziona una cartella e *Esporta la selezione*); su
-Windows *File › Importa sessioni…* e scegli il file. Le password non sono nel file delle sessioni: per portarle
-usa *File › Esporta backup cifrato delle password* su Linux e *Importa backup cifrato* su Windows.
+**Portare le sessioni da Linux.** Su Linux usa *Sessioni › Esporta tutte le sessioni* (o seleziona una cartella
+e *Esporta la selezione*); su Windows *Sessioni › Importa sessioni nella cartella selezionata* e scegli il file.
+Le password non sono nel file delle sessioni: per portarle usa *Strumenti › Esporta backup cifrato delle
+password* su Linux e *Strumenti › Importa backup cifrato delle password* su Windows. Anche le impostazioni
+passano da una versione all'altra: *Impostazioni › Esporta impostazioni* e *Importa impostazioni*.
 
 **SSH.** FedTermHub usa `ssh.exe` di Windows. Se manca: *Impostazioni › Sistema › Funzionalità facoltative ›
 Aggiungi «Client OpenSSH»*. La password salvata viene scritta al prompt `password:` una volta sola, come fa
 `sshpass` su Linux; le chiavi in `%USERPROFILE%\.ssh` funzionano come al solito.
 
-**File remoti.** Accanto a ogni terminale SSH si apre il pannello dei file del server (si nasconde con
-*File remoti*, **Ctrl+Maiusc+E**). Trascina file e cartelle dal PC per caricarli; doppio clic su un file lo
+**File remoti.** Con una scheda SSH aperta, nel pannello laterale compare la scheda *File remoti* con i file
+del server (**Ctrl+Maiusc+E** passa dalle sessioni ai file e ritorno). Trascina file e cartelle dal PC per caricarli; doppio clic su un file lo
 apre con il programma di Windows; il menu del tasto destro scarica, rinomina ed elimina. Con *Segui* il
 pannello va nella cartella in cui fai `cd` nel terminale (server Linux con bash o zsh). Le sessioni di tipo
 SFTP aprono lo stesso pannello in una scheda intera. Le chiavi degli host sono quelle di
 `%USERPROFILE%\.ssh\known_hosts`, le stesse del terminale.
 
-**Tunnel SSH.** *Strumenti › Tunnel SSH* (**Ctrl+Maiusc+U**): gli stessi tunnel della versione Linux, con lo
+**Tunnel SSH.** *Strumenti › Tunneling SSH* (**Ctrl+Maiusc+U**): gli stessi tunnel della versione Linux, con lo
 stato e il log di ognuno. Una sessione può avviare il suo tunnel e aspettarlo: nella sessione,
 *Instradamento › Prima avvia un tunnel salvato*.
 
@@ -402,7 +400,9 @@ intero (**Ctrl+Alt+Invio** per tornare). Nel campo porta un numero sotto 100 è 
 **Console seriale.** Nella sessione scegli la porta COM (il pulsante *Aggiorna* rilegge quelle collegate) e i
 parametri; il terminale parla direttamente con la porta, senza programmi esterni.
 
-**Strumenti di rete.** *Strumenti › Strumenti di rete* (**Ctrl+Maiusc+R**). I server HTTP e TFTP servono a
+**Strumenti di rete.** Menu *Rete* (o **Ctrl+Maiusc+R**): server locali, porte in ascolto, Wake-on-LAN,
+scansione della rete e delle porte, e i test rapidi (Ping, Traceroute, DNS lookup, Check porta TCP, Route,
+Socket aperti) che si aprono in una scheda con i comandi di Windows. I server HTTP e TFTP servono a
 passare un firmware o una configurazione a uno switch o a un firewall; la prima volta Windows chiede se
 FedTermHub può usare la rete.
 
@@ -431,7 +431,9 @@ formato dei file Linux. Disinstallare (da *Impostazioni › App*) non li cancell
 | `F11` | Schermo intero |
 
 Le scorciatoie con `Ctrl` senza `Shift` valgono quando il fuoco **non** è nel
-terminale. Dentro il terminale:
+terminale. Nella versione Windows alcune sono diverse (terminale locale `Ctrl+Shift+T`, tunnel `Ctrl+Shift+U`,
+Password Manager `Ctrl+Shift+P`, pannello laterale `Ctrl+Shift+B`): l'elenco è in *Aiuto › Scorciatoie da
+tastiera*. Dentro il terminale:
 
 | Tasti | Azione |
 |---|---|

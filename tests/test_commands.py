@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Crash
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Nucleo comune: comandi ssh e tunnel (commands.py), strumenti di rete (netcore.py) e parità fra interfacce.
+"""Nucleo comune: comandi ssh e tunnel (commands.py), strumenti di rete (netcore.py), aspetto (look.py) e
+parità fra le due interfacce (docs/PARITA.md).
 
 Gira senza GTK e senza Qt. Controlla anche che le due interfacce usino davvero il nucleo comune: se
 qualcuno ricostruisce un comando ssh dentro fedtermhub.py o dentro qtui/, le due versioni potrebbero
@@ -20,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("FEDTERMHUB_LANGUAGE", "it")
 
-from fedtermhub import commands, model, netcore  # noqa: E402
+from fedtermhub import commands, look, model, netcore  # noqa: E402
 
 
 def settings(**kw) -> model.AppSettings:  # noqa: ANN003
@@ -141,8 +142,72 @@ def check_both_interfaces_use_the_core() -> None:
     assert "netcore.wake_on_lan" in gtk_tools and "net_core.wake_on_lan" in qt
 
 
+def check_look() -> None:
+    """I colori della finestra Qt (look.py) sono quelli del foglio di stile GTK: le due finestre si somigliano."""
+    gtk = (ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8")
+    dark = gtk[gtk.index("restyle 3.21: palette decisa, testo sempre chiaro"):]
+    dark = dark[:dark.index('"""')]
+    light = gtk[gtk.index("restyle 3.21: palette decisa, testo sempre scuro"):]
+    light = light[:light.index('"""')]
+    for name, css, colors in (("scuro", dark, look.WINDOW_DARK), ("chiaro", light, look.WINDOW_LIGHT)):
+        for key in ("root", "bar", "rail", "sidebar", "workspace", "line", "text", "tree_text", "caption",
+                    "status_text", "entry", "entry_line", "focus", "selected", "selected_text", "hover",
+                    "tab_text", "tab_hover"):
+            assert colors[key].lower() in css.lower(), f"tema {name}: {key} {colors[key]} non è nel foglio di stile GTK"
+    for key, color in (("dark", "#79c7ff"), ("light", "#0878b8")):
+        assert look.window_colors(key == "dark")["version"] == color and f".footer-version {{ color: {color}; }}" in gtk
+    # icone e cartelle: la versione Linux le prende da look.py, non da una copia sua
+    assert "look.colored_svg(" in gtk and "look.folder_svg(" in gtk and "look.HOME_SESSION_SVG" in gtk
+    assert "proto_colors = {" not in gtk, "colori delle icone ricopiati in fedtermhub.py"
+    panel = (ROOT / "fedtermhub" / "terminal_panel.py").read_text(encoding="utf-8")
+    assert "look.TERMINAL_PALETTE" in panel and len(look.TERMINAL_PALETTE) == 16
+    qt_theme = (ROOT / "fedtermhub" / "qtui" / "theme.py").read_text(encoding="utf-8")
+    assert "look.TERMINAL_PALETTE" in qt_theme and "look.window_colors" in qt_theme
+    assert look.icon_color("fth-proto-ssh", True) == "#22d3ee" and look.icon_color("sconosciuta", False) == "#3a4653"
+    assert 'fill="#53b175"' in look.folder_svg("#53b175")
+
+
+def _gtk_menu_entries() -> list:
+    source = (ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8")
+    block = source[source.index('menubar.append(self.make_menu(tr("Terminale")'):]
+    block = block[:block.index("root.pack_start(menubar")]
+    entries = []
+    for line in block.splitlines():
+        if "make_menu(" in line:
+            continue
+        match = re.match(r'\s*\((?:tr\()?"([^"]+)"\)?,', line)
+        if match and match.group(1) != "---":
+            entries.append(match.group(1))
+    return entries
+
+
+def check_parity_doc() -> None:
+    """docs/PARITA.md elenca tutte le voci dei menu Linux, e le voci dei menu segnate «sì» esistono davvero
+    nell'interfaccia di quel sistema (le righe di «Altro» sono descrizioni e non si controllano)."""
+    doc = (ROOT / "docs" / "PARITA.md").read_text(encoding="utf-8")
+    rows = {}
+    for line in doc.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.startswith("|") and len(cells) == 4 and cells[1] in {"sì", "no", "—"}:
+            assert cells[2] in {"sì", "no", "—"}, line
+            assert cells[0] not in rows, f"voce ripetuta: {cells[0]}"
+            rows[cells[0]] = (cells[1], cells[2])
+    entries = _gtk_menu_entries()
+    assert len(entries) > 50, entries
+    missing = [e for e in entries if e not in rows]
+    assert not missing, f"voci dei menu Linux che mancano in docs/PARITA.md: {missing}"
+    gtk = (ROOT / "fedtermhub" / "fedtermhub.py").read_text(encoding="utf-8")
+    qt = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "fedtermhub" / "qtui").glob("*.py"))
+    for name, (linux, windows) in rows.items():
+        if linux == "sì" and name in entries:
+            assert f'"{name}"' in gtk, f"{name}: segnata «sì» per Linux ma non c'è in fedtermhub.py"
+        if windows == "sì" and name in entries:
+            assert f'"{name}"' in qt or f"'{name}'" in qt, f"{name}: segnata «sì» per Windows ma non c'è in qtui/"
+
+
 def main() -> int:
-    for check in (check_ssh, check_tunnels, check_netcore, check_both_interfaces_use_the_core):
+    for check in (check_ssh, check_tunnels, check_netcore, check_both_interfaces_use_the_core, check_look,
+                  check_parity_doc):
         check()
         print(f"OK {check.__name__}")
     return 0

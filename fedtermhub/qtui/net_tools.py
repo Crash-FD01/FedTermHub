@@ -529,15 +529,24 @@ class NetworkToolsDialog(QDialog):
         self.tabs.addTab(self.network, tr("Scansione rete"))
         self.tabs.addTab(self.ports, tr("Scansione porte"))
         self.tabs.addTab(self.listening, tr("Porte in ascolto"))
-        self.tabs.addTab(WakePage(), "Wake-on-LAN")
+        self.wake = WakePage()
+        self.ping = PingPage(self)
+        self.tabs.addTab(self.wake, "Wake-on-LAN")
         self.tabs.addTab(self.servers, tr("Server temporanei"))
-        self.tabs.addTab(PingPage(self), tr("Ping e traceroute"))
+        self.tabs.addTab(self.ping, tr("Ping e traceroute"))
         self.tabs.currentChanged.connect(self._tab_changed)
         layout.addWidget(self.tabs)
 
     def _tab_changed(self, index: int) -> None:
         if self.tabs.widget(index) is self.listening and not self.listening.loaded:
             self.listening.refresh()
+
+    def show_page(self, name: str) -> None:
+        """Apre la pagina chiesta dai menu (gli stessi nomi della versione Linux)."""
+        page = {"network-scan": self.network, "port-scan": self.ports, "listeners": self.listening,
+                "wol": self.wake, "services": self.servers, "shares": self.servers, "ping": self.ping}.get(name)
+        if page is not None:
+            self.tabs.setCurrentWidget(page)
 
     def scan_ports_of(self, host: str) -> None:
         self.ports.host.setText(host)

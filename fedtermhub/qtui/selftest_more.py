@@ -46,6 +46,48 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
     def close(tab) -> None:  # noqa: ANN001
         window.close_tab(window.tabs.indexOf(tab))
 
+    # ------------------------------------------------------------------ finestra come la versione Linux
+    def layout() -> str:
+        from . import theme
+
+        menus = [a.text().replace("&", "") for a in window.menuBar().actions()]
+        expected = ["Terminale", "Sessioni", "Rete", "Strumenti", "Vista", "Impostazioni", "Aiuto"]
+        if os.environ.get("FEDTERMHUB_LANGUAGE", "it") == "it":
+            assert menus == expected, menus
+        assert set(window.ribbon_buttons) == {"terminal", "sessions", "network", "tools", "password", "view", "system"}
+        for category in ("terminal", "sessions", "network", "tools", "view", "system"):
+            assert window.ribbon_buttons[category].menu().actions(), f"tendina {category} vuota"
+        assert window.rail.isVisible() and window.sidebar.isVisible() and window.workspace_hint.isVisible()
+        # cambio tema dal pulsante e ritorno
+        before = theme.is_dark()
+        window.toggle_theme()
+        assert theme.is_dark() != before, "il pulsante del tema non cambia tema"
+        window.toggle_theme()
+        assert theme.is_dark() == before
+        # Vista › mostra/nascondi pannello, e il menu non si nasconde insieme alla barra dei comandi
+        window.view_toggles["show_sidebar"].setChecked(False)
+        assert not window.sidebar.isVisible()
+        window.view_toggles["show_sidebar"].setChecked(True)
+        window.view_toggles["show_ribbon"].setChecked(False)
+        window.view_toggles["show_menubar"].setChecked(False)
+        assert window.menuBar().isVisible() or window.ribbon.isVisible(), "menu e barra dei comandi nascosti insieme"
+        window.view_toggles["show_ribbon"].setChecked(True)
+        window.view_toggles["show_menubar"].setChecked(True)
+        # cartella colorata e trascinamento di una sessione dentro la cartella
+        home = window.store.home_path()
+        folder = model.FolderNode(name="cartella-prova", color="#53b175")
+        sess = model.Session(name="trascinata", protocol="ssh", host="db.example.lan")
+        window.store.add_node(home, folder)
+        window.store.add_node(home, sess)
+        window.refresh_tree()
+        window.drop_node(window.store.find_node_path(sess), window.store.find_node_path(folder), "into")
+        assert sess in folder.children, "trascinamento nella cartella non riuscito"
+        window.store.remove_node(window.store.find_node_path(folder))
+        window.refresh_tree()
+        return f"menu {len(menus)}, barra dei comandi {len(window.ribbon_buttons)} pulsanti, tema, Vista, trascinamento"
+
+    check("Finestra come la versione Linux", layout)
+
     # ------------------------------------------------------------------ Telnet
     def telnet() -> str:
         server = selftest_servers.start_telnet()
@@ -160,9 +202,14 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         tab.view.on_input("echo FTH_SSH_$((6*7))_OK\r")
         ok = wait(app, lambda: "FTH_SSH_42_OK" in "".join(out) or "FTH_SSH_$((6*7))_OK" in "".join(out).replace("echo FTH", ""), 40)
         assert ok, "nessuna risposta dalla shell remota: " + "".join(out)[-300:]
-        # Pannello dei file accanto al terminale
+        # Pannello dei file nella scheda «File remoti» del pannello laterale, come nella versione Linux
         assert wait(app, lambda: tab.files is not None and tab.files.connected, 30), \
             "pannello file non collegato: " + (tab.files.state.text() if tab.files else "non aperto")
+        assert window.sidebar_tabs.isTabVisible(1), "scheda File remoti non mostrata per la sessione SSH"
+        assert window.files_stack.indexOf(tab.files) >= 0, "pannello file fuori dal pannello laterale"
+        window.toggle_remote_files()
+        assert window.sidebar_tabs.currentIndex() == 1 and window.files_stack.currentWidget() is tab.files, \
+            "File remoti (Ctrl+Maiusc+E) non mostra i file della scheda"
         assert wait(app, lambda: tab.files.model.rowCount() > 0 or tab.files.cwd, 15), "cartella remota vuota"
         followed = ""
         if not re.match(r"^/?[A-Za-z]:", tab.files.home):
@@ -175,6 +222,7 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         # Lo schermo intero, non window.grab(): il terminale (WebEngine) su Windows non sempre compare nel grab.
         app.primaryScreen().grabWindow(0).save(str(report_path.with_name("ssh-session.png")))
         close(tab)
+        assert not window.sidebar_tabs.isTabVisible(1), "scheda File remoti rimasta dopo la chiusura della sessione"
         return f"{user}@{host}:{port}, password scritta al prompt, pannello file in {tab.files.home}{followed}"
 
     check("SSH con password", ssh_session)
