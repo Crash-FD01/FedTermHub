@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.11.1" date="2026-11-05">
+      <description>
+        <p>Windows version: new versions are announced right away and install from the program.</p>
+        <p xml:lang="it">Versione Windows: le nuove versioni si vedono subito e si installano dal programma.</p>
+      </description>
+    </release>
     <release version="0.11.0" date="2026-11-05">
       <description>
         <p>Windows version: remote files (SFTP), SSH tunnels, embedded VNC, built-in Telnet, serial console and network tools.</p>

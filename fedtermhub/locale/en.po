@@ -175,7 +175,7 @@ msgstr "Destination"
 msgid "Host mancante"
 msgstr "Host missing"
 
-#: connection_diagnostics.py:471 connection_diagnostics.py:477 qtui/net_tools.py:497
+#: connection_diagnostics.py:471 connection_diagnostics.py:477 qtui/net_tools.py:499
 msgid "Risoluzione DNS"
 msgstr "DNS resolution"
 
@@ -1041,7 +1041,7 @@ msgstr "Copy command"
 msgid "Copia endpoint"
 msgstr "Copy endpoint"
 
-#: fedtermhub.py:3263 fedtermhub.py:8800 qtui/net_tools.py:542
+#: fedtermhub.py:3263 fedtermhub.py:8800 qtui/net_tools.py:544
 msgid "Crea sessione"
 msgstr "Create session"
 
@@ -1161,7 +1161,7 @@ msgstr "Interface elements"
 msgid "Menu"
 msgstr "Menu"
 
-#: fedtermhub.py:3860 qtui/main_window.py:320
+#: fedtermhub.py:3860 qtui/main_window.py:332
 msgid "Comandi"
 msgstr "Commands"
 
@@ -1905,7 +1905,7 @@ msgstr "Quick connect…"
 msgid "Nascondi pannello sessioni"
 msgstr "Hide session panel"
 
-#: fedtermhub.py:8176 qtui/main_window.py:333
+#: fedtermhub.py:8176 qtui/main_window.py:345
 msgid "Cerca sessioni…"
 msgstr "Search sessions…"
 
@@ -2065,11 +2065,11 @@ msgstr ""
 msgid "host non impostato"
 msgstr "host not set"
 
-#: fedtermhub.py:10990 qtui/main_window.py:717
+#: fedtermhub.py:10990 qtui/main_window.py:729
 msgid "Password Manager creato e sbloccato."
 msgstr "Password Manager created and unlocked."
 
-#: fedtermhub.py:10990 qtui/main_window.py:730
+#: fedtermhub.py:10990 qtui/main_window.py:742
 msgid "Password Manager sbloccato."
 msgstr "Password Manager unlocked."
 
@@ -2437,7 +2437,7 @@ msgstr "Start / Stop"
 msgid "Crea sessione collegata"
 msgstr "Create linked session"
 
-#: fedtermhub.py:3506 fedtermhub.py:11368 qtui/main_window.py:570
+#: fedtermhub.py:3506 fedtermhub.py:11368 qtui/main_window.py:582
 msgid "{name} copia"
 msgstr "{name} copy"
 
@@ -2597,7 +2597,7 @@ msgstr "Restore the default settings?"
 msgid "Impostazioni applicate. La nuova lingua sarà attiva dal prossimo avvio di FedTermHub."
 msgstr "Settings applied. The new language will be active from the next start of FedTermHub."
 
-#: fedtermhub.py:4139 qtui/main_window.py:1034
+#: fedtermhub.py:4139 qtui/main_window.py:1051
 msgid "Impostazioni applicate"
 msgstr "Settings applied"
 
@@ -2645,7 +2645,7 @@ msgstr "System info"
 msgid "Il colore viene salvato insieme alla cartella."
 msgstr "The colour is saved with the folder."
 
-#: fedtermhub.py:4389 qtui/main_window.py:585
+#: fedtermhub.py:4389 qtui/main_window.py:597
 msgid "Sposta in cartella"
 msgstr "Move to folder"
 
@@ -3161,7 +3161,7 @@ msgstr "Command bar shown"
 msgid "Barra comandi nascosta"
 msgstr "Command bar hidden"
 
-#: fedtermhub.py:8005 fedtermhub.py:8057 fedtermhub.py:8832 qtui/main_window.py:313
+#: fedtermhub.py:8005 fedtermhub.py:8057 fedtermhub.py:8832 qtui/main_window.py:323
 msgid "Strumenti"
 msgstr "Tools"
 
@@ -3169,7 +3169,7 @@ msgstr "Tools"
 msgid "Vista"
 msgstr "View"
 
-#: fedtermhub.py:8035 qtui/main_window.py:316
+#: fedtermhub.py:8035 qtui/main_window.py:326
 msgid "Aiuto"
 msgstr "Help"
 
@@ -3189,7 +3189,7 @@ msgstr "Hide/show panel"
 msgid "Log applicazione"
 msgstr "Application log"
 
-#: fedtermhub.py:8010 fedtermhub.py:8098 fedtermhub.py:8848 qtui/main_window.py:288
+#: fedtermhub.py:8010 fedtermhub.py:8098 fedtermhub.py:8848 qtui/main_window.py:297
 msgid "Blocca password"
 msgstr "Lock passwords"
 
@@ -3197,11 +3197,11 @@ msgstr "Lock passwords"
 msgid "Nuova sessione"
 msgstr "New session"
 
-#: fedtermhub.py:8318 qtui/main_window.py:348
+#: fedtermhub.py:8318 qtui/main_window.py:360
 msgid "Doppio clic per aprire una sessione"
 msgstr "Double-click to open a session"
 
-#: fedtermhub.py:8334 qtui/main_window.py:372
+#: fedtermhub.py:8334 qtui/main_window.py:384
 msgid "Pronto."
 msgstr "Ready."
 
@@ -3497,7 +3497,7 @@ msgstr " (it will stay unlocked while the app is open)."
 msgid "Password Manager chiuso: resta sbloccato finché non lo blocchi o scade il tempo."
 msgstr "Password Manager closed: it stays unlocked until you lock it or the time runs out."
 
-#: fedtermhub.py:11013 qtui/main_window.py:741
+#: fedtermhub.py:11013 qtui/main_window.py:753
 msgid "Password bloccate."
 msgstr "Passwords locked."
 
@@ -3513,7 +3513,7 @@ msgstr "FedTermHub will create a credential that can be reused by other sessions
 msgid "Scrivi utente@host[:porta], rdp:host, vnc:host, telnet:host o serial:/dev/ttyUSB0@115200 e premi Invio."
 msgstr "Type user@host[:port], rdp:host, vnc:host, telnet:host or serial:/dev/ttyUSB0@115200 and press Enter."
 
-#: fedtermhub.py:11324 qtui/main_window.py:543
+#: fedtermhub.py:11324 qtui/main_window.py:555
 msgid "Seleziona una sessione o cartella da modificare."
 msgstr "Select a session or folder to edit."
 
@@ -3537,19 +3537,19 @@ msgstr "Import Home Session"
 msgid "Le sessioni attuali verranno sostituite dalla Home Session importata. Le password salvate non vengono modificate."
 msgstr "The current sessions will be replaced by the imported Home Session. Saved passwords are not changed."
 
-#: fedtermhub.py:11464 qtui/main_window.py:632
+#: fedtermhub.py:11464 qtui/main_window.py:644
 msgid "Esporta cartella o sessione"
 msgstr "Export folder or session"
 
-#: fedtermhub.py:11475 qtui/main_window.py:643
+#: fedtermhub.py:11475 qtui/main_window.py:655
 msgid "Importa in cartella selezionata"
 msgstr "Import into the selected folder"
 
-#: fedtermhub.py:8008 fedtermhub.py:11510 qtui/main_window.py:296 qtui/main_window.py:667
+#: fedtermhub.py:8008 fedtermhub.py:11510 qtui/main_window.py:305 qtui/main_window.py:679
 msgid "Esporta backup cifrato delle password"
 msgstr "Export encrypted password backup"
 
-#: fedtermhub.py:8009 fedtermhub.py:11528 qtui/main_window.py:297 qtui/main_window.py:677
+#: fedtermhub.py:8009 fedtermhub.py:11528 qtui/main_window.py:306 qtui/main_window.py:689
 msgid "Importa backup cifrato delle password"
 msgstr "Import encrypted password backup"
 
@@ -3589,7 +3589,7 @@ msgstr "Select a session or folder to move."
 msgid "Home Session non può essere spostata."
 msgstr "Home Session cannot be moved."
 
-#: fedtermhub.py:11829 qtui/main_window.py:808
+#: fedtermhub.py:11829 qtui/main_window.py:820
 msgid "Sessione non valida"
 msgstr "Invalid session"
 
@@ -3943,7 +3943,7 @@ msgstr ""
 msgid "Strumenti rapidi di rete e sistema"
 msgstr "Quick network and system tools"
 
-#: fedtermhub.py:4352 qtui/main_window.py:533 qtui/main_window.py:550
+#: fedtermhub.py:4352 qtui/main_window.py:545 qtui/main_window.py:562
 msgid "Nome cartella"
 msgstr "Folder name"
 
@@ -4317,7 +4317,7 @@ msgstr "Closing RDP…"
 msgid "Richiesta chiusura inviata a FreeRDP.\n"
 msgstr "Close request sent to FreeRDP.\n"
 
-#: fedtermhub.py:8146 qtui/main_window.py:292
+#: fedtermhub.py:8146 qtui/main_window.py:301
 msgid "File remoti"
 msgstr "Remote files"
 
@@ -4521,7 +4521,7 @@ msgstr "Process ended with code {code}."
 msgid "SERIALE  {v} @ {v2} {serial_databits}{serial_parity}{serial_stopbits}"
 msgstr "SERIAL  {v} @ {v2} {serial_databits}{serial_parity}{serial_stopbits}"
 
-#: fedtermhub.py:10980 qtui/main_window.py:724
+#: fedtermhub.py:10980 qtui/main_window.py:736
 msgid "Password errata. Riprova."
 msgstr "Wrong password. Try again."
 
@@ -4529,7 +4529,7 @@ msgstr "Wrong password. Try again."
 msgid "Le password sono già bloccate."
 msgstr "The passwords are already locked."
 
-#: fedtermhub.py:11035 qtui/main_window.py:760
+#: fedtermhub.py:11035 qtui/main_window.py:772
 msgid "Password bloccate automaticamente per inattività"
 msgstr "Passwords locked automatically after inactivity"
 
@@ -4553,15 +4553,15 @@ msgstr "Error while saving the password"
 msgid "Sessione aggiunta in fondo all'elenco: {name} — trascinala in una cartella se vuoi."
 msgstr "Session added at the end of the list: {name} — drag it into a folder if you like."
 
-#: fedtermhub.py:11329 qtui/main_window.py:548
+#: fedtermhub.py:11329 qtui/main_window.py:560
 msgid "Home Session è la cartella principale e non può essere rinominata."
 msgstr "Home Session is the main folder and cannot be renamed."
 
-#: fedtermhub.py:11331 qtui/main_window.py:550
+#: fedtermhub.py:11331 qtui/main_window.py:562
 msgid "Modifica cartella"
 msgstr "Edit folder"
 
-#: fedtermhub.py:11375 qtui/main_window.py:575
+#: fedtermhub.py:11375 qtui/main_window.py:587
 msgid "Duplicato: {name}"
 msgstr "Duplicated: {name}"
 
@@ -4577,23 +4577,23 @@ msgstr "Invalid credentials file."
 msgid "Il file non contiene impostazioni FedTermHub riconoscibili."
 msgstr "The file contains no recognisable FedTermHub settings."
 
-#: fedtermhub.py:11651 qtui/main_window.py:604
+#: fedtermhub.py:11651 qtui/main_window.py:616
 msgid "Eliminare la cartella «{name}» con {join_parts}?"
 msgstr "Delete the folder «{name}» with {join_parts}?"
 
-#: fedtermhub.py:2484 fedtermhub.py:11653 qtui/main_window.py:607 qtui/tunnels.py:600
+#: fedtermhub.py:2484 fedtermhub.py:11653 qtui/main_window.py:619 qtui/tunnels.py:600
 msgid "Eliminare «{name}»?"
 msgstr "Delete «{name}»?"
 
-#: fedtermhub.py:11668 qtui/main_window.py:612
+#: fedtermhub.py:11668 qtui/main_window.py:624
 msgid "Eliminato: {name}"
 msgstr "Deleted: {name}"
 
-#: fedtermhub.py:11786 qtui/main_window.py:818
+#: fedtermhub.py:11786 qtui/main_window.py:830
 msgid "Tunnel richiesto non trovato"
 msgstr "Requested tunnel not found"
 
-#: fedtermhub.py:11854 qtui/main_window.py:864
+#: fedtermhub.py:11854 qtui/main_window.py:876
 msgid "Errore apertura sessione"
 msgstr "Error while opening the session"
 
@@ -4895,7 +4895,7 @@ msgstr ""
 msgid "[FedTermHub] Finestra RDP indipendente fullscreen sul monitor disponibile.\n"
 msgstr "[FedTermHub] Separate full-screen RDP window on the available monitor.\n"
 
-#: fedtermhub.py:7965 qtui/main_window.py:299
+#: fedtermhub.py:7965 qtui/main_window.py:308
 msgid "Esci"
 msgstr "Quit"
 
@@ -4951,11 +4951,11 @@ msgstr "Collapse folders"
 msgid "Apri impostazioni"
 msgstr "Open settings"
 
-#: fedtermhub.py:8036 fedtermhub.py:8854 qtui/main_window.py:301
+#: fedtermhub.py:8036 fedtermhub.py:8854 qtui/main_window.py:311
 msgid "Guida"
 msgstr "User guide"
 
-#: fedtermhub.py:8038 fedtermhub.py:8856 qtui/main_window.py:300
+#: fedtermhub.py:8038 fedtermhub.py:8856 qtui/main_window.py:309
 msgid "Informazioni"
 msgstr "About"
 
@@ -4971,7 +4971,7 @@ msgstr "NOT AVAILABLE"
 msgid "Rapporto diagnostico esportato."
 msgstr "Diagnostic report exported."
 
-#: fedtermhub.py:8592 qtui/main_window.py:1049
+#: fedtermhub.py:8592 qtui/main_window.py:1139
 msgid "Informazioni su {APP_NAME}"
 msgstr "About {APP_NAME}"
 
@@ -4991,7 +4991,7 @@ msgstr ""
 msgid "Ctrl+L"
 msgstr ""
 
-#: fedtermhub.py:8643 qtui/main_window.py:282 qtui/main_window.py:390 qtui/main_window.py:871
+#: fedtermhub.py:8643 qtui/main_window.py:291 qtui/main_window.py:402 qtui/main_window.py:883
 msgid "Connessione rapida"
 msgstr "Quick connection"
 
@@ -5003,7 +5003,7 @@ msgstr ""
 msgid "Ctrl+W"
 msgstr ""
 
-#: fedtermhub.py:8645 native_rdp.py:553 qtui/main_window.py:298
+#: fedtermhub.py:8645 native_rdp.py:553 qtui/main_window.py:307
 msgid "Chiudi la scheda"
 msgstr "Close the tab"
 
@@ -5249,7 +5249,7 @@ msgstr "RDP credential created by FedTermHub for {host}"
 msgid "Cartella creata in {folder_label}: {name}"
 msgstr "Folder created in {folder_label}: {name}"
 
-#: fedtermhub.py:11355 qtui/main_window.py:562
+#: fedtermhub.py:11355 qtui/main_window.py:574
 msgid "Sessione aggiornata: {name}"
 msgstr "Session updated: {name}"
 
@@ -5261,23 +5261,23 @@ msgstr "Home Session exported to {name}"
 msgid "Home Session importata da {name}"
 msgstr "Home Session imported from {name}"
 
-#: fedtermhub.py:11468 qtui/main_window.py:638
+#: fedtermhub.py:11468 qtui/main_window.py:650
 msgid "Esportato: {name} → {name2}"
 msgstr "Exported: {name} → {name2}"
 
-#: fedtermhub.py:11487 qtui/main_window.py:658
+#: fedtermhub.py:11487 qtui/main_window.py:670
 msgid "Importato '{name}' in {folder_label}"
 msgstr "Imported '{name}' into {folder_label}"
 
-#: fedtermhub.py:11518 qtui/main_window.py:673
+#: fedtermhub.py:11518 qtui/main_window.py:685
 msgid "Backup cifrato di {n_credentials} credenziali salvato in {name}"
 msgstr "Encrypted backup of {n_credentials} credentials saved in {name}"
 
-#: fedtermhub.py:11541 qtui/main_window.py:691
+#: fedtermhub.py:11541 qtui/main_window.py:703
 msgid "Password errata per questo backup. Riprova."
 msgstr "Wrong password for this backup. Try again."
 
-#: fedtermhub.py:11581 qtui/main_window.py:701
+#: fedtermhub.py:11581 qtui/main_window.py:713
 msgid "Importate {n_imported} credenziali da {name}"
 msgstr "Imported {n_imported} credentials from {name}"
 
@@ -5285,7 +5285,7 @@ msgstr "Imported {n_imported} credentials from {name}"
 msgid "Impostazioni importate da {name}"
 msgstr "Settings imported from {name}"
 
-#: fedtermhub.py:11648 qtui/main_window.py:605
+#: fedtermhub.py:11648 qtui/main_window.py:617
 msgid "1 sessione"
 msgstr "1 session"
 
@@ -5297,7 +5297,7 @@ msgstr "1 subfolder"
 msgid "Spostato '{name}' in {folder_label}"
 msgstr "Moved '{name}' to {folder_label}"
 
-#: fedtermhub.py:11830 qtui/main_window.py:809
+#: fedtermhub.py:11830 qtui/main_window.py:821
 msgid "«{name}»: {problem}. Correggila con Modifica sessione."
 msgstr "«{name}»: {problem}. Fix it with Edit session."
 
@@ -5485,7 +5485,7 @@ msgstr "[FedTermHub] Monitors cannot be enumerated: automatic full screen.\n"
 msgid "RDP a schermo intero su {requested_label}{fallback_note} — porta il mouse in alto oppure premi F11/Esc per uscire"
 msgstr "RDP in full screen on {requested_label}{fallback_note} — move the mouse to the top or press F11/Esc to leave"
 
-#: fedtermhub.py:13758 qtui/main_window.py:1006
+#: fedtermhub.py:13758 qtui/main_window.py:1018
 msgid "Chiudere FedTermHub?"
 msgstr "Close FedTermHub?"
 
@@ -5509,7 +5509,7 @@ msgstr "Tunnel saved: {name}"
 msgid "Impossibile copiare il comando: {exc}"
 msgstr "Cannot copy the command: {exc}"
 
-#: fedtermhub.py:3656 qtui/main_window.py:530 qtui/main_window.py:942
+#: fedtermhub.py:3656 qtui/main_window.py:542 qtui/main_window.py:954
 msgid "Sessione creata: {name}"
 msgstr "Session created: {name}"
 
@@ -5717,11 +5717,11 @@ msgstr "Home Session export error: {exc}"
 msgid "Errore import Home Session: {exc}"
 msgstr "Home Session import error: {exc}"
 
-#: fedtermhub.py:11470 qtui/main_window.py:640
+#: fedtermhub.py:11470 qtui/main_window.py:652
 msgid "Errore export selezione: {exc}"
 msgstr "Selection export error: {exc}"
 
-#: fedtermhub.py:11489 qtui/main_window.py:649
+#: fedtermhub.py:11489 qtui/main_window.py:661
 msgid "Errore import in cartella: {exc}"
 msgstr "Error importing into the folder: {exc}"
 
@@ -5749,7 +5749,7 @@ msgstr "Settings export error: {exc}"
 msgid "Errore importazione impostazioni: {exc}"
 msgstr "Settings import error: {exc}"
 
-#: fedtermhub.py:11699 qtui/main_window.py:593
+#: fedtermhub.py:11699 qtui/main_window.py:605
 msgid "Errore spostamento: {exc}"
 msgstr "Error while moving: {exc}"
 
@@ -5881,7 +5881,7 @@ msgstr "Error while closing RDP: {exc}"
 msgid " Fallback monitor applicato.\n"
 msgstr " Monitor fallback applied.\n"
 
-#: fedtermhub.py:7517 qtui/main_window.py:262
+#: fedtermhub.py:7517 qtui/main_window.py:264
 msgid "Sessioni non leggibili"
 msgstr "Sessions cannot be read"
 
@@ -5913,11 +5913,11 @@ msgstr "Cannot create the password vault: {exc}"
 msgid "Impossibile aprire l'archivio delle password: {exc}"
 msgstr "Cannot open the password vault: {exc}"
 
-#: fedtermhub.py:11482 model.py:1021 qtui/main_window.py:655
+#: fedtermhub.py:11482 model.py:1021 qtui/main_window.py:667
 msgid "Import {stem}"
 msgstr ""
 
-#: fedtermhub.py:11543 qtui/main_window.py:683
+#: fedtermhub.py:11543 qtui/main_window.py:695
 msgid "Il file non è un backup valido: {exc}"
 msgstr "The file is not a valid backup: {exc}"
 
@@ -5925,7 +5925,7 @@ msgstr "The file is not a valid backup: {exc}"
 msgid "{name} (importata)"
 msgstr "{name} (imported)"
 
-#: fedtermhub.py:11648 qtui/main_window.py:605
+#: fedtermhub.py:11648 qtui/main_window.py:617
 msgid "{sessions} sessioni"
 msgstr "{sessions} sessions"
 
@@ -5933,7 +5933,7 @@ msgstr "{sessions} sessions"
 msgid "{folders} sottocartelle"
 msgstr "{folders} subfolders"
 
-#: fedtermhub.py:11806 qtui/main_window.py:829
+#: fedtermhub.py:11806 qtui/main_window.py:841
 msgid "Impossibile avviare il tunnel"
 msgstr "Cannot start the tunnel"
 
@@ -6045,7 +6045,7 @@ msgstr "[FedTermHub] Full screen requested on {label}."
 msgid "<span weight=\"bold\">{markup_escape_text}</span>"
 msgstr ""
 
-#: fedtermhub.py:11801 qtui/main_window.py:826
+#: fedtermhub.py:11801 qtui/main_window.py:838
 msgid "Tunnel pronto: {name}"
 msgstr "Tunnel ready: {name}"
 
@@ -6165,7 +6165,7 @@ msgstr "Good"
 msgid "Ottima"
 msgstr "Excellent"
 
-#: model.py:311 qtui/main_window.py:708
+#: model.py:311 qtui/main_window.py:720
 msgid "python3-cryptography non disponibile"
 msgstr "python3-cryptography not available"
 
@@ -6659,7 +6659,7 @@ msgstr "Authorisation denied or cancelled."
 msgid "Condivisione"
 msgstr "Sharing"
 
-#: network_tools.py:2159 qtui/net_tools.py:302 qtui/net_tools.py:524
+#: network_tools.py:2159 qtui/net_tools.py:302 qtui/net_tools.py:526
 msgid "Porte in ascolto"
 msgstr "Listening ports"
 
@@ -6695,7 +6695,7 @@ msgstr "Start services, publish folders and check their status from a single scr
 msgid "Prepara"
 msgstr "Prepare"
 
-#: network_tools.py:616 qtui/files_panel.py:458 qtui/main_window.py:503 remote_files.py:989
+#: network_tools.py:616 qtui/files_panel.py:458 qtui/main_window.py:515 remote_files.py:989
 msgid "Apri"
 msgstr "Open"
 
@@ -6863,7 +6863,7 @@ msgstr "Scanning…"
 msgid "Analizza le porte TCP di un host e identifica i servizi disponibili."
 msgstr "Analyses the TCP ports of a host and identifies the available services."
 
-#: network_tools.py:1792 qtui/net_tools.py:200 qtui/net_tools.py:493
+#: network_tools.py:1792 qtui/net_tools.py:200 qtui/net_tools.py:495
 msgid "IP o nome host"
 msgstr "IP or host name"
 
@@ -7215,7 +7215,7 @@ msgstr "No capture"
 msgid "Esegui prima una cattura pacchetti."
 msgstr "Run a packet capture first."
 
-#: network_tools.py:2180 qtui/main_window.py:290 qtui/net_tools.py:514 qtui/net_tools.py:550
+#: network_tools.py:2180 qtui/main_window.py:299 qtui/net_tools.py:516 qtui/net_tools.py:552
 msgid "Strumenti di rete"
 msgstr "Network tools"
 
@@ -8091,7 +8091,7 @@ msgstr "Open link: {v}"
 msgid "[FedTermHub] Clipboard: nessun testo disponibile negli appunti."
 msgstr "[FedTermHub] Clipboard: no text available on the clipboard."
 
-#: qtui/main_window.py:181 terminal_panel.py:341
+#: qtui/main_window.py:183 terminal_panel.py:341
 msgid "Errore avvio processo: {error}"
 msgstr "Process start-up error: {error}"
 
@@ -8501,91 +8501,157 @@ msgstr "{target} — {count} items"
 msgid "Non connesso: {error}"
 msgstr "Not connected: {error}"
 
-#: qtui/main_window.py:285
+#: qtui/main_window.py:294
 msgid "Sposta in cartella…"
 msgstr "Move to folder…"
 
-#: qtui/main_window.py:293
+#: qtui/main_window.py:302
 msgid "Mostra o nasconde i file remoti accanto al terminale SSH"
 msgstr "Show or hide remote files next to the SSH terminal"
 
-#: qtui/main_window.py:294 qtui/main_window.py:390
+#: qtui/main_window.py:303 qtui/main_window.py:402
 msgid "Importa sessioni…"
 msgstr "Import sessions…"
 
-#: qtui/main_window.py:295
+#: qtui/main_window.py:304
 msgid "Esporta selezione…"
 msgstr "Export selection…"
 
-#: qtui/main_window.py:306
+#: qtui/main_window.py:310
+msgid "Cerca aggiornamenti"
+msgstr "Check for updates"
+
+#: qtui/main_window.py:316
 msgid "File"
 msgstr ""
 
-#: qtui/main_window.py:382
+#: qtui/main_window.py:394
 msgid "Scegli una sessione a sinistra, oppure:"
 msgstr "Pick a session on the left, or:"
 
-#: qtui/main_window.py:872
+#: qtui/main_window.py:884
 msgid "Scrivi utente@host[:porta] per SSH, rdp:host per il desktop remoto o telnet:host."
 msgstr "Type user@host[:port] for SSH, rdp:host for remote desktop or telnet:host."
 
-#: qtui/main_window.py:949
+#: qtui/main_window.py:1088
+msgid "Nuova versione di FedTermHub"
+msgstr "New version of FedTermHub"
+
+#: qtui/main_window.py:1091
+msgid "Aggiorno adesso? Scarico il programma di installazione, chiudo FedTermHub e lo riapro alla fine. Sessioni, tunnel e password restano."
+msgstr "Update now? I download the installer, close FedTermHub and reopen it at the end. Sessions, tunnels and passwords stay."
+
+#: qtui/main_window.py:1093
+msgid "Aggiorna ora"
+msgstr "Update now"
+
+#: qtui/main_window.py:1094
+msgid "Novità"
+msgstr "What's new"
+
+#: qtui/main_window.py:1095
+msgid "Più tardi"
+msgstr "Later"
+
+#: qtui/main_window.py:1109
+msgid "Aggiornamento"
+msgstr "Update"
+
+#: qtui/main_window.py:961
 msgid "Il pannello dei file remoti c'è nelle schede SSH."
 msgstr "The remote files panel is available in SSH tabs."
 
-#: qtui/main_window.py:152
+#: qtui/main_window.py:154
 msgid "{message} Pannello dei file chiuso."
 msgstr "{message} Files panel closed."
 
-#: qtui/main_window.py:585
+#: qtui/main_window.py:597
 msgid "Sposta «{name}» in:"
 msgstr "Move \"{name}\" to:"
 
-#: qtui/main_window.py:792
+#: qtui/main_window.py:1079
+msgid "Aggiorna a {version}"
+msgstr "Update to {version}"
+
+#: qtui/main_window.py:1089
+msgid "È disponibile FedTermHub {new} (questa è la {current})."
+msgstr "FedTermHub {new} is available (this is {current})."
+
+#: qtui/main_window.py:1108
+msgid "Scarico FedTermHub {version}…"
+msgstr "Downloading FedTermHub {version}…"
+
+#: qtui/main_window.py:1125
+msgid "Aggiornamento rimandato: chiudi FedTermHub e riprova da Aiuto › Cerca aggiornamenti."
+msgstr "Update postponed: close FedTermHub and try again from Help › Check for updates."
+
+#: qtui/main_window.py:1038 qtui/main_window.py:1130
+msgid "Aggiornamento non riuscito"
+msgstr "Update failed"
+
+#: qtui/main_window.py:804
 msgid "{n} tunnel attivo"
 msgstr "{n} tunnel active"
 
-#: qtui/main_window.py:792
+#: qtui/main_window.py:804
 msgid "{n} tunnel attivi"
 msgstr "{n} tunnels active"
 
-#: qtui/main_window.py:812
+#: qtui/main_window.py:824
 msgid "Le sessioni {protocol} si aprono per ora solo nella versione Linux di FedTermHub."
 msgstr "{protocol} sessions can only be opened in the Linux version of FedTermHub for now."
 
-#: qtui/main_window.py:927
+#: qtui/main_window.py:939
 msgid "Programma non trovato: {name}"
 msgstr "Program not found: {name}"
 
-#: qtui/main_window.py:1007
+#: qtui/main_window.py:1019
 msgid "C'è una sessione ancora aperta: verrà chiusa."
 msgstr "A session is still open: it will be closed."
 
-#: qtui/main_window.py:1007
+#: qtui/main_window.py:1019
 msgid "Ci sono {n} sessioni ancora aperte: verranno chiuse."
 msgstr "{n} sessions are still open: they will be closed."
 
-#: qtui/main_window.py:197
+#: qtui/main_window.py:1057 qtui/main_window.py:1062
+msgid "Aggiornamenti"
+msgstr "Updates"
+
+#: qtui/main_window.py:1057
+msgid "Non riesco a raggiungere GitHub per controllare gli aggiornamenti. Controlla la connessione."
+msgstr "Cannot reach GitHub to check for updates. Check the connection."
+
+#: qtui/main_window.py:199
 msgid "[processo terminato con codice {code} — premi Invio per riaprire]"
 msgstr "[process exited with code {code} — press Enter to restart]"
 
-#: qtui/main_window.py:819
+#: qtui/main_window.py:831
 msgid "La sessione «{name}» è collegata a un tunnel che non esiste più."
 msgstr "Session \"{name}\" is linked to a tunnel that no longer exists."
 
-#: qtui/main_window.py:822
+#: qtui/main_window.py:834
 msgid "Avvio del tunnel «{name}»…"
 msgstr "Starting tunnel \"{name}\"…"
 
-#: qtui/main_window.py:1039
-msgid "Scarica FedTermHub {version}"
-msgstr "Download FedTermHub {version}"
+#: qtui/main_window.py:1117
+msgid "Scarico FedTermHub {version}… {done} di {total} MB"
+msgstr "Downloading FedTermHub {version}… {done} of {total} MB"
 
-#: qtui/main_window.py:1043
-msgid "È disponibile FedTermHub {version}"
-msgstr "FedTermHub {version} is available"
+#: qtui/main_window.py:1131
+msgid ""
+"{error}\n"
+"\n"
+"Puoi scaricare il Setup.exe dalla pagina della release."
+msgstr ""
+"{error}\n"
+"\n"
+"You can download the Setup.exe from the release page."
 
-#: qtui/main_window.py:830
+#: qtui/main_window.py:1062
+msgid "Hai già l'ultima versione ({version})."
+msgstr "You already have the latest version ({version})."
+
+#: qtui/main_window.py:842
 msgid ""
 "La sessione «{name}» non è stata aperta perché il tunnel «{tunnel}» non è pronto.\n"
 "\n"
@@ -8595,47 +8661,47 @@ msgstr ""
 "\n"
 "{log}"
 
-#: qtui/main_window.py:1051
+#: qtui/main_window.py:1141
 msgid "Gestore integrato di terminali e connessioni remote."
 msgstr "Integrated manager for terminals and remote connections."
 
-#: qtui/main_window.py:1052
+#: qtui/main_window.py:1142
 msgid "Configurazione locale: {path}"
 msgstr "Local configuration: {path}"
 
-#: qtui/net_core.py:169
+#: qtui/net_core.py:170
 msgid "rete troppo grande (massimo 4096 indirizzi): usa una /20 o più piccola"
 msgstr "network too large (at most 4096 addresses): use a /20 or smaller"
 
-#: qtui/net_core.py:336
+#: qtui/net_core.py:337
 msgid "indirizzo MAC non valido"
 msgstr "invalid MAC address"
 
-#: qtui/net_core.py:475
+#: qtui/net_core.py:476
 msgid "{client}  inviato {name} ({size} byte in {seconds} s)"
 msgstr "{client}  sent {name} ({size} bytes in {seconds} s)"
 
-#: qtui/net_core.py:521
+#: qtui/net_core.py:522
 msgid "{client}  ricevuto {name} ({size} byte)"
 msgstr "{client}  received {name} ({size} bytes)"
 
-#: qtui/net_core.py:450
+#: qtui/net_core.py:451
 msgid "{client}  non trovato: {name}"
 msgstr "{client}  not found: {name}"
 
-#: qtui/net_core.py:431
+#: qtui/net_core.py:432
 msgid "{client}  errore: {error}"
 msgstr "{client}  error: {error}"
 
-#: qtui/net_core.py:469
+#: qtui/net_core.py:470
 msgid "{client}  interrotto: {name}"
 msgstr "{client}  interrupted: {name}"
 
-#: qtui/net_core.py:505
+#: qtui/net_core.py:506
 msgid "{client}  ricezione interrotta: {name}"
 msgstr "{client}  upload interrupted: {name}"
 
-#: qtui/net_core.py:425
+#: qtui/net_core.py:426
 msgid "{client}  scrittura rifiutata: {name}"
 msgstr "{client}  write refused: {name}"
 
@@ -8667,7 +8733,7 @@ msgstr "Filter by port or program"
 msgid "Server HTTP (sola lettura)"
 msgstr "HTTP server (read only)"
 
-#: qtui/net_tools.py:379 qtui/net_tools.py:464 qtui/net_tools.py:469
+#: qtui/net_tools.py:379 qtui/net_tools.py:465 qtui/net_tools.py:470
 msgid "Server TFTP"
 msgstr "TFTP server"
 
@@ -8679,19 +8745,19 @@ msgstr "Allow writing files (configuration backups)"
 msgid "Sfoglia…"
 msgstr "Browse…"
 
-#: qtui/net_tools.py:522
+#: qtui/net_tools.py:524
 msgid "Scansione rete"
 msgstr "Network scan"
 
-#: qtui/net_tools.py:523
+#: qtui/net_tools.py:525
 msgid "Scansione porte"
 msgstr "Port scan"
 
-#: qtui/net_tools.py:526
+#: qtui/net_tools.py:528
 msgid "Server temporanei"
 msgstr "Temporary servers"
 
-#: qtui/net_tools.py:527
+#: qtui/net_tools.py:529
 msgid "Ping e traceroute"
 msgstr "Ping and traceroute"
 
@@ -8755,27 +8821,27 @@ msgstr "Requests received"
 msgid "Server HTTP fermato."
 msgstr "HTTP server stopped."
 
-#: qtui/net_tools.py:460
+#: qtui/net_tools.py:461
 msgid "Server TFTP fermato."
 msgstr "TFTP server stopped."
 
-#: qtui/net_tools.py:490
+#: qtui/net_tools.py:492
 msgid "Si aprono in una scheda terminale, così restano sotto gli occhi mentre lavori."
 msgstr "They open in a terminal tab, so they stay in view while you work."
 
-#: qtui/net_tools.py:497
+#: qtui/net_tools.py:499
 msgid "Ping continuo"
 msgstr "Continuous ping"
 
-#: qtui/net_tools.py:497
+#: qtui/net_tools.py:499
 msgid "Traceroute"
 msgstr ""
 
-#: qtui/net_tools.py:550
+#: qtui/net_tools.py:552
 msgid "Scrivi un IP o un nome host valido."
 msgstr "Enter a valid IP or host name."
 
-#: qtui/net_tools.py:562
+#: qtui/net_tools.py:564
 msgid "I server temporanei verranno fermati. Chiudere?"
 msgstr "The temporary servers will be stopped. Close?"
 
@@ -8815,7 +8881,7 @@ msgstr "Addresses of this PC: "
 msgid "Server HTTP"
 msgstr "HTTP server"
 
-#: qtui/net_tools.py:440 qtui/net_tools.py:464
+#: qtui/net_tools.py:440 qtui/net_tools.py:465
 msgid "La cartella non esiste."
 msgstr "The folder does not exist."
 
@@ -8823,31 +8889,31 @@ msgstr "The folder does not exist."
 msgid "Magic packet inviato a {mac}."
 msgstr "Magic packet sent to {mac}."
 
-#: qtui/net_tools.py:452
+#: qtui/net_tools.py:453
 msgid "Server HTTP attivo sulla porta {port}: {folder}"
 msgstr "HTTP server running on port {port}: {folder}"
 
-#: qtui/net_tools.py:476
+#: qtui/net_tools.py:478
 msgid "Server TFTP attivo sulla porta {port}: {folder}"
 msgstr "TFTP server running on port {port}: {folder}"
 
-#: qtui/net_tools.py:542
+#: qtui/net_tools.py:544
 msgid "Protocollo per {host}:"
 msgstr "Protocol for {host}:"
 
-#: qtui/net_tools.py:556
+#: qtui/net_tools.py:558
 msgid "Ping {host}"
 msgstr ""
 
-#: qtui/net_tools.py:556
+#: qtui/net_tools.py:558
 msgid "Traceroute {host}"
 msgstr ""
 
-#: qtui/net_tools.py:556
+#: qtui/net_tools.py:558
 msgid "DNS {host}"
 msgstr ""
 
-#: qtui/net_tools.py:445 qtui/net_tools.py:469
+#: qtui/net_tools.py:445 qtui/net_tools.py:470
 msgid "Impossibile usare la porta {port}: {error}"
 msgstr "Cannot use port {port}: {error}"
 
@@ -9247,35 +9313,35 @@ msgstr "Transfer cancelled."
 msgid "La chiave dell'host {host} non è in known_hosts e le impostazioni chiedono di accettare solo host già conosciuti."
 msgstr "The host key of {host} is not in known_hosts and the settings only accept known hosts."
 
-#: qtui/stream_process.py:205
+#: qtui/stream_process.py:217
 msgid "Telnet: {error}"
 msgstr ""
 
-#: qtui/stream_process.py:348
+#: qtui/stream_process.py:360
 msgid "Porta seriale {port}: {error}"
 msgstr "Serial port {port}: {error}"
 
-#: qtui/stream_process.py:200
+#: qtui/stream_process.py:212
 msgid "Telnet: {host} non risponde (timeout)."
 msgstr "Telnet: {host} does not respond (timeout)."
 
-#: qtui/stream_process.py:202
+#: qtui/stream_process.py:214
 msgid "Telnet: connessione rifiutata da {host}:{port}."
 msgstr "Telnet: connection refused by {host}:{port}."
 
-#: qtui/stream_process.py:204
+#: qtui/stream_process.py:216
 msgid "Telnet: nome «{host}» non trovato."
 msgstr "Telnet: name \"{host}\" not found."
 
-#: qtui/stream_process.py:345
+#: qtui/stream_process.py:357
 msgid "{port} è già usata da un altro programma (o manca il permesso)."
 msgstr "{port} is already in use by another program (or permission is missing)."
 
-#: qtui/stream_process.py:347
+#: qtui/stream_process.py:359
 msgid "{port} non esiste: controlla il cavo e il numero della porta."
 msgstr "{port} does not exist: check the cable and the port number."
 
-#: qtui/stream_process.py:323
+#: qtui/stream_process.py:335
 msgid "[connesso a {port}, {baud} {bits}{parity}{stop} — scrivi pure]"
 msgstr "[connected to {port}, {baud} {bits}{parity}{stop} — go ahead and type]"
 
@@ -9472,6 +9538,22 @@ msgstr "Edit tunnel: {name}"
 #: qtui/tunnels.py:547
 msgid "via"
 msgstr "via"
+
+#: qtui/updates.py:104
+msgid "la release non contiene il Setup.exe"
+msgstr "the release does not contain the Setup.exe"
+
+#: qtui/updates.py:110
+msgid "impronta SHA-256 del Setup.exe non trovata in SHA256SUMS"
+msgstr "SHA-256 fingerprint of the Setup.exe not found in SHA256SUMS"
+
+#: qtui/updates.py:131
+msgid "il file scaricato non corrisponde all'impronta pubblicata: aggiornamento annullato"
+msgstr "the downloaded file does not match the published fingerprint: update cancelled"
+
+#: qtui/updates.py:121
+msgid "download annullato"
+msgstr "download cancelled"
 
 #: qtui/vault_dialogs.py:53
 msgid "Sblocca"

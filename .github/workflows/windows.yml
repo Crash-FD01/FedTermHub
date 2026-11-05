@@ -129,6 +129,22 @@ jobs:
             Write-Output "=== END $($_.Name) ==="
           }
 
+      # Come l'aggiornamento avviato dal programma: Setup silenzioso sopra l'installazione esistente, poi
+      # FedTermHub deve riaprirsi da solo.
+      - name: Aggiornamento come dal programma
+        shell: pwsh
+        run: |
+          Get-Process FedTermHub -ErrorAction SilentlyContinue | Stop-Process -Force
+          $setup = Get-Item dist\packages\FedTermHub-*-Setup.exe
+          $p = Start-Process $setup.FullName -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RESTART=1', '/CURRENTUSER' -Wait -PassThru
+          if ($p.ExitCode) { throw "aggiornamento non riuscito ($($p.ExitCode))" }
+          $running = $null
+          foreach ($i in 1..30) { $running = Get-Process FedTermHub -ErrorAction SilentlyContinue; if ($running) { break }; Start-Sleep 1 }
+          if (-not $running) { throw "FedTermHub non si è riaperto dopo l'aggiornamento" }
+          Write-Host "FedTermHub riaperto dopo l'aggiornamento (PID $($running[0].Id))"
+          Start-Sleep 3
+          $running | Stop-Process -Force
+
       - name: Disinstallazione (i dati dell'utente restano)
         shell: pwsh
         run: |

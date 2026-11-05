@@ -62,3 +62,11 @@ Name: "{autodesktop}\FedTermHub"; Filename: "{app}\FedTermHub.exe"; Tasks: deskt
 
 [Run]
 Filename: "{app}\FedTermHub.exe"; Description: "{cm:LaunchProgram,FedTermHub}"; Flags: nowait postinstall skipifsilent
+; Aggiornamento avviato dal programma (/SILENT /RESTART=1): alla fine FedTermHub si riapre da solo.
+Filename: "{app}\FedTermHub.exe"; Flags: nowait runasoriginaluser; Check: RestartAfterUpdate
+
+[Code]
+function RestartAfterUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:RESTART|0}') = '1';
+end;
