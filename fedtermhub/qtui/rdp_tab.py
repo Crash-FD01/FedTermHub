@@ -3,8 +3,12 @@
 """Desktop remoto nell'interfaccia Qt.
 
 Su Windows la scheda ospita il componente RDP di Windows (lo stesso di mstsc: MsRdpClient9
-NotSafeForScripting, MsTscAx.dll), incorporato con QAxWidget. Così NLA, RD Gateway, smart card, appunti,
-stampanti e aggiornamenti di sicurezza sono quelli di Microsoft, senza librerie da portare con sé.
+NotSafeForScripting, mstscax.dll). Così NLA, RD Gateway, smart card, appunti, stampanti e aggiornamenti di
+sicurezza sono quelli di Microsoft, senza librerie da portare con sé.
+
+Il componente sta in una finestra «AtlAxWin» (ATL, presente in ogni Windows) figlia di un QWidget nativo e
+si pilota con comtypes: con QAxWidget di PySide6 le proprietà del componente non sono raggiungibili
+(il meta-oggetto Python nasconde quello generato da QAxBase) e Connect() fallisce con E_INVALIDARG.
 
 Su Linux (per ora) l'interfaccia Qt non ha un motore RDP: la versione GTK usa FreeRDP.
 """
@@ -14,7 +18,6 @@ import os
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -28,6 +31,7 @@ IS_WINDOWS = sys.platform == "win32"
 # CLSID della classe MsRdpClient9NotSafeForScripting (Windows 8.1 e successivi): la variante «non sicura
 # per gli script» è quella che accetta la password in chiaro (ClearTextPassword) da un programma.
 RDP_CLSID = "{8B918B82-7985-4C24-89DF-C33AD2BBFBCD}"
+MSTSCAX = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "mstscax.dll")
 
 # Motivi di disconnessione più comuni (codici di IMsTscAxEvents::OnDisconnected), per un messaggio
 # comprensibile; per gli altri si chiede la descrizione al componente (GetErrorDescription).
@@ -52,18 +56,151 @@ DISCONNECT_REASONS = {
 USER_DISCONNECT = {1, 2, 3}
 
 
+def _typelib():  # noqa: ANN202
+    """Il modulo comtypes di mstscax.dll: già generato nella build, altrimenti generato ora."""
+    try:
+        from comtypes.gen import MSTSCLib  # type: ignore[import-not-found]
+
+        return MSTSCLib
+    except ImportError:
+        import comtypes.client
+
+        return comtypes.client.GetModule(MSTSCAX)
+
+
 def ax_available() -> bool:
-    if not IS_WINDOWS:
+    """True se il desktop remoto incorporato si può usare (Windows con comtypes e mstscax.dll)."""
+    if not IS_WINDOWS or not os.path.isfile(MSTSCAX):
         return False
     try:
-        from PySide6.QtAxContainer import QAxWidget  # noqa: F401
+        import comtypes.client  # noqa: F401
     except ImportError:
         return False
     return True
 
 
+class _ControlHost(QWidget):
+    """QWidget nativo che contiene la finestra ATL del componente e la ridimensiona con sé."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.child_hwnd = 0
+        self.unknown = None
+
+    def create(self, clsid: str):  # noqa: ANN201
+        import ctypes
+        from ctypes import wintypes
+
+        import comtypes
+
+        atl = ctypes.WinDLL("atl")
+        user32 = ctypes.WinDLL("user32")
+        atl.AtlAxWinInit()
+        user32.CreateWindowExW.restype = wintypes.HWND
+        user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+                                           ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                           wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+        ws_child, ws_visible, ws_clipchildren, ws_clipsiblings = 0x40000000, 0x10000000, 0x02000000, 0x04000000
+        width, height = self._physical_size()
+        hwnd = user32.CreateWindowExW(0, "AtlAxWin", clsid, ws_child | ws_visible | ws_clipchildren | ws_clipsiblings,
+                                      0, 0, width, height, int(self.winId()), None, None, None)
+        if not hwnd:
+            raise OSError(ctypes.get_last_error() or "CreateWindowEx(AtlAxWin)")
+        self.child_hwnd = hwnd
+        unknown = ctypes.POINTER(comtypes.IUnknown)()
+        atl.AtlAxGetControl.argtypes = [wintypes.HWND, ctypes.POINTER(ctypes.POINTER(comtypes.IUnknown))]
+        result = atl.AtlAxGetControl(hwnd, ctypes.byref(unknown))
+        if result != 0 or not unknown:
+            raise OSError(f"AtlAxGetControl: {result & 0xFFFFFFFF:#010x}")
+        self.unknown = unknown
+        return unknown
+
+    def _physical_size(self):  # noqa: ANN202
+        ratio = self.devicePixelRatioF()
+        return max(1, round(self.width() * ratio)), max(1, round(self.height() * ratio))
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001, N802
+        super().resizeEvent(event)
+        if self.child_hwnd:
+            import ctypes
+
+            width, height = self._physical_size()
+            ctypes.windll.user32.MoveWindow(self.child_hwnd, 0, 0, width, height, True)  # type: ignore[attr-defined]
+
+    def focusInEvent(self, event) -> None:  # noqa: ANN001, N802
+        super().focusInEvent(event)
+        if self.child_hwnd:
+            import ctypes
+
+            ctypes.windll.user32.SetFocus(self.child_hwnd)  # type: ignore[attr-defined]
+
+    def destroy_control(self) -> None:
+        self.unknown = None
+        if self.child_hwnd:
+            import ctypes
+
+            ctypes.windll.user32.DestroyWindow(self.child_hwnd)  # type: ignore[attr-defined]
+            self.child_hwnd = 0
+
+
+class _EventSink:
+    """Riceve gli eventi del componente (IMsTscAxEvents) e li passa alla scheda."""
+
+    def __init__(self, tab: "RdpTab") -> None:
+        self.tab = tab
+
+    def _safe(self, func, *args) -> None:  # noqa: ANN001, ANN002
+        # Un evento può arrivare mentre la scheda viene chiusa: i widget Qt potrebbero non esserci più.
+        try:
+            func(*args)
+        except RuntimeError:
+            pass
+
+    @staticmethod
+    def _code(args) -> int:  # noqa: ANN001
+        try:
+            return int(args[-1])
+        except (IndexError, TypeError, ValueError):
+            return 0
+
+    def OnConnecting(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_connecting)
+
+    def OnConnected(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_connected)
+
+    def OnLoginComplete(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_login)
+
+    def OnDisconnected(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_disconnected, self._code(args))
+
+    def OnFatalError(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_fatal, self._code(args))
+
+    def OnWarning(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_warning, self._code(args))
+
+    def OnLogonError(self, *args) -> None:  # noqa: N802, ANN002
+        self.tab.events.append(f"logon-error:{self._code(args)}")
+
+    def OnLeaveFullScreenMode(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_leave_fullscreen)
+
+    def OnRequestLeaveFullScreen(self, *args) -> None:  # noqa: N802, ANN002
+        self._safe(self.tab._on_leave_fullscreen)
+
+    def OnRequestContainerMinimize(self, *args) -> None:  # noqa: N802, ANN002
+        window = self.tab.window()
+        if window is not None:
+            window.showMinimized()
+
+
 class RdpTab(QWidget):
-    """Una scheda con un desktop remoto. Segnali: title_changed (testo), closed (la scheda può chiudersi)."""
+    """Una scheda con un desktop remoto. Segnali: status (testo per la barra di stato)."""
 
     title_changed = Signal(str)
     status = Signal(str)
@@ -76,12 +213,12 @@ class RdpTab(QWidget):
         self.domain = domain
         self.password = password
         self.gateway_password = gateway_password
-        self.ax = None
+        self.ax = None  # interfaccia IMsRdpClient del componente
+        self.host: Optional[_ControlHost] = None
+        self._events_connection = None
         self.connected = False
         self.events: List[str] = []  # eventi ricevuti dal componente (servono anche alla prova automatica)
         self.unset: List[str] = []  # proprietà che il componente non ha accettato (diagnostica)
-        self._last_event: Optional[tuple] = None
-        self._op = ""  # proprietà o metodo in corso, per capire quale fa scattare un'eccezione COM
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -112,7 +249,8 @@ class RdpTab(QWidget):
         self._resize_timer.setInterval(400)
         self._resize_timer.timeout.connect(self._apply_resolution)
         if ax_available():
-            QTimer.singleShot(0, self.connect_session)
+            # Dopo che la scheda è comparsa: il componente prende la dimensione della finestra che lo ospita.
+            QTimer.singleShot(50, self.connect_session)
         else:
             self.fullscreen_button.hide()
             self.external_button.setVisible(IS_WINDOWS)
@@ -128,96 +266,69 @@ class RdpTab(QWidget):
 
     # ------------------------------------------------------------------ connessione
     def _create_control(self) -> bool:
-        from PySide6.QtAxContainer import QAxWidget
+        import comtypes.client
 
-        if self.ax is not None:
-            self.ax.hide()
-            self.ax.deleteLater()
-            self.ax = None
-        ax = QAxWidget(self.host_area)
-        if not ax.setControl(RDP_CLSID):
-            ax.deleteLater()
-            return False
-        ax.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.host_layout.addWidget(ax)
-        # Gli eventi COM arrivano tutti dal segnale generico signal(nome, argc, argv): così non dipendono
-        # da come PySide6 espone i segnali generati dal componente.
-        ax.signal.connect(self._com_event)
-        # Anche i segnali con nome, se PySide6 li espone: _dispatch scarta il doppione.
-        from PySide6.QtCore import SIGNAL, QObject
-
-        for signature in ("OnConnecting()", "OnConnected()", "OnLoginComplete()", "OnDisconnected(int)",
-                          "OnFatalError(int)", "OnWarning(int)", "OnLeaveFullScreenMode()", "OnRequestLeaveFullScreen()"):
-            name = signature.split("(")[0]
-            try:
-                QObject.connect(ax, SIGNAL(signature), lambda *args, n=name: self._dispatch(n, int(args[0]) if args else 0))
-            except Exception:  # noqa: BLE001
-                pass
+        self._release_control()
+        host = _ControlHost(self.host_area)
+        self.host_layout.addWidget(host)
+        host.show()
         try:
-            ax.exception.connect(lambda code, source, desc, _help: self.events.append(
-                f"exception:{code & 0xFFFFFFFF:#010x}:{self._op}:{source}:{desc}"))
-        except (AttributeError, RuntimeError, TypeError):
-            pass
+            unknown = host.create(RDP_CLSID)
+            lib = _typelib()
+            ax = None
+            for name in ("IMsRdpClient10", "IMsRdpClient9", "IMsRdpClient8", "IMsRdpClient7"):
+                interface = getattr(lib, name, None)
+                if interface is None:
+                    continue
+                try:
+                    ax = unknown.QueryInterface(interface)
+                    break
+                except Exception:  # noqa: BLE001
+                    continue
+            if ax is None:
+                raise OSError("IMsRdpClient")
+            self._lib = lib
+            self._events_connection = comtypes.client.GetEvents(ax, _EventSink(self), interface=lib.IMsTscAxEvents)
+        except Exception as exc:  # noqa: BLE001
+            host.destroy_control()
+            host.deleteLater()
+            self.events.append(f"create-error:{exc}")
+            return False
+        self.host = host
         self.ax = ax
         return True
 
-    @staticmethod
-    def _int_arg(argc: int, argv, index: int = 0) -> int:  # noqa: ANN001
-        """Il parametro intero numero index di un evento COM (argv punta a DISPPARAMS.rgvarg, al contrario)."""
-        try:
-            import ctypes
-
-            address = int(argv)
-            if not address or index >= argc:
-                return 0
-            variant = address + (argc - 1 - index) * ctypes.sizeof(ctypes.c_void_p) * 3  # VARIANT: 24 byte su x64
-            vt = ctypes.c_ushort.from_address(variant).value
-            if vt & 0x4000:  # VT_BYREF
-                return ctypes.c_long.from_address(ctypes.c_void_p.from_address(variant + 8).value).value
-            return ctypes.c_long.from_address(variant + 8).value
-        except Exception:  # noqa: BLE001
-            return 0
-
-    def _com_event(self, name: str, argc: int, argv) -> None:  # noqa: ANN001
-        self._dispatch(str(name).split("(")[0], self._int_arg(argc, argv))
-
-    def _dispatch(self, event: str, code: int) -> None:
-        now = time.monotonic()
-        if self._last_event and self._last_event[:2] == (event, code) and now - self._last_event[2] < 0.3:
-            return  # lo stesso evento arrivato sia dal segnale generico sia da quello con nome
-        self._last_event = (event, code, now)
-        handler = {
-            "OnConnecting": lambda: self._on_connecting(),
-            "OnConnected": lambda: self._on_connected(),
-            "OnLoginComplete": lambda: self._on_login(),
-            "OnDisconnected": lambda: self._on_disconnected(code),
-            "OnFatalError": lambda: self._on_fatal(code),
-            "OnWarning": lambda: self._on_warning(code),
-            "OnLeaveFullScreenMode": lambda: self._on_leave_fullscreen(),
-            "OnRequestLeaveFullScreen": lambda: self._on_leave_fullscreen(),
-        }.get(event)
-        if handler is not None:
-            handler()
+    def _release_control(self) -> None:
+        self._events_connection = None
+        self.ax = None
+        if self.host is not None:
+            self.host.destroy_control()
+            self.host.hide()
+            self.host.deleteLater()
+            self.host = None
 
     def _set(self, target, name: str, value) -> bool:  # noqa: ANN001
-        """Imposta una proprietà COM; una che questa versione di Windows non ha non deve fermare tutto.
-
-        Le proprietà di sola scrittura (ClearTextPassword) non sono nel meta-oggetto di Qt: per quelle si
-        passa da dynamicCall, che con il nome di una proprietà e un valore la imposta.
-        """
-        self._op = name
+        """Imposta una proprietà COM; una che questa versione di Windows non ha non deve fermare tutto."""
+        if target is None:
+            self.unset.append(name)
+            return False
         try:
-            if target.setProperty(name, value):
-                return True
-        except Exception:  # noqa: BLE001
-            pass
-        self.unset.append(f"{name}(setProperty)")
-        try:
-            target.dynamicCall(name, value)
+            setattr(target, name, value)
             return True
         except Exception:  # noqa: BLE001
             self.unset.append(name)
             return False
+
+    def _sub(self, *names: str):  # noqa: ANN202
+        """La prima interfaccia secondaria disponibile (AdvancedSettings9, poi 8...)."""
+        for name in names:
+            try:
+                value = getattr(self.ax, name)
+                if value is not None:
+                    return value
+            except Exception:  # noqa: BLE001
+                continue
+        return None
 
     def configure(self) -> None:
         """Server, credenziali e opzioni della sessione, prima di Connect()."""
@@ -233,12 +344,15 @@ class RdpTab(QWidget):
         self._set(ax, "DesktopWidth", width)
         self._set(ax, "DesktopHeight", height)
         self._set(ax, "ColorDepth", 32)
-        adv = ax.querySubObject("AdvancedSettings9") or ax.querySubObject("AdvancedSettings2")
+        if self.password:
+            try:
+                self.ax.QueryInterface(self._lib.IMsTscNonScriptable).ClearTextPassword = self.password
+            except Exception:  # noqa: BLE001
+                self.unset.append("ClearTextPassword")
+        adv = self._sub("AdvancedSettings9", "AdvancedSettings8", "AdvancedSettings7")
         if adv is not None:
             if port and port != "3389":
                 self._set(adv, "RDPPort", int(port))
-            if self.password:
-                self._set(adv, "ClearTextPassword", self.password)
             self._set(adv, "EnableCredSspSupport", True)  # NLA
             # 0: si collega anche se il certificato non è verificabile (come /cert:ignore su Linux);
             # 2: avvisa e chiede.
@@ -256,13 +370,13 @@ class RdpTab(QWidget):
             self._set(adv, "GrabFocusOnConnect", True)
             self._set(adv, "DisplayConnectionBar", True)
             self._set(adv, "PinConnectionBar", False)
-        secured = ax.querySubObject("SecuredSettings3") or ax.querySubObject("SecuredSettings2")
+        secured = self._sub("SecuredSettings3", "SecuredSettings2")
         if secured is not None:
             # 0: il suono suona su questo PC; 2: niente audio
             self._set(secured, "AudioRedirectionMode", 0 if sess.rdp_sound else 2)
             self._set(secured, "KeyboardHookMode", 1)  # Alt+Tab, tasto Windows… vanno al PC remoto
         if sess.routing_mode == "rd_gateway" and sess.rdp_gateway_host:
-            transport = ax.querySubObject("TransportSettings4") or ax.querySubObject("TransportSettings2")
+            transport = self._sub("TransportSettings4", "TransportSettings3", "TransportSettings2")
             if transport is not None:
                 gw_host, gw_port = model.split_host_port(sess.rdp_gateway_host, sess.rdp_gateway_port or "443")
                 self._set(transport, "GatewayHostname", gw_host if gw_port in {"", "443"} else f"{gw_host}:{gw_port}")
@@ -283,9 +397,9 @@ class RdpTab(QWidget):
             return
         try:
             self.configure()
-            self._op = "Connect"
-            self.ax.dynamicCall("Connect()")
+            self.ax.Connect()
         except Exception as exc:  # noqa: BLE001
+            self.events.append(f"connect-error:{exc}")
             self.state.setText(tr("Avvio RDP fallito: {exc}").format(exc=exc))
             self.reconnect_button.show()
             return
@@ -300,7 +414,7 @@ class RdpTab(QWidget):
     def disconnect_session(self) -> None:
         if self.ax is not None and self.connected:
             try:
-                self.ax.dynamicCall("Disconnect()")
+                self.ax.Disconnect()
             except Exception:  # noqa: BLE001
                 pass
 
@@ -310,9 +424,10 @@ class RdpTab(QWidget):
 
     def _desktop_size(self):  # noqa: ANN202
         size = self.host_area.size()
-        width = max(800, size.width()) // 4 * 4  # il componente vuole una larghezza multipla di 4
-        height = max(600, size.height())
-        return width, height
+        ratio = self.devicePixelRatioF()
+        width = max(800, round(size.width() * ratio)) // 4 * 4  # il componente vuole una larghezza multipla di 4
+        height = max(600, round(size.height() * ratio))
+        return min(width, 8192), min(height, 8192)
 
     def resizeEvent(self, event) -> None:  # noqa: ANN001, N802
         super().resizeEvent(event)
@@ -325,8 +440,7 @@ class RdpTab(QWidget):
             return
         width, height = self._desktop_size()
         try:
-            self.ax.dynamicCall("UpdateSessionDisplaySettings(uint,uint,uint,uint,uint,uint,uint)",
-                                [width, height, width, height, 0, 100, 100])
+            self.ax.UpdateSessionDisplaySettings(width, height, width, height, 0, 100, 100)
         except Exception:  # noqa: BLE001
             pass
 
@@ -345,14 +459,15 @@ class RdpTab(QWidget):
         self.connected = True
         self.state.setText(tr("Connesso a {host}").format(host=self.sess.host))
         self.status.emit(tr("Sessione attiva"))
-        self.ax.setFocus()
+        if self.host is not None:
+            self.host.setFocus()
 
     def _describe(self, reason: int) -> str:
         text = DISCONNECT_REASONS.get(reason, "")
         if not text and self.ax is not None:
             try:
-                extended = int(self.ax.property("ExtendedDisconnectReason") or 0)
-                text = str(self.ax.dynamicCall("GetErrorDescription(uint,uint)", [reason, extended]) or "")
+                extended = int(self.ax.ExtendedDisconnectReason or 0)
+                text = str(self.ax.GetErrorDescription(reason, extended) or "")
             except Exception:  # noqa: BLE001
                 text = ""
         return text or tr("Codice {code}").format(code=reason)

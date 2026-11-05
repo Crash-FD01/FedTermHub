@@ -18,13 +18,17 @@ $version = (python packaging\windows\make_assets.py $assets).Trim()
 if ($LASTEXITCODE) { throw 'make_assets non riuscito' }
 Write-Host "-> FedTermHub $version"
 
+# Modulo comtypes del componente RDP di Windows (mstscax.dll), generato ora e incluso nell'eseguibile.
+python -c "import comtypes.client, os; comtypes.client.GetModule(os.path.join(os.environ['SystemRoot'], 'System32', 'mstscax.dll'))"
+if ($LASTEXITCODE) { throw 'comtypes: generazione del modulo di mstscax.dll non riuscita' }
+
 $icon = 'share\icons\hicolor\256x256\apps\io.github.crash_fd01.fedtermhub.png'
 Write-Host '-> FedTermHub.exe (PyInstaller)'
 # Solo l'interfaccia Qt (fedtermhub\qtui) e i moduli che usa: l'interfaccia GTK resta fuori.
 python -m PyInstaller --noconfirm --clean --windowed --name FedTermHub `
     --icon "$assets\fedtermhub.ico" --version-file "$assets\version.txt" `
     --paths $root `
-    --collect-submodules fedtermhub.qtui --hidden-import PySide6.QtAxContainer --collect-all winpty `
+    --collect-submodules fedtermhub.qtui --collect-all winpty --collect-all comtypes `
     --add-data "$root\fedtermhub\qtui\xterm;fedtermhub\qtui\xterm" `
     --add-data "$root\fedtermhub\locale;fedtermhub\locale" `
     --add-data "$root\fedtermhub\icons;fedtermhub\icons" `

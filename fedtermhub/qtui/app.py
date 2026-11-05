@@ -183,7 +183,7 @@ def self_test(report_path: Path) -> int:
             all'accesso vero; senza, basta che il componente si crei, accetti le impostazioni e risponda
             con un evento (di solito: connessione rifiutata).
             """
-            assert rdp_tab.ax_available(), "QtAxContainer non disponibile"
+            assert rdp_tab.ax_available(), "comtypes o mstscax.dll non disponibili"
             target = os.environ.get("FEDTERMHUB_SELFTEST_RDP", "")
             host, user, password = (target.split(";", 2) + ["", "", ""])[:3] if target else ("127.0.0.2", "utente", "x")
             domain = ""
@@ -193,18 +193,22 @@ def self_test(report_path: Path) -> int:
             tab = rdp_tab.RdpTab(window, sess, user, domain, password)
             index = window.tabs.addTab(tab, "rdp-prova")
             window.tabs.setCurrentIndex(index)
-            assert _wait(app, lambda: tab.ax is not None, 10), "il componente RDP non si è creato"
-            server = str(tab.ax.property("Server") or "")
-            assert server == host, f"Server = {server!r}"
-            assert tab.ax.querySubObject("AdvancedSettings9") is not None, "AdvancedSettings9 non disponibile"
-            final = ("disconnected", "login", "fatal")
+            assert _wait(app, lambda: tab.ax is not None or tab.events, 15), "il componente RDP non si è creato"
+            assert tab.ax is not None, "il componente RDP non si è creato: " + ", ".join(tab.events)
+            assert str(tab.ax.Server) == host, f"Server = {tab.ax.Server!r}"
+            assert tab.ax.AdvancedSettings9 is not None, "AdvancedSettings9 non disponibile"
+            final = ("disconnected", "login", "fatal", "connect-error")
             _wait(app, lambda: any(e.startswith(final) for e in tab.events), 60)
             assert tab.events, f"nessun evento dal componente RDP; stato: {tab.state.text()}"
             if target:
                 assert "login" in tab.events, ("accesso non riuscito: " + ", ".join(tab.events) + " — " + tab.state.text()
-                                               + " — non impostate con setProperty: " + ", ".join(tab.unset))
-                tab.ax.grab().save(str(report_path.with_name("rdp-session.png")))
-            version = str(tab.ax.property("Version") or "")
+                                               + " — non impostate: " + ", ".join(tab.unset))
+                _wait(app, lambda: False, 4)
+                # QWidget.grab() non vede la finestra nativa del componente: si fotografa lo schermo.
+                corner = window.mapToGlobal(window.rect().topLeft())
+                shot = app.primaryScreen().grabWindow(0, corner.x(), corner.y(), window.width(), window.height())
+                shot.save(str(report_path.with_name("rdp-session.png")))
+            version = str(tab.ax.Version or "")
             tab.close_tab()
             _wait(app, lambda: any(e.startswith("disconnected") for e in tab.events), 15)
             window.tabs.removeTab(window.tabs.indexOf(tab))
