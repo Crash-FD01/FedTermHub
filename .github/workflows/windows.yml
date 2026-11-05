@@ -105,6 +105,17 @@ jobs:
           if ($t.ExitCode) { throw "prova del programma installato non riuscita ($($t.ExitCode))" }
           Write-Host "FedTermHub installato e funzionante: $exe"
 
+      # Le schermate della prova anche nel log (in base64), leggibili senza scaricare gli artifact.
+      - name: Schermate della prova
+        if: always()
+        shell: pwsh
+        run: |
+          Get-ChildItem out\*.png -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Output "=== SCREENSHOT $($_.Name) ==="
+            [Convert]::ToBase64String([IO.File]::ReadAllBytes($_.FullName)) -split '(.{1,4000})' | Where-Object { $_ } | ForEach-Object { Write-Output $_ }
+            Write-Output "=== END $($_.Name) ==="
+          }
+
       - name: Disinstallazione (i dati dell'utente restano)
         shell: pwsh
         run: |

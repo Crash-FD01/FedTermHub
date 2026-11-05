@@ -201,7 +201,8 @@ def self_test(report_path: Path) -> int:
             _wait(app, lambda: any(e.startswith(final) for e in tab.events), 60)
             assert tab.events, f"nessun evento dal componente RDP; stato: {tab.state.text()}"
             if target:
-                assert "login" in tab.events, "accesso non riuscito: " + ", ".join(tab.events) + " — " + tab.state.text()
+                assert "login" in tab.events, ("accesso non riuscito: " + ", ".join(tab.events) + " — " + tab.state.text()
+                                               + " — non impostate con setProperty: " + ", ".join(tab.unset))
                 tab.ax.grab().save(str(report_path.with_name("rdp-session.png")))
             version = str(tab.ax.property("Version") or "")
             tab.close_tab()

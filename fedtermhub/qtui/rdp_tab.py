@@ -81,6 +81,7 @@ class RdpTab(QWidget):
         self.events: List[str] = []  # eventi ricevuti dal componente (servono anche alla prova automatica)
         self.unset: List[str] = []  # proprietà che il componente non ha accettato (diagnostica)
         self._last_event: Optional[tuple] = None
+        self._op = ""  # proprietà o metodo in corso, per capire quale fa scattare un'eccezione COM
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -153,7 +154,8 @@ class RdpTab(QWidget):
             except Exception:  # noqa: BLE001
                 pass
         try:
-            ax.exception.connect(lambda code, source, desc, _help: self.events.append(f"exception:{code}:{desc}"))
+            ax.exception.connect(lambda code, source, desc, _help: self.events.append(
+                f"exception:{code & 0xFFFFFFFF:#010x}:{self._op}:{source}:{desc}"))
         except (AttributeError, RuntimeError, TypeError):
             pass
         self.ax = ax
@@ -203,11 +205,13 @@ class RdpTab(QWidget):
         Le proprietà di sola scrittura (ClearTextPassword) non sono nel meta-oggetto di Qt: per quelle si
         passa da dynamicCall, che con il nome di una proprietà e un valore la imposta.
         """
+        self._op = name
         try:
             if target.setProperty(name, value):
                 return True
         except Exception:  # noqa: BLE001
             pass
+        self.unset.append(f"{name}(setProperty)")
         try:
             target.dynamicCall(name, value)
             return True
@@ -279,6 +283,7 @@ class RdpTab(QWidget):
             return
         try:
             self.configure()
+            self._op = "Connect"
             self.ax.dynamicCall("Connect()")
         except Exception as exc:  # noqa: BLE001
             self.state.setText(tr("Avvio RDP fallito: {exc}").format(exc=exc))
