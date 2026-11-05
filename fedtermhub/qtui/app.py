@@ -88,7 +88,7 @@ def self_test(report_path: Path) -> int:
                             "trace": traceback.format_exc()[-2000:], "seconds": round(time.monotonic() - start, 2)})
 
     window = MainWindow()
-    window.show()
+    window.showMaximized()  # lo schermo del runner è piccolo (1024x768)
 
     def config_dir() -> str:
         assert "fedtermhub-selftest-" in str(model.CONFIG_DIR), model.CONFIG_DIR
@@ -193,6 +193,7 @@ def self_test(report_path: Path) -> int:
             tab = rdp_tab.RdpTab(window, sess, user, domain, password)
             index = window.tabs.addTab(tab, "rdp-prova")
             window.tabs.setCurrentIndex(index)
+            window._update_welcome()
             assert _wait(app, lambda: tab.ax is not None or tab.events, 15), "il componente RDP non si è creato"
             assert tab.ax is not None, "il componente RDP non si è creato: " + ", ".join(tab.events)
             assert str(tab.ax.Server) == host, f"Server = {tab.ax.Server!r}"
@@ -205,9 +206,7 @@ def self_test(report_path: Path) -> int:
                                                + " — non impostate: " + ", ".join(tab.unset))
                 _wait(app, lambda: False, 4)
                 # QWidget.grab() non vede la finestra nativa del componente: si fotografa lo schermo.
-                corner = window.mapToGlobal(window.rect().topLeft())
-                shot = app.primaryScreen().grabWindow(0, corner.x(), corner.y(), window.width(), window.height())
-                shot.save(str(report_path.with_name("rdp-session.png")))
+                app.primaryScreen().grabWindow(0).save(str(report_path.with_name("rdp-session.png")))
             version = str(tab.ax.Version or "")
             tab.close_tab()
             _wait(app, lambda: any(e.startswith("disconnected") for e in tab.events), 15)
