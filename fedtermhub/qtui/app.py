@@ -24,6 +24,12 @@ from typing import Callable, Dict, List
 SELFTEST_TIMEOUT = 90
 
 
+def _say(text: str) -> None:
+    """print() che non fallisce nell'eseguibile senza console (PyInstaller --windowed: stdout è None)."""
+    if sys.stdout is not None:
+        print(text, flush=True)
+
+
 def _isolate_config() -> Path:
     """Configurazione temporanea per la prova: va decisa prima di importare model e i18n."""
     root = Path(tempfile.mkdtemp(prefix="fedtermhub-selftest-"))
@@ -169,43 +175,64 @@ def self_test(report_path: Path) -> int:
     if sys.platform == "win32" or connect.ssh_binary():
         check("comando SSH", ssh_command)
 
-    if sys.platform == "win32":
+    if sys.platform == "win32" and app.platformName() != "offscreen":
         def rdp() -> str:
+            """Il componente RDP di Windows nella scheda.
+
+            Con FEDTERMHUB_SELFTEST_RDP="host;utente;password" (CI con Desktop remoto attivo) deve arrivare
+            all'accesso vero; senza, basta che il componente si crei, accetti le impostazioni e risponda
+            con un evento (di solito: connessione rifiutata).
+            """
             assert rdp_tab.ax_available(), "QtAxContainer non disponibile"
-            sess = model.Session(name="rdp-prova", protocol="rdp", host="127.0.0.2", rdp_cert_ignore=True)
-            tab = rdp_tab.RdpTab(window, sess, "utente", "", "password-di-prova")
+            target = os.environ.get("FEDTERMHUB_SELFTEST_RDP", "")
+            host, user, password = (target.split(";", 2) + ["", "", ""])[:3] if target else ("127.0.0.2", "utente", "x")
+            domain = ""
+            if "\\" in user:
+                domain, user = user.split("\\", 1)
+            sess = model.Session(name="rdp-prova", protocol="rdp", host=host, rdp_cert_ignore=True)
+            tab = rdp_tab.RdpTab(window, sess, user, domain, password)
             index = window.tabs.addTab(tab, "rdp-prova")
             window.tabs.setCurrentIndex(index)
             assert _wait(app, lambda: tab.ax is not None, 10), "il componente RDP non si è creato"
             server = str(tab.ax.property("Server") or "")
-            assert server == "127.0.0.2", f"Server = {server!r}"
-            adv = tab.ax.querySubObject("AdvancedSettings9")
-            assert adv is not None, "AdvancedSettings9 non disponibile"
-            # Il componente deve rispondere con un evento: connesso, oppure disconnesso con un motivo.
-            _wait(app, lambda: any(e.startswith(("disconnected", "login", "fatal")) for e in tab.events), 40)
+            assert server == host, f"Server = {server!r}"
+            assert tab.ax.querySubObject("AdvancedSettings9") is not None, "AdvancedSettings9 non disponibile"
+            final = ("disconnected", "login", "fatal")
+            _wait(app, lambda: any(e.startswith(final) for e in tab.events), 60)
             assert tab.events, "nessun evento dal componente RDP"
+            if target:
+                assert "login" in tab.events, "accesso non riuscito: " + ", ".join(tab.events) + " — " + tab.state.text()
+                tab.ax.grab().save(str(report_path.with_name("rdp-session.png")))
             version = str(tab.ax.property("Version") or "")
             tab.close_tab()
+            _wait(app, lambda: any(e.startswith("disconnected") for e in tab.events), 15)
             window.tabs.removeTab(window.tabs.indexOf(tab))
-            return f"versione {version}; eventi: {', '.join(tab.events)}"
+            unset = f"; non accettate: {', '.join(tab.unset)}" if tab.unset else ""
+            return f"versione {version}; eventi: {', '.join(tab.events)}; stato: {tab.state.text()}{unset}"
 
         check("RDP incorporato", rdp)
 
+    window.grab().save(str(report_path.with_name("main-window.png")))
     window.close()
     ok = all(r["ok"] for r in results)
     report = {"version": model.APP_VERSION, "platform": sys.platform, "ok": ok, "checks": results}
     report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     for r in results:
-        print(("OK   " if r["ok"] else "FAIL ") + str(r["name"]) + (f" — {r['detail']}" if r["detail"] else ""))
+        _say(("OK   " if r["ok"] else "FAIL ") + str(r["name"]) + (f" — {r['detail']}" if r["detail"] else ""))
     return 0 if ok else 1
 
 
 def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
     argv = list(sys.argv[1:] if argv is None else argv)
+    # Nell'eseguibile senza console stdout e stderr non esistono: un print() farebbe cadere il programma.
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
     if "--version" in argv:
         from .. import model
 
-        print(f"{model.APP_NAME} {model.APP_VERSION}")
+        _say(f"{model.APP_NAME} {model.APP_VERSION}")
         return 0
     if "--self-test" in argv:
         index = argv.index("--self-test")
@@ -214,7 +241,7 @@ def main(argv: List[str] = None) -> int:  # type: ignore[assignment]
             return self_test(target.resolve())
         except Exception:  # noqa: BLE001
             target.write_text(json.dumps({"ok": False, "error": traceback.format_exc()}), encoding="utf-8")
-            traceback.print_exc()
+            _say(traceback.format_exc())
             return 2
 
     from PySide6.QtCore import Qt

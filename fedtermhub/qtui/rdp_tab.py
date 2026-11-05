@@ -77,7 +77,8 @@ class RdpTab(QWidget):
         self.gateway_password = gateway_password
         self.ax = None
         self.connected = False
-        self.events: List[str] = []  # eventi ricevuti dal componente (servono anche alla prova automatica)
+        self.events: List[str] = []
+        self.unset: List[str] = []  # proprietà che il componente non ha accettato (diagnostica)  # eventi ricevuti dal componente (servono anche alla prova automatica)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -155,10 +156,21 @@ class RdpTab(QWidget):
         return True
 
     def _set(self, target, name: str, value) -> bool:  # noqa: ANN001
-        """Imposta una proprietà COM; una che questa versione di Windows non ha non deve fermare tutto."""
+        """Imposta una proprietà COM; una che questa versione di Windows non ha non deve fermare tutto.
+
+        Le proprietà di sola scrittura (ClearTextPassword) non sono nel meta-oggetto di Qt: per quelle si
+        passa da dynamicCall, che con il nome di una proprietà e un valore la imposta.
+        """
         try:
-            return bool(target.setProperty(name, value))
+            if target.setProperty(name, value):
+                return True
         except Exception:  # noqa: BLE001
+            pass
+        try:
+            target.dynamicCall(name, value)
+            return True
+        except Exception:  # noqa: BLE001
+            self.unset.append(name)
             return False
 
     def configure(self) -> None:

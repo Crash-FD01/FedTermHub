@@ -59,6 +59,16 @@ def icon(name: str) -> QIcon:
     return QIcon()
 
 
+def app_icon() -> QIcon:
+    """L'icona del programma: accanto ai moduli nella versione installata, in share/ nei sorgenti."""
+    name = "io.github.crash_fd01.fedtermhub.png"
+    here = Path(__file__).resolve().parent
+    for candidate in (here / name, here.parents[1] / "share" / "icons" / "hicolor" / "256x256" / "apps" / name):
+        if candidate.is_file():
+            return QIcon(str(candidate))
+    return QIcon()
+
+
 class TerminalTab(QWidget):
     """Una scheda con un programma in un terminale (SSH, Telnet, PowerShell…)."""
 
@@ -144,7 +154,7 @@ class MainWindow(QMainWindow):
         self.vault = model.PasswordVault(model.VAULT_FILE)
         self.last_activity = time.monotonic()
         self.setWindowTitle(f"{model.APP_NAME} {model.APP_VERSION}")
-        self.setWindowIcon(icon("fedtermhub") if not icon("fedtermhub").isNull() else QIcon())
+        self.setWindowIcon(app_icon())
         self.resize(self.settings.window_width, self.settings.window_height)
         self._build_actions()
         self._build_ui()
