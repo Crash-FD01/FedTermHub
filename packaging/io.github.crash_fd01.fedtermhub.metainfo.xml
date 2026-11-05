@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.13.1" date="2026-11-05">
+      <description>
+        <p>Windows version: a double click opens one tab, and the SSH tunnel windows work like the Linux ones. The hint above the tabs is gone.</p>
+        <p xml:lang="it">Versione Windows: un doppio clic apre una scheda sola e le finestre dei tunnel SSH funzionano come su Linux. Tolta la scritta sopra le schede.</p>
+      </description>
+    </release>
     <release version="0.13.0" date="2026-11-05">
       <description>
         <p>Windows version: split terminal and MultiExec, with the same keys and behaviour as on Linux.</p>

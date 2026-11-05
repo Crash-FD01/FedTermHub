@@ -14,11 +14,13 @@ import os
 import shlex
 import socket
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 try:
+    from . import look
     from .i18n import tr
 except ImportError:  # avvio come script (fedtermhub/fedtermhub.py) o dai test
+    import look  # type: ignore[no-redef]
     from i18n import tr  # type: ignore[no-redef]
 
 
@@ -190,6 +192,53 @@ def tunnel_argv(binary: str, tunnel, settings, user: str, has_password: bool) ->
     return argv + ["--", ssh_target(user, tunnel.ssh_host)]
 
 
+def tunnel_state_display(state: str) -> Tuple[str, str]:
+    """Come si mostra lo stato di un tunnel: (testo, colore). «waiting» è l'attesa prima di riconnettersi."""
+    labels = {
+        "running": tr("● Attivo"),
+        "starting": tr("● Avvio"),
+        "restarting": tr("● Riconnessione"),
+        "waiting": tr("● Riconnessione"),
+        "error": tr("● Errore"),
+        "locked": tr("● Password bloccate"),
+        "stopped": tr("○ Fermo"),
+    }
+    return labels.get(state, f"○ {state}"), look.TUNNEL_STATE_COLORS.get(state, look.TUNNEL_STATE_COLORS["stopped"])
+
+
+def tunnel_route(tunnel_type: str) -> Dict[str, str]:
+    """I testi del percorso di un tunnel nell'editor, secondo il tipo."""
+    if tunnel_type == "dynamic":
+        return {
+            "bind": tr("Indirizzo proxy"), "port": tr("Porta SOCKS"),
+            "left": tr("Applicazioni locali"), "right": tr("Rete remota"), "arrow": "→",
+            "explain": tr("Le applicazioni locali si collegano al proxy SOCKS. Il server SSH "
+                          "apre poi la connessione verso la destinazione richiesta dal client."),
+        }
+    if tunnel_type == "remote":
+        return {
+            "bind": tr("Bind sul server SSH"), "port": tr("Porta remota"),
+            "left": tr("Servizio locale"), "right": tr("Client remoti"), "arrow": "←",
+            "explain": tr("I client remoti raggiungono la porta aperta sul server SSH; il traffico "
+                          "viene riportato al servizio raggiungibile da questo computer."),
+        }
+    return {
+        "bind": tr("Indirizzo locale"), "port": tr("Porta locale"),
+        "left": tr("Client locale"), "right": tr("Servizio remoto"), "arrow": "→",
+        "explain": tr("Il client locale si collega alla porta indicata e raggiunge il servizio "
+                      "di destinazione attraverso il server SSH."),
+    }
+
+
+def tunnel_route_details(tunnel) -> Tuple[str, str, str]:  # noqa: ANN001
+    """Gli indirizzi dei tre elementi del percorso, da sinistra a destra."""
+    if tunnel.tunnel_type == "remote":
+        return tunnel.destination_endpoint(), tunnel.ssh_endpoint(), tunnel.listen_endpoint()
+    if tunnel.tunnel_type == "dynamic":
+        return tunnel.listen_endpoint(), tunnel.ssh_endpoint(), tr("Destinazione dinamica")
+    return tunnel.listen_endpoint(), tunnel.ssh_endpoint(), tunnel.destination_endpoint()
+
+
 def tunnel_probe_argv(binary: str, tunnel, settings, user: str, has_password: bool) -> List[str]:  # noqa: ANN001
     """ssh che si collega e stampa FEDTERMHUB_TUNNEL_OK, senza aprire porte: prova accesso e raggiungibilità."""
     problems = tunnel_problems(tunnel)
@@ -209,4 +258,4 @@ def tunnel_probe_argv(binary: str, tunnel, settings, user: str, has_password: bo
         argv.append("-v")
     if not has_password:
         argv += ["-o", "BatchMode=yes"]
-    return argv + ["--", ssh_target(user, tunnel.ssh_host), "printf FEDTERMHUB_TUNNEL_OK"]
+    return argv + ["--", ssh_target(user, tunnel.ssh_host), "echo FEDTERMHUB_TUNNEL_OK"]
