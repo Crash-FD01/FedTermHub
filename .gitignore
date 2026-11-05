@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .ruff_cache/
 .venv/
+.venv-qt/
 venv/
 
 # Binario dell'helper nativo: si ricostruisce con `make -C native`
