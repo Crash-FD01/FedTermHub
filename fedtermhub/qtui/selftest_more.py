@@ -157,7 +157,9 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         wait(app, lambda: False, 0.2)
         assert dialog.table.width() >= table_size[0] + 150 and dialog.table.height() >= table_size[1] + 100, \
             (table_size, dialog.table.size())
-        assert (dialog.b_start.height(), dialog.detail_summary.parentWidget().height()) == heights, "barre allargate"
+        # il riepilogo può solo accorciarsi: con più larghezza il testo va a capo meno
+        assert dialog.b_start.height() == heights[0] and dialog.detail_summary.parentWidget().height() <= heights[1], \
+            ("barre allargate", heights, dialog.b_start.height(), dialog.detail_summary.parentWidget().height())
         widths = [dialog.table.columnWidth(c) for c in range(7)]
         assert widths[dialog.C_AUTO] == 54 and widths[dialog.C_NAME] > 150, widths
         # log, cerca, duplica
