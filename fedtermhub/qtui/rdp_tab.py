@@ -425,8 +425,9 @@ class RdpTab(QWidget):
     def _desktop_size(self):  # noqa: ANN202
         size = self.host_area.size()
         ratio = self.devicePixelRatioF()
-        width = max(800, round(size.width() * ratio)) // 4 * 4  # il componente vuole una larghezza multipla di 4
-        height = max(600, round(size.height() * ratio))
+        # La dimensione della scheda (senza barre di scorrimento); il componente vuole una larghezza multipla di 4.
+        width = max(640, round(size.width() * ratio)) // 4 * 4
+        height = max(480, round(size.height() * ratio))
         return min(width, 8192), min(height, 8192)
 
     def resizeEvent(self, event) -> None:  # noqa: ANN001, N802
@@ -461,6 +462,8 @@ class RdpTab(QWidget):
         self.status.emit(tr("Sessione attiva"))
         if self.host is not None:
             self.host.setFocus()
+        # Se la scheda ha cambiato dimensione durante la connessione, il desktop remoto si adegua.
+        self._resize_timer.start()
 
     def _describe(self, reason: int) -> str:
         text = DISCONNECT_REASONS.get(reason, "")
