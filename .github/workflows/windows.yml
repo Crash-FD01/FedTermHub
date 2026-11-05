@@ -108,6 +108,7 @@ jobs:
           $data = Get-Content $report -Raw | ConvertFrom-Json
           foreach ($c in $data.checks) {
             $line = "$($c.name): $($c.detail)"
+            Write-Host ($(if ($c.ok) { 'OK   ' } else { 'FAIL ' }) + $line)
             if ($c.ok) { Write-Output "::notice title=OK $($c.name)::$($c.detail)" }
             else { Write-Output "::error title=$($c.name)::$($c.detail)" }
           }

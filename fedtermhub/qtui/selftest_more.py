@@ -166,7 +166,9 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
             tab.view.on_input("cd /tmp\r")
             assert wait(app, lambda: tab.files.cwd == "/tmp", 15), f"il pannello non segue il cd: {tab.files.cwd}"
             followed = ", segue il cd"
-        window.grab().save(str(report_path.with_name("ssh-session.png")))
+        wait(app, lambda: False, 1.5)
+        # Lo schermo intero, non window.grab(): il terminale (WebEngine) su Windows non sempre compare nel grab.
+        app.primaryScreen().grabWindow(0).save(str(report_path.with_name("ssh-session.png")))
         close(tab)
         return f"{user}@{host}:{port}, password scritta al prompt, pannello file in {tab.files.home}{followed}"
 
