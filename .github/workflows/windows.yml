@@ -87,7 +87,10 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ steps.rdp.outputs.target }}
-        run: python tests/windows_rdp_probe.py "$TARGET"
+        run: |
+          mkdir -p out
+          python -m pip install --quiet comtypes
+          python tests/windows_rdp_probe.py "$TARGET" 2>&1
 
       - name: Installazione silenziosa e prova del programma installato
         shell: pwsh
