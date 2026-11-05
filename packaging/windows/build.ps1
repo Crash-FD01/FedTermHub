@@ -25,10 +25,10 @@ python -m PyInstaller --noconfirm --clean --windowed --name FedTermHub `
     --icon "$assets\fedtermhub.ico" --version-file "$assets\version.txt" `
     --paths $root `
     --collect-submodules fedtermhub.qtui --hidden-import PySide6.QtAxContainer --hidden-import winpty `
-    --add-data "fedtermhub\qtui\xterm;fedtermhub\qtui\xterm" `
-    --add-data "fedtermhub\locale;fedtermhub\locale" `
-    --add-data "fedtermhub\icons;fedtermhub\icons" `
-    --add-data "$icon;fedtermhub\qtui" `
+    --add-data "$root\fedtermhub\qtui\xterm;fedtermhub\qtui\xterm" `
+    --add-data "$root\fedtermhub\locale;fedtermhub\locale" `
+    --add-data "$root\fedtermhub\icons;fedtermhub\icons" `
+    --add-data "$root\$icon;fedtermhub\qtui" `
     --exclude-module tkinter --exclude-module unittest --exclude-module pydoc --exclude-module gi `
     --exclude-module fedtermhub.fedtermhub `
     --distpath dist\windows --workpath build\pyinstaller --specpath build\pyinstaller `
