@@ -141,6 +141,7 @@ class FilesPanel(QWidget):
             bar.addStretch(1)
         self.follow_button = QToolButton()
         self.follow_button.setText(tr("Segui"))
+        self.follow_button.setProperty("role", "mini")
         self.follow_button.setCheckable(True)
         self.follow_button.setChecked(follow_terminal)
         self.follow_button.setToolTip(tr("Segui la cartella del terminale (cd)"))
@@ -152,7 +153,9 @@ class FilesPanel(QWidget):
             layout.addWidget(self.path)
 
         self.model = QStandardItemModel(self)
-        self.model.setHorizontalHeaderLabels([tr("Nome"), tr("Dimensione"), tr("Modificato"), tr("Permessi")])
+        # Nel pannello laterale l'intestazione è nascosta ma la sua larghezza conterebbe lo stesso: senza testo.
+        self.model.setHorizontalHeaderLabels(["", "", "", ""] if compact else
+                                             [tr("Nome"), tr("Dimensione"), tr("Modificato"), tr("Permessi")])
         self.tree = _DropTree()
         self.tree.setModel(self.model)
         self.tree.setRootIsDecorated(False)
@@ -165,10 +168,16 @@ class FilesPanel(QWidget):
         self.tree.doubleClicked.connect(self._activated)
         self.tree.files_dropped.connect(self.upload)
         header = self.tree.header()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        header.setStretchLastSection(False)  # lo spazio che avanza va al nome, non all'ultima colonna
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for column in (1, 2, 3):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         if compact:
+            # Nel pannello laterale lo spazio è poco: niente intestazione e solo nome e dimensione; il resto è
+            # nel suggerimento di ogni riga.
+            self.tree.setHeaderHidden(True)
+            header.setMinimumSectionSize(24)
             self.tree.hideColumn(2)
             self.tree.hideColumn(3)
         layout.addWidget(self.tree, 1)
@@ -309,6 +318,10 @@ class FilesPanel(QWidget):
             size.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             modified = QStandardItem(time.strftime("%d/%m/%Y %H:%M", time.localtime(item.mtime)) if item.mtime else "")
             perms = QStandardItem(item.permissions)
+            # Il nome intero e i dati delle colonne nascoste, quando la riga è stretta.
+            tip = "\n".join(part for part in (item.name, size.text(), modified.text(), item.permissions) if part)
+            for cell in (name, size):
+                cell.setToolTip(tip)
             self.model.appendRow([name, size, modified, perms])
 
     # ------------------------------------------------------------------ navigazione

@@ -3,13 +3,15 @@
 """Tema chiaro e scuro dell'interfaccia Qt, con i colori della versione Linux (fedtermhub/look.py)."""
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
-from typing import Dict
+from typing import Callable, Dict
 
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QPainter, QPalette, QPen, QPixmap
+from PySide6.QtWidgets import QApplication, QSpinBox, QWidget
 
-from .. import look
+from .. import look, model
 
 _current = "dark"
 
@@ -37,8 +39,75 @@ def is_dark() -> bool:
     return _current == "dark"
 
 
-def stylesheet(c: Dict[str, str]) -> str:
-    """Il foglio di stile Qt: stesse parti e stessi colori del foglio di stile GTK."""
+def control_images(c: Dict[str, str]) -> Dict[str, str]:
+    """Freccette e spunta dei controlli (caselle a discesa, campi numerici, caselle di spunta) nel colore del tema.
+
+    Il foglio di stile Qt le vuole come file: si disegnano qui, a 1x, 2x e 3x per gli schermi ingranditi, nella
+    cartella della cache. Senza di loro Qt disegnerebbe i suoi pulsanti squadrati sopra i bordi arrotondati.
+    """
+    def polyline(*points: tuple) -> Callable[[QPainter], None]:
+        return lambda painter: painter.drawPolyline([QPointF(x, y) for x, y in points])
+
+    shapes = {
+        "down": (c["caption"], polyline((2.2, 3.8), (5, 6.6), (7.8, 3.8))),
+        "up": (c["caption"], polyline((2.2, 6.2), (5, 3.4), (7.8, 6.2))),
+        "check": ("#ffffff", polyline((2, 5.3), (4.2, 7.5), (8.1, 2.9))),
+    }
+    try:
+        folder = model.CACHE_DIR / "qt-controls" / _current
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        folder = Path(tempfile.mkdtemp(prefix="fedtermhub-controls-"))
+    images: Dict[str, str] = {}
+    for name, (color, paint) in shapes.items():
+        for scale in (1, 2, 3):
+            pixmap = QPixmap(10 * scale, 10 * scale)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.scale(scale, scale)
+            pen = QPen(QColor(color), 1.5)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            paint(painter)
+            painter.end()
+            pixmap.save(str(folder / (f"{name}.png" if scale == 1 else f"{name}@{scale}x.png")))
+        images[name] = (folder / f"{name}.png").as_posix()
+    return images
+
+
+def spin_box(minimum: int, maximum: int, value: int, width: int = 0) -> QSpinBox:
+    """Un campo numerico con lo stile degli altri campi.
+
+    Qt non applica il margine del foglio di stile al testo dei campi numerici, che resterebbe attaccato al bordo
+    arrotondato: il margine si dà qui. `width`: larghezza massima, per i valori corti come le porte.
+    """
+    box = QSpinBox()
+    box.setRange(minimum, maximum)
+    box.setValue(value)
+    box.lineEdit().setTextMargins(8, 0, 0, 0)
+    if width:
+        box.setMaximumWidth(width)
+    return box
+
+
+def fit_to_screen(window: QWidget, margin: int = 48) -> None:
+    """Riduce una finestra che non entra nello schermo (portatili, Windows ingrandito al 125% o 150%)."""
+    screen = (window.parentWidget().screen() if window.parentWidget() else None) or QApplication.primaryScreen()
+    if screen is None:
+        return
+    free = screen.availableGeometry()
+    width, height = free.width() - margin, free.height() - margin
+    minimum = window.minimumSize()
+    if minimum.width() > width or minimum.height() > height:
+        window.setMinimumSize(min(minimum.width(), width), min(minimum.height(), height))
+    if window.width() > width or window.height() > height:
+        window.resize(min(window.width(), width), min(window.height(), height))
+
+
+def stylesheet(c: Dict[str, str], i: Dict[str, str]) -> str:
+    """Il foglio di stile Qt: stesse parti e stessi colori del foglio di stile GTK. `i`: control_images()."""
     return f"""
     QMainWindow, QDialog {{ background: {c['root']}; }}
     QWidget {{ color: {c['text']}; }}
@@ -75,6 +144,7 @@ def stylesheet(c: Dict[str, str]) -> str:
     QToolButton[role="mini"] {{ background: {c['button']}; border: 1px solid {c['button_line']}; border-radius: 8px;
         padding: 5px; min-width: 22px; }}
     QToolButton[role="mini"]:hover {{ background: {c['button_hover']}; }}
+    QToolButton[role="mini"]:checked {{ background: {c['selected']}; border-color: {c['focus']}; color: {c['selected_text']}; }}
     QToolButton[role="flat"] {{ background: transparent; border: 0; border-radius: 6px; padding: 4px; }}
     QToolButton[role="flat"]:hover {{ background: {c['hover']}; }}
     QTreeView#sessionTree {{ background: transparent; border: 0; color: {c['tree_text']}; outline: 0; }}
@@ -109,6 +179,49 @@ def stylesheet(c: Dict[str, str]) -> str:
     QPushButton:default, QPushButton[role="accent"] {{ background: {c['accent']}; color: #ffffff; border-color: {c['accent']}; }}
     QPushButton:default:hover, QPushButton[role="accent"]:hover {{ background: {c['accent_hover']}; }}
     QPushButton[role="accent"] {{ padding: 2px 12px; }}
+    QPushButton:checked {{ background: {c['selected']}; border-color: {c['focus']}; color: {c['selected_text']}; }}
+    QDialogButtonBox {{ dialogbuttonbox-buttons-have-icons: 0; }}
+
+    QComboBox {{ padding-right: 26px; }}
+    QComboBox:disabled, QLineEdit:disabled, QAbstractSpinBox:disabled {{ color: {c['muted']}; }}
+    QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; width: 24px; border: 0;
+        background: transparent; }}
+    QComboBox::down-arrow {{ image: url("{i['down']}"); width: 10px; height: 10px; }}
+    QComboBox QLineEdit {{ background: transparent; border: 0; border-radius: 0; padding: 0; }}
+    QComboBox QAbstractItemView {{ background: {c['menu']}; border: 1px solid {c['menu_line']}; padding: 4px; outline: 0;
+        selection-background-color: {c['selected']}; selection-color: {c['selected_text']}; }}
+
+    QAbstractSpinBox {{ background: {c['entry']}; border: 1px solid {c['entry_line']}; border-radius: 9px;
+        padding: 4px 26px 4px 9px; selection-background-color: {c['focus']}; }}
+    QAbstractSpinBox:focus {{ border-color: {c['focus']}; }}
+    QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{ subcontrol-origin: border; width: 22px; border: 0;
+        border-left: 1px solid {c['entry_line']}; background: transparent; }}
+    QAbstractSpinBox::up-button {{ subcontrol-position: top right; border-top-right-radius: 8px; margin: 1px 1px 0 0; }}
+    QAbstractSpinBox::down-button {{ subcontrol-position: bottom right; border-bottom-right-radius: 8px; margin: 0 1px 1px 0; }}
+    QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {{ background: {c['hover']}; }}
+    QAbstractSpinBox::up-button:pressed, QAbstractSpinBox::down-button:pressed {{ background: {c['selected']}; }}
+    QAbstractSpinBox::up-arrow {{ image: url("{i['up']}"); width: 8px; height: 8px; }}
+    QAbstractSpinBox::down-arrow {{ image: url("{i['down']}"); width: 8px; height: 8px; }}
+
+    QCheckBox, QRadioButton {{ spacing: 7px; }}
+    QCheckBox::indicator, QGroupBox::indicator {{ width: 15px; height: 15px; border: 1px solid {c['muted']};
+        border-radius: 4px; background: {c['entry']}; }}
+    QCheckBox::indicator:hover, QRadioButton::indicator:hover {{ border-color: {c['focus']}; }}
+    QCheckBox::indicator:checked, QGroupBox::indicator:checked {{ background: {c['accent']}; border-color: {c['accent']};
+        image: url("{i['check']}"); }}
+    QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{ border-color: {c['line']}; }}
+    QRadioButton::indicator {{ width: 14px; height: 14px; border: 1px solid {c['muted']}; border-radius: 8px;
+        background: {c['entry']}; }}
+    QRadioButton::indicator:checked {{ width: 6px; height: 6px; border: 5px solid {c['accent']}; background: #ffffff; }}
+
+    QTreeView, QTableView, QListView {{ background: {c['entry']}; border: 1px solid {c['line']}; outline: 0;
+        alternate-background-color: {c['hover']}; gridline-color: {c['line']}; }}
+    QTreeView::item, QTableView::item, QListView::item {{ padding: 4px 6px; }}
+    QTreeView::item:selected, QTableView::item:selected, QListView::item:selected {{ background: {c['selected']};
+        color: {c['selected_text']}; }}
+    QProgressBar {{ background: {c['entry']}; border: 1px solid {c['entry_line']}; border-radius: 6px; text-align: center;
+        min-height: 14px; }}
+    QProgressBar::chunk {{ background: {c['accent']}; border-radius: 5px; }}
     QHeaderView::section {{ background: {c['bar']}; border: 0; border-bottom: 1px solid {c['line']};
         border-right: 1px solid {c['line']}; padding: 5px 8px; font-weight: 600; }}
     QScrollBar:vertical {{ background: transparent; width: 10px; margin: 0; }}
@@ -152,7 +265,7 @@ def apply(app: QApplication, name: str) -> None:
         pal.setColor(group, role.ButtonText, QColor(c["muted"]))
         pal.setColor(group, role.WindowText, QColor(c["muted"]))
     app.setPalette(pal)
-    app.setStyleSheet(stylesheet(c))
+    app.setStyleSheet(stylesheet(c, control_images(c)))
 
 
 def terminal_theme() -> Dict[str, object]:

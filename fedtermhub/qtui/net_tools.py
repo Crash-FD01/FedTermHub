@@ -30,7 +30,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -40,6 +39,7 @@ from PySide6.QtWidgets import (
 
 from ..i18n import tr
 from .. import netcore as net_core
+from . import theme
 
 
 class _Relay(QObject):
@@ -53,9 +53,14 @@ class _Relay(QObject):
 def _run(relay: _Relay, work: Callable[[], object]) -> None:
     def target() -> None:
         try:
-            relay.done.emit(work())
-        except Exception as exc:  # noqa: BLE001
-            relay.failed.emit(str(exc))
+            try:
+                relay.done.emit(work())
+            except RuntimeError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                relay.failed.emit(str(exc))
+        except RuntimeError:
+            pass  # la finestra è stata chiusa mentre il lavoro era in corso: non c'è più nessuno da avvisare
 
     threading.Thread(target=target, daemon=True).start()
 
@@ -66,6 +71,7 @@ def _table(headers: List[str], stretch: int) -> QTableWidget:
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     table.verticalHeader().hide()
+    table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
     table.setSortingEnabled(True)
     table.horizontalHeader().setSectionResizeMode(stretch, QHeaderView.ResizeMode.Stretch)
     return table
@@ -329,14 +335,10 @@ class WakePage(QWidget):
         self.mac = QLineEdit()
         self.mac.setPlaceholderText("00:11:22:33:44:55")
         self.broadcast = QLineEdit("255.255.255.255")
-        self.port = QSpinBox()
-        self.port.setRange(1, 65535)
-        self.port.setValue(9)
+        self.port = theme.spin_box(1, 65535, 9, width=140)
         form.addRow(tr("Indirizzo MAC"), self.mac)
         form.addRow(tr("Broadcast"), self.broadcast)
-        self.repeat = QSpinBox()
-        self.repeat.setRange(1, 10)
-        self.repeat.setValue(3)
+        self.repeat = theme.spin_box(1, 10, 3, width=140)
         form.addRow(tr("Porta UDP"), self.port)
         form.addRow(tr("Invii"), self.repeat)
         layout.addLayout(form)
@@ -371,9 +373,7 @@ class ServersPage(QWidget):
         http_box = QGroupBox(tr("Server HTTP (sola lettura)"))
         http_form = QFormLayout(http_box)
         self.http_folder = QLineEdit(str(settings.value("tools/http_folder", default)))
-        self.http_port = QSpinBox()
-        self.http_port.setRange(1, 65535)
-        self.http_port.setValue(int(settings.value("tools/http_port", 8080)))
+        self.http_port = theme.spin_box(1, 65535, int(settings.value("tools/http_port", 8080)), width=140)
         self.http_button = QPushButton(tr("Avvia"))
         self.http_button.clicked.connect(self.toggle_http)
         http_form.addRow(tr("Cartella"), self._folder_row(self.http_folder))
@@ -384,9 +384,7 @@ class ServersPage(QWidget):
         tftp_box = QGroupBox(tr("Server TFTP"))
         tftp_form = QFormLayout(tftp_box)
         self.tftp_folder = QLineEdit(str(settings.value("tools/tftp_folder", default)))
-        self.tftp_port = QSpinBox()
-        self.tftp_port.setRange(1, 65535)
-        self.tftp_port.setValue(int(settings.value("tools/tftp_port", 69)))
+        self.tftp_port = theme.spin_box(1, 65535, int(settings.value("tools/tftp_port", 69)), width=140)
         self.tftp_write = QCheckBox(tr("Permetti di scrivere file (backup delle configurazioni)"))
         self.tftp_button = QPushButton(tr("Avvia"))
         self.tftp_button.clicked.connect(self.toggle_tftp)
@@ -520,6 +518,7 @@ class NetworkToolsDialog(QDialog):
         self.create_session = create_session
         self.setWindowTitle(tr("Strumenti di rete"))
         self.resize(900, 620)
+        theme.fit_to_screen(self)
         layout = QVBoxLayout(self)
         self.tabs = QTabWidget()
         self.network = NetworkScanPage(self)

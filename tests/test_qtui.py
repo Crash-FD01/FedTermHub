@@ -122,7 +122,11 @@ def check_versions() -> None:
 
 def check_self_test() -> None:
     report = Path(tempfile.mkdtemp()) / "report.json"
-    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    # Uno schermo Full HD con Windows al 150% (1280x720 punti): la misura più stretta fra quelle comuni.
+    screens = Path(tempfile.mkdtemp()) / "schermo.json"
+    screens.write_text(json.dumps({"screens": [{"name": "prova", "x": 0, "y": 0, "width": 1280, "height": 720,
+                                                "logicalDpi": 96, "logicalBaseDpi": 96, "dpr": 1.5}]}))
+    env = dict(os.environ, QT_QPA_PLATFORM=f"offscreen:configfile={screens}")
     env.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--no-sandbox")
     try:
         result = subprocess.run([sys.executable, "-m", "fedtermhub.qtui", "--self-test", str(report)], cwd=ROOT, env=env,

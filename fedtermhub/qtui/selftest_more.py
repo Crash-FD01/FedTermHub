@@ -88,6 +88,42 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
 
     check("Finestra come la versione Linux", layout)
 
+    # ------------------------------------------------------------------ layout di tutte le finestre
+    def layout() -> str:
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QStyle, QStyleOptionSpinBox
+
+        from . import selftest_layout, theme
+
+        # Le freccette dei campi numerici funzionano anche con lo stile del programma.
+        spin = theme.spin_box(0, 100, 10)
+        spin.setParent(window, Qt.WindowType.Tool)
+        spin.show()
+        wait(app, lambda: False, 0.2)
+        option = QStyleOptionSpinBox()
+        spin.initStyleOption(option)
+        style, cc = spin.style(), QStyle.ComplexControl.CC_SpinBox
+        up = style.subControlRect(cc, option, QStyle.SubControl.SC_SpinBoxUp, spin)
+        down = style.subControlRect(cc, option, QStyle.SubControl.SC_SpinBoxDown, spin)
+        assert up.width() >= 16 and down.width() >= 16 and not up.intersects(down), (up, down)
+        QTest.mouseClick(spin, Qt.MouseButton.LeftButton, pos=up.center())
+        assert spin.value() == 11, f"freccia su: {spin.value()}"
+        QTest.mouseClick(spin, Qt.MouseButton.LeftButton, pos=down.center())
+        QTest.mouseClick(spin, Qt.MouseButton.LeftButton, pos=down.center())
+        assert spin.value() == 9, f"freccia giù: {spin.value()}"
+        spin.close()
+        spin.deleteLater()
+        for image in theme.control_images(theme.colors()).values():
+            assert Path(image).is_file() and Path(image).with_name(Path(image).stem + "@2x.png").is_file(), image
+
+        report = selftest_layout.run(app, window, wait, report_path.parent)
+        assert not report, "; ".join(f"{name}: {', '.join(found)}" for name, found in report.items())
+        screen = window.screen().availableGeometry()
+        return f"{len(list(selftest_layout.scenes(window)))} finestre senza difetti su {screen.width()}x{screen.height()}"
+
+    check("Layout delle finestre", layout)
+
     # ------------------------------------------------------------------ doppio clic, benvenuto
     def double_click() -> str:
         from PySide6.QtCore import QPoint, Qt

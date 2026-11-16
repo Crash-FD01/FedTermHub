@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 
 from .. import model
 from ..i18n import tr
-from . import updates
+from . import theme, updates
 
 
 def _combo(options, current: str) -> QComboBox:  # noqa: ANN001
@@ -35,9 +35,7 @@ def _combo(options, current: str) -> QComboBox:  # noqa: ANN001
 
 
 def _spin(value: int, minimum: int, maximum: int, suffix: str = "", special: str = "") -> QSpinBox:
-    box = QSpinBox()
-    box.setRange(minimum, maximum)
-    box.setValue(value)
+    box = theme.spin_box(minimum, maximum, value)
     if suffix:
         box.setSuffix(suffix)
     if special:

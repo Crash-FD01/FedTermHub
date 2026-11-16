@@ -118,7 +118,10 @@ class MainWindow(QMainWindow):
         self.last_activity = time.monotonic()
         self.setWindowTitle(f"{model.APP_NAME} {model.APP_VERSION}")
         self.setWindowIcon(app_icon())
+        self.setMinimumSize(760, 480)
         self.resize(self.settings.window_width, self.settings.window_height)
+        # La misura salvata può venire da uno schermo più grande (monitor esterno, ingrandimento diverso).
+        theme.fit_to_screen(self, margin=40)
         self._icon_bindings: List[Tuple[Callable[[QIcon], None], str]] = []
         self._build_actions()
         self._build_ui()
@@ -1110,7 +1113,7 @@ class MainWindow(QMainWindow):
     def open_log(self) -> None:
         LogDialog(self).exec()
 
-    def show_shortcuts(self) -> None:
+    def shortcut_rows(self) -> List[Tuple[str, str]]:
         actions = [self.act_new_session, self.act_quick, self.act_local, self.act_close_tab,
                    self.view_toggles["show_sidebar"], self.act_edit, self.act_duplicate, self.act_delete,
                    self.act_tunnels, self.act_net_tools, self.act_settings, self.act_guide, self.act_quit]
@@ -1119,7 +1122,10 @@ class MainWindow(QMainWindow):
         rows.insert(1, ("Ctrl+F", tr("Cerca sessioni")))
         outside = tr("(con il fuoco fuori dal terminale)")
         rows += [("Ctrl+Shift+E", f"{tr('File remoti')} {outside}"), ("Ctrl+Shift+P", f"{tr('Password Manager')} {outside}")]
-        ShortcutsDialog(self, rows).exec()
+        return rows
+
+    def show_shortcuts(self) -> None:
+        ShortcutsDialog(self, self.shortcut_rows()).exec()
 
     def export_vault(self) -> None:
         if not self.ensure_vault_unlocked(create_if_missing=False):

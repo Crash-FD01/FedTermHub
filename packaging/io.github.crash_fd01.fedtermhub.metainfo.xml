@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.13.3" date="2026-11-16">
+      <description>
+        <p>Windows version: consistent look for drop-downs, number fields and check boxes, and windows that fit small or scaled screens.</p>
+        <p xml:lang="it">Versione Windows: caselle a discesa, campi numerici e caselle di spunta con lo stile del programma, e finestre che entrano negli schermi piccoli o ingranditi.</p>
+      </description>
+    </release>
     <release version="0.13.2" date="2026-11-05">
       <description>
         <p>Windows version: in a split terminal the active pane no longer changes by itself.</p>
