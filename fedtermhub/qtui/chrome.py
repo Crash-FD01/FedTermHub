@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Callable, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 
 from .. import model
 from ..i18n import tr
+from . import theme
 
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 KIND_ROLE = Qt.ItemDataRole.UserRole + 2
@@ -149,6 +150,7 @@ class LogDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(tr("Log applicazione"))
         self.resize(820, 520)
+        theme.fit_to_screen(self)
         layout = QVBoxLayout(self)
         path = QLabel(str(model.LOG_FILE))
         path.setProperty("role", "muted")
@@ -160,7 +162,9 @@ class LogDialog(QDialog):
         layout.addWidget(self.text, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         clear = buttons.addButton(tr("Svuota"), QDialogButtonBox.ButtonRole.ResetRole)
+        clear.setAutoDefault(False)  # Invio chiude, non svuota
         clear.clicked.connect(self._clear)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setDefault(True)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
         self.load()
@@ -201,18 +205,24 @@ class ShortcutsDialog(QDialog):
                 (tr("Ctrl+Maiusc+P"), tr("Scrivi in tutti i riquadri insieme")),
             ]),
         ]
+        # I nomi dei tasti come li scrive Qt nei menu (su Windows «Shift», non «Maiusc»): una forma sola.
+        shift = QKeySequence("Shift+A").toString(QKeySequence.SequenceFormat.NativeText).rsplit("+", 1)[0]
+        grid = QGridLayout()  # una sola griglia: le due colonne restano allineate fra le sezioni
+        grid.setHorizontalSpacing(24)
+        grid.setColumnStretch(1, 1)
+        row = 0
         for title, rows in sections:
             heading = QLabel(title)
             heading.setProperty("role", "heading")
-            layout.addWidget(heading)
-            grid = QGridLayout()
-            grid.setHorizontalSpacing(24)
-            for row, (keys, what) in enumerate(rows):
-                key = QLabel(f"<b>{keys}</b>")
-                grid.addWidget(key, row, 0)
+            if row:
+                heading.setContentsMargins(0, 8, 0, 0)
+            grid.addWidget(heading, row, 0, 1, 2)
+            row += 1
+            for keys, what in rows:
+                grid.addWidget(QLabel(f"<b>{keys.replace('Maiusc', shift)}</b>"), row, 0)
                 grid.addWidget(QLabel(what), row, 1)
-            grid.setColumnStretch(1, 1)
-            layout.addLayout(grid)
+                row += 1
+        layout.addLayout(grid)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)

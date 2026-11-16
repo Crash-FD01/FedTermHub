@@ -3,7 +3,7 @@ Name:           fedtermhub
 # passaggio alla serie 0.9.x. Senza Epoch, dnf considererebbe 0.9.x un
 # downgrade e rifiuterebbe l'aggiornamento.
 Epoch:          1
-Version:        0.13.2
+Version:        0.13.3
 Release:        1%{?dist}
 Summary:        Session manager for terminals, SSH, RDP, VNC and SFTP
 License:        GPL-3.0-or-later
@@ -145,6 +145,12 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 %{_datadir}/icons/hicolor/*/apps/io.github.crash_fd01.fedtermhub.png
 
 %changelog
+* Mon Nov 16 2026 Crash-FD01 - 1:0.13.3-1
+- Windows: caselle a discesa, campi numerici, caselle di spunta e pulsanti di scelta hanno lo stile del resto del programma nei due temi. Prima le caselle a discesa avevano il bordo destro coperto da un riquadro squadrato, i campi numerici erano piatti e nel tema scuro le caselle non spuntate quasi non si vedevano
+- Windows: le finestre entrano negli schermi piccoli e in quelli ingranditi al 125% e 150%: la finestra principale non parte più grande dello schermo e ha una misura minima, l'editor dei tunnel e le altre finestre grandi si riducono da sole
+- Windows: nei file remoti del pannello laterale il nome prende tutto lo spazio (prima la colonna della dimensione ne occupava metà) e il nome intero è nel suggerimento; il pulsante Segui mostra quando è attivo
+- Windows: Password Manager con l'elenco delle credenziali spaziato; Scorciatoie da tastiera con le colonne allineate e i tasti scritti in un modo solo; nel Log il tasto Invio chiude invece di svuotare; intestazioni delle tabelle allineate a sinistra; campi delle porte non più larghi tutta la finestra
+- Windows: chiudere gli Strumenti di rete durante una scansione non lascia più un errore nel log
 * Thu Nov 05 2026 Crash-FD01 - 1:0.13.2-1
 - Windows: con il terminale diviso il riquadro attivo poteva cambiare da solo: le risposte automatiche del terminale alla shell (posizione del cursore e simili) contavano come se l'utente avesse scritto in quel riquadro. Ora il riquadro attivo cambia solo con un clic, con i tasti e con le scorciatoie dei riquadri. Comprende le correzioni della 0.13.1, che non è stata pubblicata
 * Thu Nov 05 2026 Crash-FD01 - 1:0.13.1-1

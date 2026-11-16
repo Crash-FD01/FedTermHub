@@ -41,7 +41,8 @@ Windows (Qt 6 / PySide6), Setup.exe — `fedtermhub/qtui/`:
   PowerShell; `terminal_view.py` + `xterm/` terminale; `pty_process.py` ConPTY; `connect.py` comandi di avvio;
   `session_dialog.py`, `settings_dialog.py`, `vault_dialogs.py`, `tunnels.py`, `net_tools.py`, `files_panel.py`
   + `sftp_client.py` (paramiko), `rdp_tab.py` (ActiveX via ATL+comtypes), `vnc_tab.py` + `ws_bridge.py` + `novnc/`,
-  `stream_process.py` (Telnet, seriale), `updates.py`, `selftest_more.py` + `selftest_servers.py`.
+  `stream_process.py` (Telnet, seriale), `updates.py`, `selftest_more.py` + `selftest_servers.py`,
+  `layout_check.py` (difetti di layout di una finestra aperta) + `selftest_layout.py` (tutte le finestre con dati inventati).
 - Pacchetto: `packaging/windows/` (build.ps1, fedtermhub.iss, requirements.txt).
 
 Documentazione: `README.md`, `docs/GUIDA.md`, `docs/PARITA.md` (cosa c'è su Linux e su Windows),
@@ -50,6 +51,7 @@ Documentazione: `README.md`, `docs/GUIDA.md`, `docs/PARITA.md` (cosa c'è su Lin
 ## Quando si cambia qualcosa
 - Voce nuova nei menu GTK → aggiungerla a `docs/PARITA.md` (lo controlla `tests/test_commands.py`).
   Funzione nuova su Windows → «sì» in PARITA.md e un controllo in `qtui/selftest_more.py`.
+  Finestra nuova su Windows → aggiungerla a `selftest_layout.scenes` (il self-test ne controlla il layout).
 - Testi nuovi → `python3 tools/i18n_update.py`, poi riempire i `msgstr ""` nuovi in `en.po`
   (stessi segnaposto `{nome}`). La CI fallisce se il catalogo non è aggiornato.
 - Colori o icone → `look.py`, che serve entrambe le interfacce.
@@ -62,6 +64,9 @@ Documentazione: `README.md`, `docs/GUIDA.md`, `docs/PARITA.md` (cosa c'è su Lin
   SSH, SFTP e tunnel.
 - Schermate per il confronto: `tools/screenshots.py` (GTK) e `tools/screenshots_qt.py` (Qt), sotto
   `xvfb-run -a -s "-screen 0 1400x880x24"`. Per Qt sotto xcb serve `libxcb-cursor0`.
+- Layout Qt: `tools/audit_qt.py dark|light CARTELLA` sotto `xvfb-run -a -s "-screen 0 1280x720x24"` (Full HD al
+  150%) elenca i difetti e fotografa ogni finestra e ogni menu; con `AUDIT_SSH="host;porta;utente;password"` anche i
+  file remoti. In CI il self-test di Windows salva le stesse schermate (`layout-*.png`, estratte da `ci_wait.sh`).
 
 ## Versioni, PR e rilascio
 - La versione sta in 4 posti: `model.py`, `fedtermhub.spec` (Version + voce in %changelog), `install.sh`,
@@ -87,7 +92,12 @@ Documentazione: `README.md`, `docs/GUIDA.md`, `docs/PARITA.md` (cosa c'è su Lin
 - PySide6 + QtWebEngine: un eventFilter Python su tutta la QApplication fa cadere il programma (l'inattività si
   legge con GetLastInputInfo). Alla chiusura WebEngine/mstscax cadono: si esce con TerminateProcess.
 - QAxWidget di PySide6 non funziona per l'RDP: si usa AtlAxWin + comtypes.
-- Lo stile Qt su QSpinBox rompe le frecce: non stilizzarlo.
+- Controlli Qt (caselle a discesa, campi numerici, spunte): lo stile sta in `theme.stylesheet` e le freccette sono
+  immagini disegnate da `theme.control_images`; stilizzare solo il riquadro lascia i pulsanti squadrati di Qt sopra i
+  bordi. I campi numerici si creano con `theme.spin_box` (Qt ignora il margine sinistro del loro testo).
+- Le finestre con una misura fissa chiamano `theme.fit_to_screen`: su un Full HD al 150% lo schermo è 1280x720 punti.
+- Un'intestazione nascosta conta lo stesso nella larghezza delle colonne (`ResizeToContents`), e QTreeView allarga
+  l'ultima colonna (`setStretchLastSection`).
 - In CI, `Start-Process -Wait` aspetta anche i processi figli (il programma riaperto dal Setup): usare WaitForExit.
 - GTK su openSUSE Leap 16: collegare i segnali con `user_data=None` fallisce; i callback si collegano senza.
 - Il self-test Qt non deve aprire finestre modali (`_no_dialogs` in app.py): bloccherebbero la CI.

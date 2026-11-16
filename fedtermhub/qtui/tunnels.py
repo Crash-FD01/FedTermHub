@@ -414,10 +414,7 @@ def _section(title: str) -> Tuple[QFrame, QGridLayout]:
 
 
 def _port_spin(value: int, minimum: int = 1, maximum: int = 65535) -> QSpinBox:
-    spin = QSpinBox()
-    spin.setRange(minimum, maximum)
-    spin.setValue(value)
-    return spin
+    return theme.spin_box(minimum, maximum, value)
 
 
 def _safe_port(value: object, default: int) -> int:
@@ -495,6 +492,7 @@ class TunnelEditDialog(QDialog):
         self.setWindowTitle(tr("Nuovo tunnel SSH") if tunnel is None else tr("Modifica tunnel SSH"))
         self.resize(1020, 760)
         self.setMinimumSize(760, 480)
+        theme.fit_to_screen(self)
         shell = QVBoxLayout(self)
         shell.setSpacing(10)
 
@@ -839,7 +837,8 @@ class TunnelsDialog(QDialog):
         self._snapshot: object = None
         self.setWindowTitle(tr("Tunnel SSH"))
         self.resize(1120, 700)
-        self.setMinimumSize(820, 560)
+        self.setMinimumSize(820, 520)
+        theme.fit_to_screen(self)
         root = QVBoxLayout(self)
         root.setSpacing(8)
 
@@ -883,6 +882,7 @@ class TunnelsDialog(QDialog):
         self.table.verticalHeader().hide()
         self.table.setMinimumHeight(180)
         columns = self.table.horizontalHeader()
+        columns.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         columns.setStretchLastSection(False)
         # Le larghezze sono fisse tranne Nome, Destinazione e Server SSH, che si dividono lo spazio.
         for column, width in ((self.C_STATE, 150), (self.C_TYPE, 82), (self.C_LISTEN, 145), (self.C_AUTO, 54)):

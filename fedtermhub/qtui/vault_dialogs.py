@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Callable, List, Optional
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 
 from .. import model
 from ..i18n import tr, trn
+from . import theme
 
 MIN_MASTER = 8
 
@@ -235,6 +236,7 @@ class VaultManagerDialog(QDialog):
         self.on_changed = on_changed
         self.setWindowTitle(tr("Password"))
         self.resize(900, 560)
+        theme.fit_to_screen(self)
         layout = QVBoxLayout(self)
         head = QHBoxLayout()
         title = QLabel(tr("Password Manager"))
@@ -261,6 +263,8 @@ class VaultManagerDialog(QDialog):
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.setRootIsDecorated(False)
+        self.tree.setIndentation(0)
+        self.tree.setStyleSheet("QTreeView::item { padding: 6px 8px; }")
         self.tree.currentItemChanged.connect(lambda *_: self._show_selected())
         self.tree.itemDoubleClicked.connect(lambda *_: self._edit())
         left_layout.addWidget(self.tree, 1)
@@ -360,6 +364,7 @@ class VaultManagerDialog(QDialog):
                 font.setBold(True)
                 font.setPointSizeF(font.pointSizeF() * 0.85)
                 group_item.setFont(0, font)
+                group_item.setForeground(0, QColor(theme.colors()["muted"]))
                 self.tree.addTopLevelItem(group_item)
             account = f"{cred.domain}\\{cred.username}" if cred.domain and cred.username else cred.username
             item = QTreeWidgetItem([f"{cred.name}\n{account}" if account else cred.name])
