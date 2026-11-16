@@ -246,6 +246,83 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
 
     check("Finestre dei tunnel", tunnel_windows)
 
+    # ------------------------------------------------------------------ nessuna finestra in più
+    def extra_windows() -> str:
+        """Aprire un terminale non deve far comparire altre finestre (una console che lampeggia, per esempio)."""
+        if os.name != "nt":
+            return "solo su Windows"
+        import ctypes
+        import shutil
+        from ctypes import wintypes
+
+        from . import connect as launch_for
+
+        user32, kernel32, dwmapi = ctypes.windll.user32, ctypes.windll.kernel32, ctypes.windll.dwmapi
+        callback = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+
+        def program(pid: int) -> str:
+            handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not handle:
+                return f"pid {pid}"
+            try:
+                size = wintypes.DWORD(520)
+                path = ctypes.create_unicode_buffer(520)
+                ok = kernel32.QueryFullProcessImageNameW(handle, 0, path, ctypes.byref(size))
+                return Path(path.value).name if ok else f"pid {pid}"
+            finally:
+                kernel32.CloseHandle(handle)
+
+        def visible() -> dict:
+            found: dict = {}
+
+            def each(hwnd, _param) -> bool:  # noqa: ANN001
+                if not user32.IsWindowVisible(hwnd):
+                    return True
+                cloaked = wintypes.DWORD(0)
+                dwmapi.DwmGetWindowAttribute(wintypes.HWND(hwnd), 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
+                rect = wintypes.RECT()
+                user32.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(rect))
+                width, height = rect.right - rect.left, rect.bottom - rect.top
+                if cloaked.value or width < 8 or height < 8:
+                    return True
+                title = ctypes.create_unicode_buffer(200)
+                kind = ctypes.create_unicode_buffer(200)
+                user32.GetWindowTextW(wintypes.HWND(hwnd), title, 200)
+                user32.GetClassNameW(wintypes.HWND(hwnd), kind, 200)
+                pid = wintypes.DWORD(0)
+                user32.GetWindowThreadProcessId(wintypes.HWND(hwnd), ctypes.byref(pid))
+                found[int(hwnd or 0)] = f"{program(pid.value)} [{kind.value}] «{title.value}» {width}x{height}"
+                return True
+
+            user32.EnumWindows(callback(each), 0)
+            return found
+
+        shells = [("pwsh", shutil.which("pwsh")), ("powershell", launch_for._windows_system_binary("powershell")),
+                  ("cmd", os.environ.get("COMSPEC"))]
+        seen_windows: dict = {}
+        tried = []
+        for name, binary in shells:
+            if not binary:
+                continue
+            tried.append(name)
+            before = visible()
+            started = time.monotonic()
+            tab = window.add_terminal_tab(launch_for.Launch(name, [binary], {}), protocol="local")
+
+            def watch(n=name, b=before, t0=started) -> bool:
+                for hwnd, what in visible().items():
+                    if hwnd not in b:
+                        seen_windows.setdefault((n, hwnd), f"{n}: {what} dopo {time.monotonic() - t0:.1f}s")
+                return False
+
+            wait(app, watch, 6)
+            window.close_tab(window.tabs.indexOf(tab))
+            wait(app, lambda: False, 0.5)
+        assert not seen_windows, "finestre comparse: " + "; ".join(sorted(seen_windows.values()))
+        return "nessuna finestra in più aprendo " + ", ".join(tried)
+
+    check("Nessuna finestra in più", extra_windows)
+
     # ------------------------------------------------------------------ terminale diviso
     def seen(out: list, marker: str) -> bool:
         return wait(app, lambda: marker in "".join(out), 30)
