@@ -236,6 +236,16 @@ class FilesPanel(QWidget):
             return
         self._ask_password()
 
+    def use_password(self, user: str, password: str) -> None:
+        """La password che l'utente ha già scritto nel terminale: il pannello non la chiede un'altra volta."""
+        if self.target.password:
+            return
+        self.target.user, self.target.password = self.target.user or user, password
+        if self._needs_password:
+            self._needs_password = False
+            self.reconnect_button.setText(tr("Riconnetti"))
+            self.connect_server()
+
     def _ask_password(self) -> None:
         self._needs_password = False
         self.reconnect_button.setText(tr("Riconnetti"))

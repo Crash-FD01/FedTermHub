@@ -18,6 +18,8 @@ from typing import Callable, List, Optional, Tuple
 
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QCursor, QDesktopServices, QIcon, QKeySequence, QShortcut, QStandardItem, QStandardItemModel
+from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -126,6 +128,16 @@ class MainWindow(QMainWindow):
         self._build_actions()
         self._build_ui()
         self.refresh_tree()
+        # Il terminale (Qt WebEngine) vuole una finestra disegnata dalla scheda video. Se la finestra nasce
+        # normale, all'apertura del primo terminale Qt la distrugge e la ricrea: per qualche secondo se ne vede
+        # un'altra sopra, e una finestra ingrandita torna piccola. Con una vista già dentro, nascosta e con una
+        # pagina vuota (senza pagina non conta), nasce del tipo giusto. Poco dopo la pagina si mette a riposo:
+        # la vista resta, il suo processo no.
+        self._surface_keeper = QWebEngineView(self)
+        self._surface_keeper.setGeometry(0, 0, 0, 0)
+        self._surface_keeper.hide()
+        self._surface_keeper.setHtml("")
+        QTimer.singleShot(8000, self._rest_surface_keeper)
         # Niente filtro degli eventi su tutta l'applicazione: con QtWebEngine fa cadere PySide6.
         # L'attività si ricava dall'inattività del sistema (Windows) o dai tasti nei terminali e dal mouse.
         self._last_cursor = QCursor.pos()
@@ -1170,6 +1182,12 @@ class MainWindow(QMainWindow):
         self.set_status(tr("Importate {n_imported} credenziali da {name}").format(n_imported=len(imported), name=Path(src).name))
 
     # ------------------------------------------------------------------ Password Manager
+    def _rest_surface_keeper(self) -> None:
+        try:
+            self._surface_keeper.page().setLifecycleState(QWebEnginePage.LifecycleState.Discarded)
+        except Exception:  # noqa: BLE001
+            pass  # resta attiva: costa un po' di memoria, niente altro
+
     def ensure_vault_unlocked(self, create_if_missing: bool = True, quiet: bool = False) -> bool:
         if self.vault.unlocked:
             return True
@@ -1340,7 +1358,7 @@ class MainWindow(QMainWindow):
                 user, _domain, password = self.identity(sess)
                 launch = connect.ssh(sess, self.settings, user, password)
                 target = lambda s=sess, u=user, p=password: self.sftp_target(s, u, p)  # noqa: E731
-                self.add_terminal_tab(launch, protocol="ssh", files_target=target)
+                self.add_terminal_tab(launch, protocol="ssh", files_target=target, session=sess)
                 return
             elif sess.protocol == "sftp":
                 self.open_sftp(sess)
@@ -1537,9 +1555,16 @@ class MainWindow(QMainWindow):
         self.sidebar_tabs.setCurrentIndex(1)
 
     def add_terminal_tab(self, launch: connect.Launch, protocol: str = "",
-                         files_target: Optional[Callable[[], SftpTarget]] = None) -> TerminalTab:
-        tab = TerminalTab(self.tabs, launch, self.settings, files_target=files_target, protocol=protocol)
+                         files_target: Optional[Callable[[], SftpTarget]] = None,
+                         session: Optional[model.Session] = None) -> TerminalTab:
+        """`session`: la sessione SSH aperta nella scheda, per riconoscere la password scritta al prompt."""
+        host = model.split_host_port(session.host, session.port or "22")[0] if session is not None else ""
+        tab = TerminalTab(self.tabs, launch, self.settings, files_target=files_target, protocol=protocol,
+                          capture_host=host)
         tab.status.connect(self.set_status)
+        if session is not None:
+            tab.password_typed.connect(lambda user, password, t=tab, s=session: self._password_typed(t, s, user, password))
+            tab.save_password.connect(lambda user, password, t=tab, s=session: self.save_typed_password(t, s, user, password))
         tab.files_created.connect(lambda panel, t=tab: self._files_created(t, panel))
         tab.files_unavailable.connect(lambda t=tab: self._files_unavailable(t))
         tab.activity.connect(self.mark_activity)
@@ -1549,6 +1574,29 @@ class MainWindow(QMainWindow):
         self._update_welcome()
         QTimer.singleShot(300, tab.focus_active)
         return tab
+
+    def _password_typed(self, tab: TerminalTab, sess: model.Session, user: str, password: str) -> None:
+        """Propone di salvare la password scritta al prompt di ssh, per le sessioni salvate che non ne hanno una."""
+        saved = any(s is sess for _path, s, _folder in self.store.iter_sessions())  # non la connessione rapida
+        if saved and self.settings.offer_save_password and model.CRYPTO_AVAILABLE:
+            tab.offer_password(user, password)
+
+    def save_typed_password(self, tab: TerminalTab, sess: model.Session, user: str, password: str) -> bool:
+        """Crea la credenziale nel Password Manager e la collega alla sessione, come fa la versione Linux per l'RDP."""
+        if not self.ensure_vault_unlocked(create_if_missing=True):
+            tab.focus_active()
+            return False
+        cred = model.Credential.for_session(sess, password, group=self.store.group_name(sess), user=user)
+        self.vault.credentials.append(cred)
+        self.vault.save()
+        sess.credential_id = cred.id
+        sess.use_credential_password = True
+        self.store.save()
+        self.refresh_tree()
+        tab.launch.password = password  # i riquadri nuovi e le riaperture non la chiedono più
+        self.set_status(tr("Password salvata nel Password Manager e collegata a: {name}").format(name=sess.name))
+        tab.focus_active()
+        return True
 
     def _terminal_finished(self, tab: TerminalTab, code: int) -> None:
         if code == 0 and tab.launch.close_on_success:

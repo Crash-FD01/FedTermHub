@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtWidgets import QApplication, QLabel, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget
 
 from .. import look, model, termcore
 from ..i18n import tr
@@ -41,7 +41,13 @@ class TerminalPane(QWidget):
         self.exit_code: Optional[int] = None
         self.start_error = ""
         self.feeder = connect.PasswordFeeder(launch.password)
+        self.capture: Optional[termcore.PasswordCapture] = None
+        self._capture_timer = QTimer(self)
+        self._capture_timer.setSingleShot(True)
+        self._capture_timer.setInterval(2500)
+        self._capture_timer.timeout.connect(self._capture_settle)
         self.view.cwd_changed.connect(lambda path: tab.pane_cwd_changed(self, path))
+        self.view.input_hooks.append(self._typed)
         self.view.input_hooks.append(lambda data: tab.pane_input(self, data))
         self.view.page_ready.connect(tab.pane_ready)
         self.view.clicked.connect(lambda: tab.pane_clicked(self))
@@ -53,6 +59,10 @@ class TerminalPane(QWidget):
         self.exit_code = None
         self.start_error = ""
         self.feeder = connect.PasswordFeeder(self.launch.password)
+        # Senza una password salvata la scriverà l'utente al prompt di ssh: la si riconosce per proporre di salvarla.
+        watch = bool(self.tab.capture_host) and not self.launch.password
+        self.capture = termcore.PasswordCapture(self.tab.capture_host) if watch else None
+        self._capture_timer.stop()
         try:
             self.view.pty.start(self.launch.argv, str(Path.home()), self.launch.env)
         except Exception as exc:  # noqa: BLE001
@@ -64,11 +74,33 @@ class TerminalPane(QWidget):
         answer = self.feeder.feed(text)
         if answer:
             self.view.pty.write(answer)
+        if self.capture is not None:
+            self._captured(self.capture.feed_output(text))
         self.tab.pane_output()
+
+    def _typed(self, data: str) -> None:
+        if self.capture is not None:
+            self.capture.feed_input(data)
+            if self.capture.state == "sent":
+                self._capture_timer.start()
+
+    def _capture_settle(self) -> None:
+        if self.capture is not None and self.capture.state == "sent":
+            self._captured(self.capture.settle())
+            if self.capture is not None and self.capture.state == "sent":
+                self._capture_timer.start()  # il server non ha ancora risposto
+
+    def _captured(self, found: Optional[tuple]) -> None:
+        if found:
+            self.capture = None
+            self._capture_timer.stop()
+            self.tab.pane_password(*found)
 
     def _finished(self, code: int) -> None:
         self.exit_code = code
         self.feeder.disarm()
+        self.capture = None
+        self._capture_timer.stop()
         if not self.closing:
             self.tab.pane_finished(self, code)
 
@@ -104,14 +136,21 @@ class TerminalTab(QWidget):
     files_created = Signal(object)
     files_unavailable = Signal()
     activity = Signal()  # l'utente ha scritto in un riquadro
+    password_typed = Signal(str, str)  # utente e password scritti al prompt di ssh, accettati dal server
+    save_password = Signal(str, str)  # «Salva» nella barra che propone di salvarla
     close_requested = Signal()  # Ctrl+Shift+W sull'ultimo riquadro
 
     def __init__(self, parent: QWidget, launch: connect.Launch, settings: model.AppSettings,
-                 files_target: Optional[Callable[[], "SftpTarget"]] = None, protocol: str = "") -> None:
+                 files_target: Optional[Callable[[], "SftpTarget"]] = None, protocol: str = "",
+                 capture_host: str = "") -> None:
         super().__init__(parent)
         self.launch = launch
         self.settings = settings
         self.protocol = protocol
+        self.capture_host = capture_host  # host di una sessione SSH senza password salvata, altrimenti vuoto
+        self.typed_user = ""
+        self.typed_password = ""
+        self._offer: Optional[QFrame] = None
         self.split_tab = False  # nata divisa da Terminale › Terminale diviso
         self.pane_layout = "stack"
         self.broadcast = False
@@ -316,6 +355,49 @@ class TerminalTab(QWidget):
             self._first_output = True
             QTimer.singleShot(2500, self.ensure_files)
 
+    # ------------------------------------------------------------------ password scritta al prompt
+    def pane_password(self, user: str, password: str) -> None:
+        """Il server ha accettato la password scritta dall'utente: serve anche ai file remoti, senza richiederla."""
+        if self.typed_password:
+            return
+        self.typed_user, self.typed_password = user, password
+        if self.files is not None:
+            self.files.use_password(user, password)
+        self.password_typed.emit(user, password)
+
+    def offer_password(self, user: str, password: str) -> None:
+        """Una barra sopra il terminale, non una finestra: l'utente sta già scrivendo nella shell."""
+        self.dismiss_offer()
+        bar = QFrame(self)
+        bar.setObjectName("offerBar")
+        bar.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)  # alta una riga: il resto è del terminale
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 6, 8, 6)
+        row.setSpacing(8)
+        label = QLabel(tr("Salvare la password di {user}@{host} nel Password Manager cifrato?").format(
+            user=user, host=self.capture_host))
+        label.setMinimumWidth(60)
+        label.setToolTip(label.text())
+        row.addWidget(label, 1)
+        save = QPushButton(tr("Salva"))
+        save.setProperty("role", "accent")
+        later = QPushButton(tr("Non ora"))
+        for button in (save, later):
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # il fuoco resta al terminale
+            row.addWidget(button)
+        save.clicked.connect(lambda: (self.dismiss_offer(), self.save_password.emit(user, password)))
+        later.clicked.connect(self.dismiss_offer)
+        bar.save_button, bar.later_button = save, later
+        self._offer = bar
+        self._outer.insertWidget(0, bar)
+
+    def dismiss_offer(self) -> None:
+        if self._offer is not None:
+            self._outer.removeWidget(self._offer)
+            self._offer.hide()
+            self._offer.deleteLater()
+            self._offer = None
+
     def pane_finished(self, pane: TerminalPane, code: int) -> None:
         if len(self.panes) > 1:
             self.close_pane(pane)
@@ -338,7 +420,10 @@ class TerminalTab(QWidget):
         if not self.has_files:
             return None
         if self.files is None:
-            self.files = FilesPanel(self.files_target(), None, follow_terminal=self.settings.follow_remote_directory,
+            target = self.files_target()
+            if self.typed_password and not target.password:
+                target.user, target.password = target.user or self.typed_user, self.typed_password
+            self.files = FilesPanel(target, None, follow_terminal=self.settings.follow_remote_directory,
                                     compact=True, ask_password=False)
             self.files.status.connect(self.status)
             self.files.connected_changed.connect(self._files_connected)

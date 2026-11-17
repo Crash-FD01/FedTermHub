@@ -392,6 +392,14 @@ passano da una versione all'altra: *Impostazioni › Esporta impostazioni* e *Im
 Aggiungi «Client OpenSSH»*. La password salvata viene scritta al prompt `password:` una volta sola, come fa
 `sshpass` su Linux; le chiavi in `%USERPROFILE%\.ssh` funzionano come al solito.
 
+**Salvare la password scritta.** Se una sessione salvata non ha una password e la scrivi tu al prompt di
+`ssh`, quando il server la accetta compare una barra sopra il terminale: *Salva* crea la credenziale nel
+Password Manager (nel gruppo della cartella della sessione) e la collega alla sessione, che dalla volta dopo
+entra da sola; *Non ora* chiude la barra. Una password rifiutata non viene proposta, e nemmeno quelle di
+`sudo`, della passphrase di una chiave o di un jump host. I file remoti usano la stessa password senza
+chiederla di nuovo. La proposta si disattiva in *Impostazioni › Apri impostazioni › Connessioni SSH*; non compare
+per la connessione rapida, che non è una sessione salvata.
+
 **File remoti.** Con una scheda SSH aperta, nel pannello laterale compare la scheda *File remoti* con i file
 del server (**Ctrl+Maiusc+E** passa dalle sessioni ai file e ritorno). Trascina file e cartelle dal PC per caricarli; doppio clic su un file lo
 apre con il programma di Windows; il menu del tasto destro scarica, rinomina ed elimina. Con *Segui* il

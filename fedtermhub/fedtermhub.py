@@ -10880,11 +10880,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
     def session_group_name(self, session: Session) -> str:
         """La cartella che contiene la sessione (di solito il cliente), vuota se sta nella radice."""
-        for _path, sess, folder in self.store.iter_sessions():
-            if sess is session:
-                display = self._folder_display(folder)
-                return display.split(" / ")[-1] if display else ""
-        return ""
+        return self.store.group_name(session)
 
     def credential_group_suggestions(self) -> Dict[str, str]:
         """Per le credenziali senza gruppo: la cartella delle sessioni che le usano, se e' una sola."""
@@ -10940,19 +10936,7 @@ class AppWindow(Gtk.ApplicationWindow):
 
         if not self.ensure_vault_unlocked(create_if_missing=True):
             return False
-        name_bits = [sess.name or tr("RDP {host}").format(host=sess.host)]
-        if sess.domain:
-            name_bits.append(sess.domain)
-        if sess.user:
-            name_bits.append(sess.user)
-        cred = Credential(
-            name=" - ".join(name_bits),
-            username=sess.user,
-            domain=sess.domain,
-            password=password,
-            notes=tr("Credenziale RDP creata da FedTermHub per {host}").format(host=sess.host),
-            group=self.session_group_name(sess),
-        )
+        cred = Credential.for_session(sess, password, group=self.session_group_name(sess))
         self.vault.credentials.append(cred)
         self.vault.save()
         sess.credential_id = cred.id

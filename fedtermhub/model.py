@@ -47,7 +47,7 @@ except Exception:  # pragma: no cover - dipendenza runtime
 # controlla che coincidano.
 APP_ID = "io.github.crash_fd01.fedtermhub"
 APP_NAME = "FedTermHub"
-APP_VERSION = "0.13.3"
+APP_VERSION = "0.13.4"
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -207,6 +207,21 @@ class Credential:
     # Raggruppamento libero scelto dall'utente, di solito il cliente. Vuoto = "Senza gruppo".
     # Le versioni precedenti non lo conoscono: lo ignorano in lettura.
     group: str = ""
+
+    @classmethod
+    def for_session(cls, sess: "Session", password: str, group: str = "", user: str = "") -> "Credential":
+        """La credenziale creata quando si salva la password scritta per una sessione (RDP, SSH)."""
+        user = user or sess.user
+        protocol = sess.protocol.upper()
+        name_bits = [sess.name or f"{protocol} {sess.host}"] + [bit for bit in (sess.domain, user) if bit]
+        return cls(
+            name=" - ".join(name_bits),
+            username=user,
+            domain=sess.domain,
+            password=password,
+            notes=tr("Credenziale {protocol} creata da FedTermHub per {host}").format(protocol=protocol, host=sess.host),
+            group=group,
+        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, object]) -> "Credential":
@@ -542,6 +557,8 @@ class AppSettings:
     check_updates: bool = True
     # Versione Windows: pannello dei file remoti accanto alle sessioni SSH (su Linux c'è sempre)
     show_remote_files: bool = True
+    # Proporre di salvare nel Password Manager la password scritta al prompt di ssh (versione Windows).
+    offer_save_password: bool = True
 
     ui_layout_version: int = 3
 
@@ -625,6 +642,7 @@ class AppSettings:
                 confirm_close_active_sessions=bool(raw.get("confirm_close_active_sessions", True)),
                 check_updates=bool(raw.get("check_updates", True)),
                 show_remote_files=bool(raw.get("show_remote_files", True)),
+                offer_save_password=bool(raw.get("offer_save_password", True)),
                 ui_layout_version=3,
             )
         except Exception:
@@ -675,6 +693,7 @@ class AppSettings:
             "confirm_close_active_sessions": self.confirm_close_active_sessions,
             "check_updates": self.check_updates,
             "show_remote_files": self.show_remote_files,
+            "offer_save_password": self.offer_save_password,
             "ui_layout_version": 3,
         }
 
@@ -1221,6 +1240,16 @@ class SessionStore:
         node = container.pop(parts[-1])
         self.save()
         return node
+
+    def group_name(self, session: "Session") -> str:
+        """La cartella che contiene la sessione (di solito il cliente), vuota se sta nella radice."""
+        for _path, sess, folder in self.iter_sessions():
+            if sess is session:
+                parts = [part for part in folder.split(" / ") if part]
+                if parts and parts[0] == HOME_SESSION_NAME:
+                    parts = parts[1:]
+                return parts[-1] if parts else ""
+        return ""
 
     def find_node_path(self, target: Node) -> str:
         """Restituisce il percorso corrente di un nodo usando l'identità Python."""

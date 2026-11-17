@@ -92,6 +92,11 @@ Documentazione: `README.md`, `docs/GUIDA.md`, `docs/PARITA.md` (cosa c'è su Lin
 - PySide6 + QtWebEngine: un eventFilter Python su tutta la QApplication fa cadere il programma (l'inattività si
   legge con GetLastInputInfo). Alla chiusura WebEngine/mstscax cadono: si esce con TerminateProcess.
 - QAxWidget di PySide6 non funziona per l'RDP: si usa AtlAxWin + comtypes.
+- La prima QWebEngineView aggiunta a una finestra già mostrata fa distruggere e ricreare la finestra (per qualche
+  secondo se ne vede un'altra sopra): MainWindow tiene una vista nascosta con una pagina vuota creata prima di show().
+  Lo stesso varrebbe per un'altra finestra con dentro un terminale o il VNC.
+- Password scritta al prompt di ssh (`termcore.PasswordCapture`): nel dubbio rinuncia. ConPTY ridisegna lo schermo
+  quando la finestra cambia misura, e la richiesta riappare nell'output senza che ssh l'abbia rifatta.
 - Controlli Qt (caselle a discesa, campi numerici, spunte): lo stile sta in `theme.stylesheet` e le freccette sono
   immagini disegnate da `theme.control_images`; stilizzare solo il riquadro lascia i pulsanti squadrati di Qt sopra i
   bordi. I campi numerici si creano con `theme.spin_box` (Qt ignora il margine sinistro del loro testo).
