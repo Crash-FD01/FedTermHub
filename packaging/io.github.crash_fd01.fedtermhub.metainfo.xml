@@ -95,6 +95,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.13.4" date="2026-11-17">
+      <description>
+        <p>Windows version: opening the first terminal no longer shows a second window for a few seconds, and a password typed at the SSH prompt can be saved in the Password Manager.</p>
+        <p xml:lang="it">Versione Windows: aprendo il primo terminale non compare più una seconda finestra per qualche secondo, e la password scritta al prompt di SSH si può salvare nel Password Manager.</p>
+      </description>
+    </release>
     <release version="0.13.3" date="2026-11-16">
       <description>
         <p>Windows version: consistent look for drop-downs, number fields and check boxes, and windows that fit small or scaled screens.</p>

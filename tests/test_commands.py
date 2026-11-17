@@ -256,6 +256,95 @@ def check_panes() -> None:
     assert all(color in gtk for color in look.TERMINAL_TOAST.values()), "avviso del terminale diverso dal CSS GTK"
 
 
+def check_password_capture() -> None:
+    """La password scritta al prompt di ssh si riconosce solo quando il server l'ha accettata (termcore.py)."""
+    def capture(host: str = "server01.example.lan") -> termcore.PasswordCapture:
+        return termcore.PasswordCapture(host)
+
+    prompt = "admin@server01.example.lan's password: "
+    # sbagliata, poi giusta; il tasto Indietro, Ctrl+U e una risposta automatica del terminale in mezzo
+    c = capture("Server01.example.lan")
+    assert c.feed_output("Warning: Permanently added 'server01.example.lan'.\r\n" + prompt) is None and c.state == "typing"
+    c.feed_input("sbagl")
+    c.feed_input("\x7f")
+    c.feed_input("iata\r")
+    assert c.state == "sent" and c.feed_output("\r\n") is None
+    assert c.feed_output("Permission denied, please try again.\r\n") is None and c.state == "waiting"
+    assert c.feed_output(prompt) is None and c.state == "typing"
+    c.feed_input("da buttare\x15")
+    c.feed_input("\x1b[12;5R")
+    c.feed_input("Segreta-1")
+    c.feed_input("\r")
+    assert c.feed_output("\r\n") is None
+    assert c.feed_output("\x1b[?25hLast login: Mon Nov 16 2026\r\n") == ("admin", "Segreta-1") and c.state == "done"
+    assert c.feed_output("[sudo] password for admin: ") is None and c.state == "done"
+    # la forma di keyboard-interactive, incollata; poi un secondo fattore: si decide solo dopo
+    c = capture()
+    c.feed_output("(admin@server01.example.lan) Password: ")
+    c.feed_input("\x1b[200~Incollata-2\x1b[201~")
+    c.feed_input("\r")
+    assert c.feed_output("\r\n(admin@server01.example.lan) Verification code: ") is None and c.state == "sent"
+    assert c.settle() is None, "una seconda domanda non è un accesso riuscito"
+    c.feed_input("123456\r")
+    assert c.feed_output("\r\nLinux server01 6.12\r\n") == ("admin", "Incollata-2")
+    # un apparato di rete: prompt corto senza riga nuova, lo decide settle()
+    c = capture()
+    c.feed_output(prompt)
+    c.feed_input("Apparato-3\r")
+    assert c.settle() is None and c.feed_output("\r\nfw01> ") is None
+    assert c.settle() == ("admin", "Apparato-3")
+    # rifiuto definitivo, niente da salvare
+    c = capture()
+    c.feed_output(prompt)
+    c.feed_input("no\r")
+    assert c.feed_output("\r\nadmin@server01.example.lan: Permission denied (publickey,password).\r\n") is None
+    assert c.state == "waiting" and c.settle() is None
+    # non sono la password della sessione: sudo, la passphrase di una chiave, l'host di passaggio (ProxyJump)
+    for other in ("[sudo] password for admin: ", "Enter passphrase for key '/home/admin/.ssh/id_ed25519': ",
+                  "admin@bastion.example.lan's password: ", "Password: "):
+        c = capture()
+        assert c.feed_output(other) is None and c.state == "waiting", other
+        c.feed_input("non-questa\r")
+        assert c.feed_output("\r\nLast login: Mon Nov 16 2026\r\n") is None, other
+    # ConPTY ridisegna lo schermo mentre si scrive: quello che è già scritto resta
+    c = capture()
+    c.feed_output(prompt)
+    c.feed_input("Meta")
+    assert c.feed_output("\x1b[2J\x1b[H" + prompt) is None and c.state == "typing"
+    c.feed_input("-4\r")
+    assert c.feed_output("\r\nLast login: Mon Nov 16 2026\r\n") == ("admin", "Meta-4")
+    # nel dubbio rinuncia: testo inatteso mentre si scrive, oppure la richiesta ridisegnata dopo l'Invio
+    c = capture()
+    c.feed_output(prompt)
+    c.feed_input("Meta")
+    assert c.feed_output("\r\nConnection closed by 10.20.0.5 port 22\r\n") is None and c.state == "done"
+    c = capture()
+    c.feed_output(prompt)
+    c.feed_input("Giusta-5\r")
+    assert c.feed_output("\x1b[2J\x1b[H" + prompt) is None  # sembra una seconda richiesta…
+    assert c.feed_output("Last login: Mon Nov 16 2026\r\n$ ") is None and c.state == "done"  # …ma l'accesso era riuscito
+    c.feed_input("ls -la\r")
+    assert c.feed_output("totale 0\r\n") is None and c.settle() is None, "un comando della shell preso per password"
+    # Ctrl+C alla richiesta
+    c = capture()
+    c.feed_output(prompt)
+    c.feed_input("abc\x03")
+    assert c.state == "waiting"
+    # la credenziale creata: nome, utente del prompt, gruppo dalla cartella
+    store = model.SessionStore(Path(tempfile.mkdtemp()) / "sessions.json")
+    folder = model.FolderNode(name="Studio Rossi")
+    sess = model.Session(name="fw01", protocol="ssh", host="10.20.0.1")
+    store.add_node(store.home_path(), folder)
+    store.add_node(store.find_node_path(folder), sess)
+    assert store.group_name(sess) == "Studio Rossi" and store.group_name(model.Session(name="fuori")) == ""
+    cred = model.Credential.for_session(sess, "Segreta-1", group=store.group_name(sess), user="admin")
+    assert (cred.name, cred.username, cred.password, cred.group) == ("fw01 - admin", "admin", "Segreta-1", "Studio Rossi")
+    assert "SSH" in cred.notes and "10.20.0.1" in cred.notes
+    rdp = model.Session(name="", protocol="rdp", host="10.20.0.10", user="Administrator", domain="EXAMPLE")
+    assert model.Credential.for_session(rdp, "x").name == "RDP 10.20.0.10 - EXAMPLE - Administrator"
+    assert model.AppSettings().offer_save_password is True
+
+
 def check_tunnel_rules() -> None:
     """Stato, percorso, copia e sessione collegata dei tunnel: stesse regole sulle due interfacce."""
     assert commands.tunnel_state_display("running") == ("● Attivo", "#49d17d")
@@ -277,7 +366,7 @@ def check_tunnel_rules() -> None:
 
 def main() -> int:
     for check in (check_tunnel_rules, check_ssh, check_tunnels, check_netcore, check_both_interfaces_use_the_core, check_look,
-                  check_panes, check_parity_doc):
+                  check_panes, check_password_capture, check_parity_doc):
         check()
         print(f"OK {check.__name__}")
     return 0

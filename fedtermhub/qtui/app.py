@@ -164,6 +164,8 @@ def self_test(report_path: Path) -> int:
 
     window = MainWindow()
     window.showMaximized()  # lo schermo del runner è piccolo (1024x768)
+    _wait(app, lambda: False, 0.5)
+    native = (window.windowHandle(), int(window.winId()))  # la finestra vera, prima del primo terminale
 
     def config_dir() -> str:
         assert "fedtermhub-selftest-" in str(model.CONFIG_DIR), model.CONFIG_DIR
@@ -199,6 +201,30 @@ def self_test(report_path: Path) -> int:
         return " ".join(argv)
 
     check("terminale locale", terminal)
+
+    def same_window() -> str:
+        """Il primo terminale non deve far ricreare la finestra (si vedrebbe una seconda finestra per qualche secondo)."""
+        from PySide6.QtWebEngineWidgets import QWebEngineView
+        from PySide6.QtWidgets import QWidget
+
+        assert window.windowHandle() is native[0] and int(window.winId()) == native[1], \
+            "la finestra principale è stata distrutta e ricreata all'apertura del primo terminale"
+        # Controprova: una finestra nata senza la vista nascosta, quando riceve una pagina, viene ricreata?
+        probe = QWidget()
+        probe.resize(320, 200)
+        probe.show()
+        _wait(app, lambda: False, 0.4)
+        before = (probe.windowHandle(), int(probe.winId()))
+        view = QWebEngineView(probe)
+        view.setHtml("")
+        view.show()
+        _wait(app, lambda: False, 1.0)
+        recreated = probe.windowHandle() is not before[0] or int(probe.winId()) != before[1]
+        probe.close()
+        probe.deleteLater()
+        return "la finestra resta la stessa; senza la vista nascosta sarebbe stata ricreata: " + ("sì" if recreated else "no")
+
+    check("Finestra stabile al primo terminale", same_window)
 
     def vault() -> str:
         v = model.PasswordVault(model.VAULT_FILE)

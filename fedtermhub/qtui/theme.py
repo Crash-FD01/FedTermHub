@@ -163,6 +163,7 @@ def stylesheet(c: Dict[str, str], i: Dict[str, str]) -> str:
         color: {c['tab_text']}; font-size: 11px; }}
     QToolButton[role="tabclose"]:hover {{ background: {c['tab_hover']}; color: {c['error']}; }}
     QWidget#workspace {{ background: {c['workspace']}; }}
+    QFrame#offerBar {{ background: {c['bar']}; border: 0; border-bottom: 1px solid {c['line']}; }}
     QTabWidget#workTabs > QTabBar {{ background: {c['root']}; }}
 
     QStatusBar {{ background: {c['bar']}; color: {c['status_text']}; border-top: 1px solid {c['line']}; }}

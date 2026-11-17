@@ -512,6 +512,85 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
 
     check("MultiExec", multiexec)
 
+    # ------------------------------------------------------------------ password scritta al prompt di ssh
+    def unlock_vault() -> None:
+        if not window.vault.exists():
+            window.vault.create("prova-Selftest-1")
+        elif not window.vault.unlocked:
+            window.vault.unlock("prova-Selftest-1")
+
+    def saved_for(sess: model.Session, user: str, password: str, group: str) -> None:
+        cred = window.vault.get(sess.credential_id)
+        assert cred is not None and sess.use_credential_password, "sessione non collegata alla credenziale"
+        assert (cred.username, cred.password, cred.group) == (user, password, group), (cred.username, cred.group)
+        assert window.identity(sess) == (user, "", password), "la sessione non usa la password salvata"
+        again = model.PasswordVault(model.VAULT_FILE)
+        again.unlock("prova-Selftest-1")
+        assert again.get(cred.id) is not None, "credenziale non scritta su disco"
+        window.vault.credentials.remove(cred)
+        window.vault.save()
+
+    def password_offer() -> str:
+        from . import connect as launch_for
+
+        if os.name == "nt":
+            return "provata con il server SSH vero"  # il finto ssh qui sotto è uno script di bash
+        script = ("printf \"admin@server01.example.lan's password: \"; read -rs p; echo; "
+                  "if [ \"$p\" != Giusta-1 ]; then echo 'Permission denied, please try again.'; "
+                  "printf \"admin@server01.example.lan's password: \"; read -rs p; echo; fi; "
+                  "echo 'Last login: prova di FedTermHub'; exec cat")
+        folder = model.FolderNode(name="Studio Rossi")
+        sess = model.Session(name="server01", protocol="ssh", host="server01.example.lan", user="")
+        window.store.add_node(window.store.home_path(), folder)
+        window.store.add_node(window.store.find_node_path(folder), sess)
+        unlock_vault()
+        try:
+            def open_tab() -> TerminalTab:
+                tab = window.add_terminal_tab(launch_for.Launch("server01", ["bash", "-c", script], {}), protocol="ssh",
+                                              session=sess)
+                assert wait(app, lambda: tab.active_pane.capture is not None
+                            and tab.active_pane.capture.state == "typing", 15), "richiesta di password non riconosciuta"
+                return tab
+
+            tab = open_tab()
+            tab.view.on_input("sbagliata\r")
+            assert wait(app, lambda: tab.active_pane.capture.state == "typing", 10), "seconda richiesta non riconosciuta"
+            assert tab._offer is None, "password rifiutata proposta per il salvataggio"
+            tab.view.on_input("Giusta-")
+            tab.view.on_input("\x1b[12;40R")  # una risposta automatica del terminale non fa parte della password
+            tab.view.on_input("1\r")
+            assert wait(app, lambda: tab._offer is not None, 10), "nessuna proposta di salvare la password"
+            wait(app, lambda: False, 0.3)
+            assert tab._offer.isVisible() and tab._offer.height() < 60, \
+                f"barra della proposta non mostrata: visibile {tab._offer.isVisible()}, alta {tab._offer.height()}"
+            window.grab().save(str(report_path.with_name("password-offer.png")))
+            tab._offer.later_button.click()
+            assert tab._offer is None and not sess.credential_id, "«Non ora» non chiude la proposta"
+            close(tab)
+
+            tab = open_tab()
+            tab.view.on_input("Giusta-1\r")
+            assert wait(app, lambda: tab._offer is not None, 10), "nessuna proposta alla seconda apertura"
+            tab._offer.save_button.click()
+            assert tab._offer is None, "barra rimasta dopo il salvataggio"
+            saved_for(sess, "admin", "Giusta-1", "Studio Rossi")
+            close(tab)
+
+            sess.credential_id, sess.use_credential_password = "", False
+            window.settings.offer_save_password = False
+            tab = open_tab()
+            tab.view.on_input("Giusta-1\r")
+            assert wait(app, lambda: tab.typed_password == "Giusta-1", 10), "password non riconosciuta"
+            assert tab._offer is None, "proposta mostrata anche se disattivata nelle preferenze"
+            close(tab)
+        finally:
+            window.settings.offer_save_password = True
+            window.store.remove_node(window.store.find_node_path(folder))
+            window.refresh_tree()
+        return "password sbagliata ignorata, «Non ora», «Salva» crea la credenziale e la collega, preferenza"
+
+    check("Proposta di salvare la password SSH", password_offer)
+
     # ------------------------------------------------------------------ Telnet
     def telnet() -> str:
         server = selftest_servers.start_telnet()
@@ -650,6 +729,46 @@ def run_checks(app, window, check: Callable[[str, Callable[[], object]], None], 
         return f"{user}@{host}:{port}, password scritta al prompt, pannello file in {tab.files.home}{followed}"
 
     check("SSH con password", ssh_session)
+
+    def ssh_typed_password() -> str:
+        """L'utente scrive la password al prompt: i file remoti la usano, e si può salvarla nel Password Manager."""
+        window.identity = type(window).identity.__get__(window)
+        sess = model.Session(name="ssh-scritta", protocol="ssh", host=host, port=port, user=user)
+        window.store.add_node(window.store.home_path(), sess)
+        window.settings.show_remote_files = True
+        unlock_vault()
+        try:
+            tab = terminal_tab(sess)
+            out = collect(tab)
+            assert wait(app, lambda: tab.view.ready, 20), "terminale non pronto"
+            assert wait(app, lambda: tab.active_pane.capture is not None and tab.active_pane.capture.state == "typing", 30), \
+                "richiesta di password non riconosciuta: " + "".join(out)[-300:]
+            tab.view.on_input(password)
+            tab.view.on_input("\r")
+            assert wait(app, lambda: tab._offer is not None, 90), "nessuna proposta di salvare la password: " + "".join(out)[-300:]
+            assert wait(app, lambda: tab.files is not None and tab.files.connected, 40), \
+                "i file remoti non usano la password scritta: " + (tab.files.state.text() if tab.files else "non aperti")
+            wait(app, lambda: False, 1)
+            app.primaryScreen().grabWindow(0).save(str(report_path.with_name("password-offer-ssh.png")))
+            tab._offer.save_button.click()
+            assert tab._offer is None, "barra rimasta dopo il salvataggio"
+            cred = window.vault.get(sess.credential_id)
+            assert cred is not None and cred.password == password and cred.username == user, "credenziale non creata"
+            close(tab)
+            # Alla riapertura la password salvata si scrive da sola e non c'è più niente da proporre.
+            tab = terminal_tab(sess)
+            assert tab.active_pane.capture is None, "password salvata, ma il terminale la aspetta ancora dall'utente"
+            assert wait(app, lambda: not tab.feeder.armed and tab.running, 40), "password salvata non scritta al prompt"
+            wait(app, lambda: False, 2)
+            assert tab.running and tab._offer is None, "sessione chiusa dopo la password salvata"
+            close(tab)
+            saved_for(sess, user, password, "")
+        finally:
+            window.store.remove_node(window.store.find_node_path(sess))
+            window.refresh_tree()
+        return "password scritta al prompt, file remoti collegati senza richiederla, salvata e riusata"
+
+    check("Password SSH scritta e salvata", ssh_typed_password)
 
     def sftp() -> str:
         from .sftp_client import SftpTarget

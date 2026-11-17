@@ -93,8 +93,11 @@ class SettingsDialog(QDialog):
         self.remote_files.setChecked(settings.show_remote_files)
         self.follow = QCheckBox(tr("I file remoti seguono la cartella del terminale (cd)"))
         self.follow.setChecked(settings.follow_remote_directory)
+        self.offer_password = QCheckBox(tr("Proponi di salvare la password scritta al prompt di SSH"))
+        self.offer_password.setChecked(settings.offer_save_password)
         form.addRow("", self.remote_files)
         form.addRow("", self.follow)
+        form.addRow("", self.offer_password)
         layout.addWidget(conn)
 
         safety = QGroupBox(tr("Sicurezza"))
@@ -136,3 +139,4 @@ class SettingsDialog(QDialog):
         s.check_updates = self.check_updates.isChecked()
         s.show_remote_files = self.remote_files.isChecked()
         s.follow_remote_directory = self.follow.isChecked()
+        s.offer_save_password = self.offer_password.isChecked()

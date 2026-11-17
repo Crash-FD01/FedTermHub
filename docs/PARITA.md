@@ -75,6 +75,7 @@ Linux sia nella tabella e che le voci segnate **sì** esistano davvero nell'inte
 |---|---|---|---|
 | Tunneling SSH | sì | sì | locale, remoto e dinamico (SOCKS), avvio automatico; stessa finestra sulle due versioni |
 | Password Manager | sì | sì | stesso archivio cifrato (AES-GCM) |
+| Proposta di salvare la password scritta | solo RDP | solo SSH | Linux: dalla finestra della sessione RDP; Windows: una barra sopra il terminale quando il server accetta la password scritta al prompt |
 | Esporta backup cifrato delle password | sì | sì | |
 | Importa backup cifrato delle password | sì | sì | |
 | Blocca password | sì | sì | anche da solo dopo i minuti di inattività scelti |
