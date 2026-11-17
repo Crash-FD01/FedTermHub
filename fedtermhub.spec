@@ -149,6 +149,7 @@ xvfb-run -a /usr/bin/python3 tests/test_i18n.py
 - Windows: aprendo il primo terminale la finestra del programma veniva distrutta e ricreata: per qualche secondo se ne vedeva un'altra sopra, e una finestra ingrandita tornava piccola. Ora la finestra resta la stessa
 - Windows: quando scrivi la password al prompt di una sessione SSH salvata e il server la accetta, una barra sopra il terminale propone di salvarla nel Password Manager; con Salva nasce la credenziale (nel gruppo della cartella della sessione) e la sessione la usa dalle volte successive. Le password rifiutate, quelle di sudo e quelle di un jump host non vengono proposte; si disattiva nelle Impostazioni
 - Windows: i file remoti di una sessione SSH usano la password appena scritta nel terminale, senza chiederla una seconda volta
+- Windows: le Impostazioni scorrono dentro la finestra quando lo schermo è basso, con i pulsanti sempre in vista
 * Mon Nov 16 2026 Crash-FD01 - 1:0.13.3-1
 - Windows: caselle a discesa, campi numerici, caselle di spunta e pulsanti di scelta hanno lo stile del resto del programma nei due temi. Prima le caselle a discesa avevano il bordo destro coperto da un riquadro squadrato, i campi numerici erano piatti e nel tema scuro le caselle non spuntate quasi non si vedevano
 - Windows: le finestre entrano negli schermi piccoli e in quelli ingranditi al 125% e 150%: la finestra principale non parte più grande dello schermo e ha una misura minima, l'editor dei tunnel e le altre finestre grandi si riducono da sole

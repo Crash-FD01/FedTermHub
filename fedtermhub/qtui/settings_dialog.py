@@ -8,14 +8,17 @@ from __future__ import annotations
 
 from typing import Optional
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QLabel,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -49,7 +52,18 @@ class SettingsDialog(QDialog):
         self.settings = settings
         self.setWindowTitle(tr("Impostazioni"))
         self.setMinimumWidth(520)
-        layout = QVBoxLayout(self)
+        # Le impostazioni scorrono dentro la finestra: su uno schermo basso (Full HD al 150%, 1024x768) la finestra
+        # si accorcia e i pulsanti restano in vista.
+        outer = QVBoxLayout(self)
+        body = QWidget()
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(body)
+        outer.addWidget(scroll, 1)
 
         look = QGroupBox(tr("Aspetto"))
         form = QFormLayout(look)
@@ -119,7 +133,15 @@ class SettingsDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        layout.addStretch(1)
+        outer.addWidget(buttons)
+        # Alta quanto serve per mostrare tutto senza scorrere, se lo schermo lo permette.
+        margins = outer.contentsMargins()
+        wanted = body.sizeHint()
+        self.resize(max(520, wanted.width() + margins.left() + margins.right() + 2),
+                    wanted.height() + buttons.sizeHint().height() + outer.spacing() + margins.top() + margins.bottom() + 2)
+        self.setMinimumHeight(260)
+        theme.fit_to_screen(self)
 
     def apply(self) -> None:
         """Copia i valori scelti nelle impostazioni (il salvataggio lo fa chi chiama)."""
